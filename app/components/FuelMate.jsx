@@ -1124,7 +1124,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
                     </span>
                   )}
                 </div>
-                <p className="text-sm mt-0.5 truncate" style={{ color: 'var(--text-3)' }}>{station.address}{station.suburb ? `, ${station.suburb}` : ''}{station.state ? ` ${station.state}` : ''}</p>
+                <p className="text-sm mt-0.5 truncate" style={{ color: 'var(--text-3)' }}>{station.address}{station.suburb && station.suburb !== station.address ? `, ${station.suburb}` : ''}{station.state ? ` ${station.state}` : ''}{station.postcode ? ` ${station.postcode}` : ''}</p>
               </div>
               <div className="text-right shrink-0">
                 <PriceTag cents={displayPrice} tone={isCheapest ? 'cheap' : 'default'} />
@@ -2158,7 +2158,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
               <BrandMark brand={station.brand} size={36} />
               <div className="flex-1 min-w-0">
                 <div className="font-display font-semibold text-base truncate">{station.brand}</div>
-                <div className="text-tiny truncate" style={{ color: 'var(--text-3)' }}>{station.address}{station.suburb ? `, ${station.suburb}` : ''}{station.state ? ` ${station.state}` : ''}</div>
+                <div className="text-tiny truncate" style={{ color: 'var(--text-3)' }}>{station.address}{station.suburb && station.suburb !== station.address ? `, ${station.suburb}` : ''}{station.state ? ` ${station.state}` : ''}{station.postcode ? ` ${station.postcode}` : ''}</div>
               </div>
               <button onClick={onClose} className="p-1.5 -mr-1.5" style={{ color: 'var(--text-3)' }} aria-label="Close">
                 <X size={18} />
