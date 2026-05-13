@@ -7,7 +7,8 @@ import {
   Map as MapIcon, List, Mail, Shield, Info,
   Loader2, Zap, Target, Compass, MoveRight,
   Search, MapPin, Building2, Home, Command,
-  ThumbsUp, CheckCircle2, Users, Edit3, Check
+  ThumbsUp, CheckCircle2, Users, Edit3, Check,
+  Sun, Moon
 } from 'lucide-react';
 
 /* =====================================================================
@@ -50,6 +51,27 @@ const GlobalStyles = () => (
       --success-glow: rgba(22, 160, 133, 0.20);
       --warn: #ea580c;
       --danger: #dc2626;
+    }
+
+    .fm-app[data-theme="dark"] {
+      --bg: #0f1117;
+      --bg-2: #161b27;
+      --surface: #1e2433;
+      --surface-2: #252d3d;
+      --surface-3: #2d3650;
+      --border: #2d3650;
+      --border-strong: #3d4a68;
+      --text: #f0f4ff;
+      --text-2: #c8d4ee;
+      --text-3: #7e90b8;
+      --text-4: #4e6080;
+
+      --blue-light: rgba(30, 95, 224, 0.20);
+      --blue-soft: rgba(30, 95, 224, 0.12);
+      --green-light: rgba(22, 160, 133, 0.20);
+      --green-soft: rgba(22, 160, 133, 0.10);
+      --accent-glow: rgba(30, 95, 224, 0.30);
+      --success-glow: rgba(22, 160, 133, 0.25);
     }
 
     .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.022em; }
@@ -2377,7 +2399,7 @@ const Toast = ({ message, visible }) => {
   );
 };
 
-const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch }) => {
+const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, onToggleDark }) => {
   const [open, setOpen] = useState(false);
   const goto = (v) => { setOpen(false); onNav(v); };
   const goHome = () => { setOpen(false); onHome ? onHome() : onNav({ name: 'home' }); };
@@ -2449,6 +2471,23 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch }) => {
               <Command size={9} strokeWidth={2.5} />K
             </kbd>
           </button>
+          <button
+            type="button"
+            onClick={onToggleDark}
+            className="p-2 transition-colors hover-raise"
+            style={{
+              background: 'var(--surface)',
+              color: 'var(--text-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 9,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
         </div>
 
         <div className="md:hidden ml-auto flex items-center gap-1">
@@ -2469,6 +2508,15 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch }) => {
             aria-label="Search"
           >
             <Search size={19} />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleDark}
+            className="p-2"
+            style={{ color: 'var(--text)', borderRadius: 8 }}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {darkMode ? <Sun size={19} /> : <Moon size={19} />}
           </button>
           <button
             type="button"
@@ -3071,6 +3119,13 @@ export default function App() {
   const [fuelType, setFuelType] = useState('U91');
   const [location, setLocation] = useState(null);
   const [locating, setLocating] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('fm:theme') === 'dark' ||
+        (!localStorage.getItem('fm:theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return false;
+  });
   const [locError, setLocError] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -3312,7 +3367,7 @@ export default function App() {
   };
 
   return (
-    <div className="fm-app min-h-screen flex flex-col" ref={scrollRef}>
+    <div className="fm-app min-h-screen flex flex-col" ref={scrollRef} data-theme={darkMode ? 'dark' : 'light'}>
       <GlobalStyles />
       <Header
         onNav={setView}
@@ -3320,6 +3375,12 @@ export default function App() {
         fuelType={fuelType}
         onFuelType={setFuelType}
         onOpenSearch={() => setSearchOpen(true)}
+        darkMode={darkMode}
+        onToggleDark={() => {
+          const next = !darkMode;
+          setDarkMode(next);
+          localStorage.setItem('fm:theme', next ? 'dark' : 'light');
+        }}
       />
       <main className="flex-1">{renderView()}</main>
       <Footer onNav={setView} />
