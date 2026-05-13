@@ -26,7 +26,34 @@ const FUEL_ID_MAP: Record<number, FuelType> = {
   5: 'DSL', 8: 'E10', 10: 'PRDSL', 12: 'E10', 14: 'DSL',
 };
 
-type SitePrice = { SiteId: number; FuelId: number; Price: number; TransactionDateUtc: string };
+const BRAND_CODE_MAP: Record<string, string> = {
+  '2':       'Caltex',
+  '5':       'BP',
+  '12':      'Independent',
+  '16':      'Mobil',
+  '20':      'Shell',
+  '23':      'United',
+  '57':      'Metro Petroleum',
+  '86':      'Liberty',
+  '110':     'Independent',
+  '111':     'Coles Express',
+  '113':     '7-Eleven',
+  '3421066': 'Ampol',
+  '3421073': 'EG Ampol',
+  '3421075': 'Independent',
+  '3421139': 'Independent',
+  '3421162': 'Independent',
+  '3421183': 'United',
+  '3421193': 'Shell',
+  '3421204': 'Independent',
+  '3421230': 'Independent',
+};
+
+function resolveQLDBrand(code: string, stationName: string): string {
+  if (BRAND_CODE_MAP[code]) return BRAND_CODE_MAP[code];
+  // Fall back to extracting brand from station name
+  return normalizeBrand(stationName);
+}
 type PricesResponse = { SitePrices: SitePrice[] };
 type SiteRaw = { S: number; A: string; N: string; B: string; Suburb: string; State: string; Postcode: string; Lat: number; Lng: number };
 
@@ -123,7 +150,7 @@ async function fetchSnapshot(): Promise<Station[]> {
   for (const [siteId, s] of sites) {
     if (!s.Lat || !s.Lng) continue;
     map.set(siteId, {
-      id: `qld-${siteId}`, brand: normalizeBrand(s.B || s.N),
+      id: `qld-${siteId}`, brand: resolveQLDBrand(String(s.B), s.N),
       name: s.N, address: s.A, suburb: s.Suburb,
       state: 'QLD', postcode: s.Postcode,
       lat: s.Lat, lng: s.Lng,
