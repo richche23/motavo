@@ -119,7 +119,7 @@ async function fetchSnapshot(): Promise<Station[]> {
       postcode: addr.postcode,
       lat: s.location.latitude,
       lng: s.location.longitude,
-      prices: { U91: null, U95: null, U98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
+      prices: { U91: null, P95: null, P98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
       updatedAt: 0,
       updatedMinutesAgo: 9999,
       source: 'nsw-fuelcheck',
