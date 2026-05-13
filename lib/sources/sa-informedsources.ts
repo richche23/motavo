@@ -152,7 +152,7 @@ async function fetchSnapshot(): Promise<Station[]> {
 
 // ── Public fetch ──────────────────────────────────────────────────────────────
 
-export async function fetchSA(opts: FetchOptions): Promise<FetchResult> {
+export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
   const { lat, lng, radius = 5, fuelType = 'U91' } = opts;
 
   let stations: Station[];
