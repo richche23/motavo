@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* All custom CSS variables and classes used by FuelMate.jsx are defined inline
+   in the component's <style> block via the GlobalStyles component, so this
+   file only needs Tailwind. Body resets are kept minimal. */
+
+html, body { background: #f7f9fc; color: #0f172a; }
+body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
