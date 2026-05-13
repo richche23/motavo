@@ -27,10 +27,10 @@ const SNAPSHOT_TTL = 60 * 60 * 1000; // 1 hour — WA prices only change daily
 // WA Product code -> our canonical fuel type
 const PRODUCT_TO_FUEL: Record<string, FuelType> = {
   '1':  'U91',
-  '2':  'U95',
+  '2':  'P95',
   '5':  'DSL',
   '6':  'LPG',
-  '10': 'U98',
+  '10': 'P98',
   '11': 'DSL',     // BioDiesel 20 — coarse mapping
   '12': 'E10',
 };
@@ -125,7 +125,7 @@ async function fetchSnapshot(): Promise<Station[]> {
           postcode,
           lat:  parseFloat(item.latitude),
           lng:  parseFloat(item.longitude),
-          prices: { U91: null, U95: null, U98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
+          prices: { U91: null, P95: null, P98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
           updatedAt:         0,
           updatedMinutesAgo: 9999,
           source: 'wa-fuelwatch',
