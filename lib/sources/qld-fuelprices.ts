@@ -26,6 +26,10 @@ const FUEL_ID_MAP: Record<number, FuelType> = {
   5: 'DSL', 8: 'E10', 10: 'PRDSL', 12: 'E10', 14: 'DSL',
 };
 
+type SitePrice = { SiteId: number; FuelId: number; Price: number; TransactionDateUtc: string };
+type PricesResponse = { SitePrices: SitePrice[] };
+type SiteRaw = { S: number; A: string; N: string; B: string; Suburb: string; State: string; Postcode: string; Lat: number; Lng: number };
+
 const BRAND_CODE_MAP: Record<string, string> = {
   '2':       'Caltex',
   '5':       'BP',
@@ -54,8 +58,6 @@ function resolveQLDBrand(code: string, stationName: string): string {
   // Fall back to extracting brand from station name
   return normalizeBrand(stationName);
 }
-type PricesResponse = { SitePrices: SitePrice[] };
-type SiteRaw = { S: number; A: string; N: string; B: string; Suburb: string; State: string; Postcode: string; Lat: number; Lng: number };
 
 function authHeader(): HeadersInit {
   const token = process.env.QLD_FUEL_API_TOKEN;
