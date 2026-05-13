@@ -110,9 +110,10 @@ async function fetchSnapshot(): Promise<Station[]> {
       if (!station) {
         const suburb   = item.location?.trim() || '';
         const postcode = item.postcode?.trim()  || '';
-        // Prefer suburb (reliable) over street (unreliable in FuelWatch DB).
-        // Fall back to street if suburb is empty so we always show something.
-        const address  = suburb || item.address?.trim() || '';
+        // FuelWatch street addresses are unreliable (can contain wrong state data).
+        // When location/suburb is blank (common when fetching full product feed),
+        // show postcode only — still useful, never misleading.
+        const address = suburb || postcode;
 
         station = {
           id: `wa-${key.replace(/[^a-z0-9]/g, '-')}`,
