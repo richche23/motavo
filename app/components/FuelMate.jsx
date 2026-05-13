@@ -2558,10 +2558,24 @@ const Footer = ({ onNav }) => (
 /* ===== VIEWS ===== */
 
 const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, onSearchSelect, onNav, onFuelType, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
-  const stations = useMemo(
-    () => location ? generateStations(location.lat, location.lng, location.key, location.state || 'NSW') : [],
-    [location]
-  );
+  const [stations, setStations] = useState([]);
+  const [loadingStations, setLoadingStations] = useState(false);
+
+  useEffect(() => {
+    if (!location) { setStations([]); return; }
+    let cancelled = false;
+    setLoadingStations(true);
+    fetchStationsForLocation({
+      lat: location.lat,
+      lng: location.lng,
+      state: location.state || 'NSW',
+      fuelType,
+      locationKey: location.key,
+    }).then(s => {
+      if (!cancelled) { setStations(s); setLoadingStations(false); }
+    });
+    return () => { cancelled = true; };
+  }, [location?.key, location?.lat, location?.lng, fuelType]);
   const [viewMode, setViewMode] = useState('list');
   const [sort, setSort] = useState('price');
 
