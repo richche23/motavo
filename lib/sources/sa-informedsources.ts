@@ -114,15 +114,31 @@ async function fetchSnapshot(): Promise<Station[]> {
   const { level, id } = await getSARegionId();
   console.log('[SA] Using region level=%d id=%d', level, id);
 
+  const fetchWithTimeout = async (url: string, label: string) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    try {
+      console.log('[SA] fetching %s', label);
+      const res = await fetch(url, { headers: authHeader(), signal: ctrl.signal });
+      clearTimeout(timer);
+      console.log('[SA] %s status=%d', label, res.status);
+      if (!res.ok) {
+        const body = await res.text();
+        console.error('[SA] %s error body:', label, body.slice(0, 300));
+        throw new Error(`SA ${label}: ${res.status} ${body.slice(0, 200)}`);
+      }
+      return res;
+    } catch (e: any) {
+      clearTimeout(timer);
+      console.error('[SA] %s threw: %s', label, e?.message ?? e);
+      throw e;
+    }
+  };
+
   const [sitesRes, pricesRes] = await Promise.all([
-    fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, { headers: authHeader() }),
-    fetch(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`,           { headers: authHeader() }),
+    fetchWithTimeout(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, 'sites'),
+    fetchWithTimeout(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, 'prices'),
   ]);
-
-  console.log('[SA] sites status=%d prices status=%d', sitesRes.status, pricesRes.status);
-
-  if (!sitesRes.ok)  { const t = await sitesRes.text();  console.error('[SA] sites error:', t);  throw new Error(`SA sites: ${sitesRes.status} ${t}`);  }
-  if (!pricesRes.ok) { const t = await pricesRes.text(); console.error('[SA] prices error:', t); throw new Error(`SA prices: ${pricesRes.status} ${t}`); }
 
   const sitesData = await sitesRes.json() as { S?: SiteRaw[] };
   const priceData = await pricesRes.json() as PricesResponse;
