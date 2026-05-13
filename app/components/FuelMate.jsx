@@ -1136,7 +1136,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
               </div>
             </div>
             <div className="flex items-center gap-3 mt-3 text-xs flex-wrap" style={{ color: 'var(--text-3)' }}>
-              <span className="inline-flex items-center gap-1.5"><Navigation size={11} /> {station.distance} km</span>
+              <span className="inline-flex items-center gap-1.5"><Navigation size={11} /> {station.distance?.toFixed(1)} km</span>
               <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
                 {estimateDriveMinutes(station.distance)} min drive
               </span>
