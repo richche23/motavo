@@ -156,9 +156,8 @@ export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
   const refreshedAt = cacheWrittenAt(SNAPSHOT_KEY, SNAPSHOT_TTL);
   const stations = snapshot
     .map(s => ({ ...s, distance: distanceKm(opts.lat, opts.lng, s.lat, s.lng) }))
-    .filter(s => s.distance! <= (opts.radius ?? 5))
-    .filter(s => opts.fuelType ? s.prices[opts.fuelType] != null : true)
+    .filter(s => s.distance! <= (opts.radius ?? 25))
     .sort((a, b) => a.distance! - b.distance!)
-    .slice(0, opts.limit ?? 30);
+    .slice(0, opts.limit ?? 200);
   return { stations, source: 'qld-fuelprices', cached: wasCached, refreshedAt };
 }
