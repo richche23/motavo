@@ -110,25 +110,26 @@ async function fetchSnapshot(): Promise<Station[]> {
   const cached = cacheGet<Station[]>(SNAPSHOT_KEY);
   if (cached) return cached;
 
-  const { level, id } = await getSARegionId();
-
-  const [sites, pricesRes] = await Promise.all([
-    fetchSites(level, id),
-    fetch(
-      `${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`,
-      { headers: authHeader() }
-    ),
+  // SA's Informed Sources instance does not use geographic region filtering.
+  // Call with countryId only — returns all SA stations.
+  const [sitesRes, pricesRes] = await Promise.all([
+    fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}`, { headers: authHeader() }),
+    fetch(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}`,           { headers: authHeader() }),
   ]);
+
+  if (!sitesRes.ok)  throw new Error(`SA sites: ${sitesRes.status} ${await sitesRes.text()}`);
   if (!pricesRes.ok) throw new Error(`SA prices: ${pricesRes.status} ${await pricesRes.text()}`);
-  const priceData = await pricesRes.json() as PricesResponse;
+
+  const sitesData  = await sitesRes.json()  as { S?: SiteRaw[] };
+  const priceData  = await pricesRes.json() as PricesResponse;
 
   const now = Date.now();
   const map = new Map<number, Station>();
 
-  for (const [id, s] of sites) {
+  for (const s of (sitesData.S ?? [])) {
     if (!s.Lat || !s.Lng) continue;
-    map.set(id, {
-      id: `sa-${id}`, brand: normalizeBrand(s.B || s.N),
+    map.set(s.S, {
+      id: `sa-${s.S}`, brand: normalizeBrand(s.B || s.N),
       name: s.N, address: s.A, suburb: s.Suburb,
       state: 'SA', postcode: s.Postcode,
       lat: s.Lat, lng: s.Lng,
@@ -149,8 +150,6 @@ async function fetchSnapshot(): Promise<Station[]> {
     }
   }
 
-  // If we got 0 stations, don't cache — likely a wrong region ID.
-  // Let the next request retry the geo discovery.
   const stations = Array.from(map.values());
   if (stations.length > 0) cacheSet(SNAPSHOT_KEY, stations, SNAPSHOT_TTL);
   return stations;
