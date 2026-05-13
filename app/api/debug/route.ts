@@ -86,9 +86,13 @@ export async function GET(req: NextRequest) {
         let parsed: unknown;
         try { parsed = JSON.parse(txt); } catch { parsed = txt; }
         const arr = (parsed as any)?.S;
+        const count = Array.isArray(arr) ? arr.length : null;
         siteTests[`L${level}_ID${id}`] = {
           status: r.status,
-          stationCount: Array.isArray(arr) ? arr.length : `S key missing, keys: ${Object.keys(parsed as any || {}).join(',')}`,
+          stationCount: count,
+          // Show raw keys + first 300 chars of body if count is 0 or null
+          rawKeys: count === null ? Object.keys((parsed as any) || {}) : undefined,
+          rawSample: count === 0 || count === null ? txt.substring(0, 300) : undefined,
         };
       } catch (e: any) {
         siteTests[`L${level}_ID${id}`] = { error: e?.message };
