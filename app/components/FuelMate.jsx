@@ -2377,25 +2377,26 @@ const Toast = ({ message, visible }) => {
   );
 };
 
-const Header = ({ onNav, fuelType, onFuelType, onOpenSearch }) => {
+const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch }) => {
   const [open, setOpen] = useState(false);
   const goto = (v) => { setOpen(false); onNav(v); };
+  const goHome = () => { setOpen(false); onHome ? onHome() : onNav({ name: 'home' }); };
 
   return (
     <header className="sticky top-0 z-30 glass" style={{ borderBottom: '1px solid var(--border)' }}>
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center gap-4">
-        <button type="button" onClick={() => goto({ name: 'home' })} className="flex items-center shrink-0" aria-label="FuelMate home">
+        <button type="button" onClick={goHome} className="flex items-center shrink-0" aria-label="FuelMate home">
           <FuelMateLogo markSize={30} wordSize={20} />
         </button>
 
         <nav className="hidden md:flex items-center gap-0.5 ml-4 flex-1">
           {[
-            { label: 'Near me', view: { name: 'home' } },
+            { label: 'Near me', view: { name: 'home' }, isHome: true },
             { label: 'Cities', view: { name: 'cities' } },
             { label: 'How cycles work', view: { name: 'editorial', slug: 'cycles' } },
           ].map(item => (
             <button
-              key={item.label} type="button" onClick={() => goto(item.view)}
+              key={item.label} type="button" onClick={() => item.isHome ? goHome() : goto(item.view)}
               className="px-3 py-1.5 text-sm font-medium transition-colors"
               style={{ color: 'var(--text-2)', borderRadius: 8 }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text)'; }}
@@ -2407,7 +2408,7 @@ const Header = ({ onNav, fuelType, onFuelType, onOpenSearch }) => {
         <div className="hidden md:flex items-center gap-2">
           <button
             type="button"
-            onClick={() => goto({ name: 'home' })}
+            onClick={goHome}
             className="p-2 transition-colors hover-raise"
             style={{
               background: 'var(--surface)',
@@ -2453,7 +2454,7 @@ const Header = ({ onNav, fuelType, onFuelType, onOpenSearch }) => {
         <div className="md:hidden ml-auto flex items-center gap-1">
           <button
             type="button"
-            onClick={() => goto({ name: 'home' })}
+            onClick={goHome}
             className="p-2"
             style={{ color: 'var(--text)', borderRadius: 8 }}
             aria-label="Home"
@@ -3315,6 +3316,7 @@ export default function App() {
       <GlobalStyles />
       <Header
         onNav={setView}
+        onHome={() => { setLocation(null); setView({ name: 'home' }); }}
         fuelType={fuelType}
         onFuelType={setFuelType}
         onOpenSearch={() => setSearchOpen(true)}
