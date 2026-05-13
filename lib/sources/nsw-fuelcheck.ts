@@ -42,11 +42,9 @@ async function getAccessToken(): Promise<string> {
   const key = process.env.NSW_FUELCHECK_API_KEY;
   const secret = process.env.NSW_FUELCHECK_API_SECRET;
   if (!key || !secret) {
-    throw new Error(
-      `NSW FuelCheck credentials missing — ` +
-      `KEY: ${key ? `set (${key.length} chars)` : 'NOT SET'}, ` +
-      `SECRET: ${secret ? `set (${secret.length} chars)` : 'NOT SET'}`
-    );
+    const keyStatus    = key    ? 'set (' + key.length    + ' chars)' : 'NOT SET';
+    const secretStatus = secret ? 'set (' + secret.length + ' chars)' : 'NOT SET';
+    throw new Error('NSW FuelCheck credentials missing — KEY: ' + keyStatus + ', SECRET: ' + secretStatus);
   }
 
   const basic = Buffer.from(`${key}:${secret}`).toString('base64');
