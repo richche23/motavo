@@ -2,148 +2,105 @@
  * South Australia Fuel Pricing Information Scheme — Informed Sources.
  *
  * Apply via: https://www.cbs.sa.gov.au/sections/CBAdvice/fuel-pricing-apps-and-websites
+ * Base URL:  https://fppdirectapi-prod.safuelpricinginformation.com.au
  * Env var:   SA_FUEL_API_TOKEN
  *
- * This version discovers the correct SA region ID dynamically by calling the
- * geographic information endpoint first, so it doesn't rely on a hardcoded
- * region ID that may differ between subscriber accounts.
+ * Geographic region:
+ *   GeoRegionLevel = 3  (state level)
+ *   GeoRegionId    = 4  (SOUTH AUSTRALIA)
+ *
+ * Confirmed by /Subscriber/GetCountryGeographicRegions?countryId=21 which
+ * returns the full region tree. GetCountryGeographicInformation returns 404
+ * for this subscriber — do not call it.
  */
 
-import { cacheGet, cacheSet, cacheWrittenAt } from '../cache';
+import { cacheGet, cacheSet } from '../cache';
 import { distanceKm, normalizeBrand } from '../normalizers';
 import { FetchOptions, FetchResult, FuelType, Station } from '../types';
 
-const BASE_URL = 'https://fppdirectapi-prod.safuelpricinginformation.com.au';
-const COUNTRY_ID = 21; // Australia
+const BASE_URL    = 'https://fppdirectapi-prod.safuelpricinginformation.com.au';
+const COUNTRY_ID  = 21;
+const GEO_LEVEL   = 3;   // state-level region
+const GEO_ID      = 4;   // SOUTH AUSTRALIA
 
-const GEO_KEY      = 'sa:geo';
 const SITES_KEY    = 'sa:sites';
 const SNAPSHOT_KEY = 'sa:snapshot';
 const SNAPSHOT_TTL = 10 * 60 * 1000; // 10 minutes
 
 const FUEL_ID_MAP: Record<number, FuelType> = {
-  1: 'U91', 2: 'P95', 3: 'P98', 4: 'LPG',
-  5: 'DSL', 8: 'E10', 10: 'PRDSL', 12: 'E10', 14: 'DSL',
+  1:  'U91',
+  2:  'U95',
+  3:  'U98',
+  4:  'LPG',
+  5:  'DSL',
+  8:  'E10',
+  10: 'PRDSL',
+  12: 'E10',
+  14: 'DSL',
 };
 
-type SitePrice = { SiteId: number; FuelId: number; Price: number; TransactionDateUtc: string };
-type PricesResponse = { SitePrices: SitePrice[] };
-type SiteRaw = { S: number; A: string; N: string; B: string; Suburb: string; State: string; Postcode: string; Lat: number; Lng: number };
+// ── Raw API shapes ────────────────────────────────────────────────────────────
+
+interface SiteRaw {
+  S:  number;  // site ID
+  A:  string;  // address
+  N:  string;  // name
+  B:  string;  // brand (number as string in some responses)
+  P:  string;  // postcode
+  G1: number;  // suburb geo region ID
+  G2: number;  // city/district geo region ID
+  G3: number;  // state geo region ID
+  Lat: number;
+  Lng: number;
+}
+
+interface SitePrice {
+  SiteId:              number;
+  FuelId:              number;
+  Price:               number;
+  TransactionDateUtc:  string;
+}
+
+interface SitesResponse  { S?: SiteRaw[] }
+interface PricesResponse { SitePrices?: SitePrice[] }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 function authHeader(): HeadersInit {
   const token = process.env.SA_FUEL_API_TOKEN;
   if (!token) throw new Error('SA_FUEL_API_TOKEN not set');
-  return { Authorization: `FPDAPI SubscriberToken=${token}`, 'Content-Type': 'application/json' };
+  return {
+    Authorization:  `FPDAPI SubscriberToken=${token}`,
+    'Content-Type': 'application/json',
+  };
 }
 
-/**
- * Discover the SA state-level geoRegionId dynamically.
- * Calls /Subscriber/GetCountryGeographicInformation and looks for the
- * region whose name contains "South Australia".
- * Falls back to geoRegionId=2 if the lookup fails.
- */
-async function getSARegionId(): Promise<{ level: number; id: number }> {
-  const cached = cacheGet<{ level: number; id: number }>(GEO_KEY);
-  if (cached) return cached;
-
-  try {
-    const res = await fetch(
-      `${BASE_URL}/Subscriber/GetCountryGeographicInformation?countryId=${COUNTRY_ID}`,
-      { headers: authHeader() }
-    );
-    if (res.ok) {
-      const data = await res.json() as {
-        GeographicRegions?: Array<{
-          GeoRegionLevel: number; GeoRegionId: number; Name: string;
-          SubRegions?: Array<{ GeoRegionId: number; Name: string }>;
-        }>;
-      };
-      console.log('[SA] geo regions:', JSON.stringify(data.GeographicRegions?.map(r => ({ id: r.GeoRegionId, name: r.Name, level: r.GeoRegionLevel }))));
-      const isSA = (name: string) => /south.?australia|^sa$/i.test(name);
-      for (const r of (data.GeographicRegions ?? [])) {
-        if (isSA(r.Name)) {
-          const result = { level: r.GeoRegionLevel, id: r.GeoRegionId };
-          cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
-          return result;
-        }
-        for (const sub of (r.SubRegions ?? [])) {
-          if (isSA(sub.Name)) {
-            const result = { level: r.GeoRegionLevel + 1, id: sub.GeoRegionId };
-            cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
-            return result;
-          }
-        }
-      }
-      // No name match — use first available region
-      const first = data.GeographicRegions?.[0];
-      if (first) {
-        const result = { level: first.GeoRegionLevel, id: first.GeoRegionId };
-        cacheSet(GEO_KEY, result, 60 * 60 * 1000);
-        return result;
-      }
-    }
-  } catch (e) {
-    console.warn('SA geo discovery error:', e);
-  }
-
-  const fallback = { level: 3, id: 1 };
-  cacheSet(GEO_KEY, fallback, 60 * 60 * 1000);
-  return fallback;
-}
-
-async function fetchSites(geoLevel: number, geoId: number): Promise<Map<number, SiteRaw>> {
-  const key = `${SITES_KEY}:${geoId}`;
-  const cached = cacheGet<Map<number, SiteRaw>>(key);
-  if (cached) return cached;
-  const res = await fetch(
-    `${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=${geoLevel}&geoRegionId=${geoId}`,
-    { headers: authHeader() }
-  );
-  if (!res.ok) throw new Error(`SA sites: ${res.status} ${await res.text()}`);
-  const data = await res.json() as { S?: SiteRaw[] };
-  const map = new Map<number, SiteRaw>();
-  for (const s of (data.S ?? [])) map.set(s.S, s);
-  cacheSet(key, map, 24 * 60 * 60 * 1000);
-  return map;
-}
+// ── Snapshot (sites + prices) ─────────────────────────────────────────────────
 
 async function fetchSnapshot(): Promise<Station[]> {
   const cached = cacheGet<Station[]>(SNAPSHOT_KEY);
   if (cached) return cached;
 
-  const { level, id } = await getSARegionId();
-  console.log('[SA] Using region level=%d id=%d', level, id);
-
-  const fetchWithTimeout = async (url: string, label: string) => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
-    try {
-      console.log('[SA] fetching %s', label);
-      const res = await fetch(url, { headers: authHeader(), signal: ctrl.signal });
-      clearTimeout(timer);
-      console.log('[SA] %s status=%d', label, res.status);
-      if (!res.ok) {
-        const body = await res.text();
-        console.error('[SA] %s error body:', label, body.slice(0, 300));
-        throw new Error(`SA ${label}: ${res.status} ${body.slice(0, 200)}`);
-      }
-      return res;
-    } catch (e: any) {
-      clearTimeout(timer);
-      console.error('[SA] %s threw: %s', label, e?.message ?? e);
-      throw e;
-    }
-  };
+  const headers = authHeader();
 
   const [sitesRes, pricesRes] = await Promise.all([
-    fetchWithTimeout(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, 'sites'),
-    fetchWithTimeout(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, 'prices'),
+    fetch(
+      `${BASE_URL}/Subscriber/GetFullSiteDetails` +
+      `?countryId=${COUNTRY_ID}&geoRegionLevel=${GEO_LEVEL}&geoRegionId=${GEO_ID}`,
+      { headers }
+    ),
+    fetch(
+      `${BASE_URL}/Price/GetSitesPrices` +
+      `?countryId=${COUNTRY_ID}&geoRegionLevel=${GEO_LEVEL}&geoRegionId=${GEO_ID}`,
+      { headers }
+    ),
   ]);
 
-  const sitesData = await sitesRes.json() as { S?: SiteRaw[] };
-  const priceData = await pricesRes.json() as PricesResponse;
+  if (!sitesRes.ok)  throw new Error(`SA sites ${sitesRes.status}: ${await sitesRes.text()}`);
+  if (!pricesRes.ok) throw new Error(`SA prices ${pricesRes.status}: ${await pricesRes.text()}`);
 
-  console.log('[SA] sites count=%d prices count=%d', sitesData.S?.length ?? 0, priceData.SitePrices?.length ?? 0);
+  const sitesData  = await sitesRes.json()  as SitesResponse;
+  const priceData  = await pricesRes.json() as PricesResponse;
 
   const now = Date.now();
   const map = new Map<number, Station>();
@@ -151,41 +108,70 @@ async function fetchSnapshot(): Promise<Station[]> {
   for (const s of (sitesData.S ?? [])) {
     if (!s.Lat || !s.Lng) continue;
     map.set(s.S, {
-      id: `sa-${s.S}`, brand: normalizeBrand(s.B || s.N),
-      name: s.N, address: s.A, suburb: s.Suburb,
-      state: 'SA', postcode: s.Postcode,
-      lat: s.Lat, lng: s.Lng,
-      prices: { U91: null, P95: null, P98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
-      updatedAt: 0, updatedMinutesAgo: 9999, source: 'sa-informedsources',
+      id:       `sa-${s.S}`,
+      brand:    normalizeBrand(String(s.B || s.N)),
+      name:     s.N,
+      address:  s.A,
+      suburb:   '',   // SA full-site response doesn't include a separate suburb field
+      state:    'SA',
+      postcode: s.P,
+      lat:      s.Lat,
+      lng:      s.Lng,
+      prices: {
+        U91: null, U95: null, U98: null,
+        E10: null, DSL: null, PRDSL: null, LPG: null,
+      },
+      updatedAt:          0,
+      updatedMinutesAgo:  9999,
+      source:             'sa-informedsources',
     });
   }
 
   for (const p of (priceData.SitePrices ?? [])) {
     const station = map.get(p.SiteId);
-    const fuel = FUEL_ID_MAP[p.FuelId];
-    if (!station || !fuel) continue;
-    station.prices[fuel] = p.Price / 10;
-    const ts = p.TransactionDateUtc ? new Date(p.TransactionDateUtc).getTime() : 0;
-    if (ts > station.updatedAt) {
-      station.updatedAt = ts;
-      station.updatedMinutesAgo = Math.max(0, Math.floor((now - ts) / 60000));
+    if (!station) continue;
+    const fuelType = FUEL_ID_MAP[p.FuelId];
+    if (!fuelType) continue;
+
+    const priceCents = p.Price;  // API returns cents (e.g. 198.9)
+    const ts         = new Date(p.TransactionDateUtc).getTime();
+
+    if (priceCents > 0) {
+      station.prices[fuelType] = priceCents;
+      if (ts > station.updatedAt) {
+        station.updatedAt         = ts;
+        station.updatedMinutesAgo = Math.round((now - ts) / 60_000);
+      }
     }
   }
 
   const stations = Array.from(map.values());
-  if (stations.length > 0) cacheSet(SNAPSHOT_KEY, stations, SNAPSHOT_TTL);
+  cacheSet(SNAPSHOT_KEY, stations, SNAPSHOT_TTL);
   return stations;
 }
 
-export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
-  const wasCached = cacheGet<Station[]>(SNAPSHOT_KEY) !== null;
-  const snapshot = await fetchSnapshot();
-  const refreshedAt = cacheWrittenAt(SNAPSHOT_KEY, SNAPSHOT_TTL);
-  const stations = snapshot
-    .map(s => ({ ...s, distance: distanceKm(opts.lat, opts.lng, s.lat, s.lng) }))
-    .filter(s => s.distance! <= (opts.radius ?? 5))
-    .filter(s => opts.fuelType ? s.prices[opts.fuelType] != null : true)
-    .sort((a, b) => a.distance! - b.distance!)
-    .slice(0, opts.limit ?? 30);
-  return { stations, source: 'sa-informedsources', cached: wasCached, refreshedAt };
+// ── Public fetch ──────────────────────────────────────────────────────────────
+
+export async function fetchSA(opts: FetchOptions): Promise<FetchResult> {
+  const { lat, lng, radius = 5, fuelType = 'U91' } = opts;
+
+  let stations: Station[];
+  try {
+    stations = await fetchSnapshot();
+  } catch (err) {
+    console.error('[SA] fetchSnapshot error:', err);
+    return { stations: [], source: 'sa-informedsources', error: String(err) };
+  }
+
+  const nearby = stations
+    .filter(s => {
+      const dist = distanceKm(lat, lng, s.lat, s.lng);
+      if (dist > radius) return false;
+      s.distanceKm = dist;
+      return true;
+    })
+    .filter(s => s.prices[fuelType] !== null)
+    .sort((a, b) => (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999));
+
+  return { stations: nearby, source: 'sa-informedsources' };
 }
