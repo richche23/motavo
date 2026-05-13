@@ -12,15 +12,12 @@ export async function GET(req: NextRequest) {
   if (state === 'nsw') {
     const key    = process.env.NSW_FUELCHECK_API_KEY;
     const secret = process.env.NSW_FUELCHECK_API_SECRET;
-
     const result: Record<string, unknown> = {
-      NSW_FUELCHECK_API_KEY_set:    !!key,
-      NSW_FUELCHECK_API_SECRET_set: !!secret,
+      NSW_FUELCHECK_API_KEY_set:       !!key,
+      NSW_FUELCHECK_API_SECRET_set:    !!secret,
       NSW_FUELCHECK_API_KEY_length:    key?.length ?? 0,
       NSW_FUELCHECK_API_SECRET_length: secret?.length ?? 0,
     };
-
-    // Try the token exchange if both are set
     if (key && secret) {
       const basic = Buffer.from(`${key}:${secret}`).toString('base64');
       try {
@@ -29,17 +26,16 @@ export async function GET(req: NextRequest) {
           { method: 'GET', headers: { Authorization: `Basic ${basic}` } }
         );
         const body = await tokenRes.text();
-        result.tokenExchangeStatus = tokenRes.status;
+        result.tokenExchangeStatus   = tokenRes.status;
         result.tokenExchangeResponse = body.substring(0, 300);
       } catch (e: any) {
         result.tokenExchangeError = e?.message;
       }
     }
-
     return NextResponse.json(result);
   }
 
-  // QLD / SA geographic info check
+  // QLD / SA geographic info + site tests
   const config = state ? CONFIGS[state] : null;
   if (!config) {
     return NextResponse.json({
@@ -58,10 +54,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `${config.tokenEnv} not set` }, { status: 400 });
   }
 
-  const headers = { Authorization: `FPDAPI SubscriberToken=${token}`, 'Content-Type': 'application/json' };
+  const headers = {
+    Authorization:  `FPDAPI SubscriberToken=${token}`,
+    'Content-Type': 'application/json',
+  };
 
   try {
-    const geoRes = await fetch(
+    const geoRes  = await fetch(
       `${config.url}/Subscriber/GetCountryGeographicInformation?countryId=21`,
       { headers }
     );
@@ -69,30 +68,35 @@ export async function GET(req: NextRequest) {
     let geoData: unknown;
     try { geoData = JSON.parse(geoText); } catch { geoData = geoText; }
 
+    // Extended candidate list — covers all level/id combos that could be SA
     const candidates = [
-      { level: 1, id: 1 }, { level: 2, id: 1 }, { level: 2, id: 2 },
-      { level: 2, id: 3 }, { level: 2, id: 4 }, { level: 2, id: 5 },
+      { level: 1, id: 1 },
+      { level: 2, id: 1 }, { level: 2, id: 2 }, { level: 2, id: 3 },
+      { level: 2, id: 4 }, { level: 2, id: 5 },
       { level: 3, id: 1 }, { level: 3, id: 2 }, { level: 3, id: 3 },
+      { level: 3, id: 4 }, { level: 3, id: 5 }, { level: 3, id: 6 },
+      { level: 3, id: 7 }, { level: 3, id: 8 },
     ];
 
     const siteTests: Record<string, unknown> = {};
+
     for (const { level, id } of candidates) {
       try {
-        const r = await fetch(
+        const r   = await fetch(
           `${config.url}/Subscriber/GetFullSiteDetails?countryId=21&geoRegionLevel=${level}&geoRegionId=${id}`,
           { headers }
         );
         const txt = await r.text();
         let parsed: unknown;
         try { parsed = JSON.parse(txt); } catch { parsed = txt; }
-        const arr = (parsed as any)?.S;
+
+        const arr   = (parsed as any)?.S;
         const count = Array.isArray(arr) ? arr.length : null;
+
         siteTests[`L${level}_ID${id}`] = {
-          status: r.status,
+          status:       r.status,
           stationCount: count,
-          // Show raw keys + first 300 chars of body if count is 0 or null
-          rawKeys: count === null ? Object.keys((parsed as any) || {}) : undefined,
-          rawSample: count === 0 || count === null ? txt.substring(0, 300) : undefined,
+          rawSample:    count === 0 || count === null ? txt.substring(0, 300) : undefined,
         };
       } catch (e: any) {
         siteTests[`L${level}_ID${id}`] = { error: e?.message };
