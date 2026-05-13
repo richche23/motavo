@@ -51,42 +51,42 @@ async function getSARegionId(): Promise<{ level: number; id: number }> {
       `${BASE_URL}/Subscriber/GetCountryGeographicInformation?countryId=${COUNTRY_ID}`,
       { headers: authHeader() }
     );
-    if (!res.ok) {
-      console.warn(`SA geo info failed: ${res.status} — falling back to level=2 id=2`);
-      return { level: 2, id: 2 };
-    }
-    const data = await res.json() as {
-      GeographicRegions?: Array<{
-        GeoRegionLevel: number;
-        GeoRegionId: number;
-        Name: string;
-        SubRegions?: Array<{ GeoRegionId: number; Name: string }>;
-      }>;
-    };
-
-    // Walk the region tree looking for South Australia
-    const regions = data.GeographicRegions ?? [];
-    for (const r of regions) {
-      if (/south.?australia/i.test(r.Name)) {
-        const result = { level: r.GeoRegionLevel, id: r.GeoRegionId };
-        cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
-        return result;
-      }
-      for (const sub of (r.SubRegions ?? [])) {
-        if (/south.?australia/i.test(sub.Name)) {
-          const result = { level: r.GeoRegionLevel + 1, id: sub.GeoRegionId };
+    if (res.ok) {
+      const data = await res.json() as {
+        GeographicRegions?: Array<{
+          GeoRegionLevel: number; GeoRegionId: number; Name: string;
+          SubRegions?: Array<{ GeoRegionId: number; Name: string }>;
+        }>;
+      };
+      const isSA = (name: string) => /south.?australia|^sa$/i.test(name);
+      for (const r of (data.GeographicRegions ?? [])) {
+        if (isSA(r.Name)) {
+          const result = { level: r.GeoRegionLevel, id: r.GeoRegionId };
           cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
           return result;
         }
+        for (const sub of (r.SubRegions ?? [])) {
+          if (isSA(sub.Name)) {
+            const result = { level: r.GeoRegionLevel + 1, id: sub.GeoRegionId };
+            cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
+            return result;
+          }
+        }
+      }
+      // No name match — use first available region
+      const first = data.GeographicRegions?.[0];
+      if (first) {
+        const result = { level: first.GeoRegionLevel, id: first.GeoRegionId };
+        cacheSet(GEO_KEY, result, 60 * 60 * 1000);
+        return result;
       }
     }
   } catch (e) {
     console.warn('SA geo discovery error:', e);
   }
 
-  // Fallback — try the two most likely values
-  const fallback = { level: 2, id: 2 };
-  cacheSet(GEO_KEY, fallback, 60 * 60 * 1000); // shorter TTL so it retries sooner
+  const fallback = { level: 3, id: 1 };
+  cacheSet(GEO_KEY, fallback, 60 * 60 * 1000);
   return fallback;
 }
 
