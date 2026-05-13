@@ -110,18 +110,18 @@ async function fetchSnapshot(): Promise<Station[]> {
   const cached = cacheGet<Station[]>(SNAPSHOT_KEY);
   if (cached) return cached;
 
-  // SA's Informed Sources instance does not use geographic region filtering.
-  // Call with countryId only — returns all SA stations.
+  const { level, id } = await getSARegionId();
+
   const [sitesRes, pricesRes] = await Promise.all([
-    fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}`, { headers: authHeader() }),
-    fetch(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}`,           { headers: authHeader() }),
+    fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, { headers: authHeader() }),
+    fetch(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`,           { headers: authHeader() }),
   ]);
 
   if (!sitesRes.ok)  throw new Error(`SA sites: ${sitesRes.status} ${await sitesRes.text()}`);
   if (!pricesRes.ok) throw new Error(`SA prices: ${pricesRes.status} ${await pricesRes.text()}`);
 
-  const sitesData  = await sitesRes.json()  as { S?: SiteRaw[] };
-  const priceData  = await pricesRes.json() as PricesResponse;
+  const sitesData = await sitesRes.json() as { S?: SiteRaw[] };
+  const priceData = await pricesRes.json() as PricesResponse;
 
   const now = Date.now();
   const map = new Map<number, Station>();
