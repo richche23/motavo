@@ -95,6 +95,12 @@ const GlobalStyles = () => (
       background-position: -1px -1px;
     }
 
+    .fm-app[data-theme="dark"] .grid-bg {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    }
+
     .spotlight {
       background:
         radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30,95,224,0.08), transparent 70%),
@@ -127,6 +133,10 @@ const GlobalStyles = () => (
       background: rgba(255,255,255,0.78);
       backdrop-filter: saturate(160%) blur(14px);
       -webkit-backdrop-filter: saturate(160%) blur(14px);
+    }
+
+    .fm-app[data-theme="dark"] .glass {
+      background: rgba(15, 17, 23, 0.85);
     }
 
     .fm-app input:focus, .fm-app button:focus-visible, .fm-app a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
