@@ -540,7 +540,7 @@ async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25
     if (fuelType) params.set('fuelType', fuelType);
 
     const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 3000);
+    const timeoutId = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(`/api/fuel/${path}?${params}`, { signal: ctrl.signal });
     clearTimeout(timeoutId);
 
