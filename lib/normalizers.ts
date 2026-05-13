@@ -72,8 +72,8 @@ export function normalizeBrand(raw: unknown): string {
 const FUEL_TYPE_MAP: Record<string, FuelType> = {
   // NSW FuelCheck codes
   'U91':  'U91',
-  'P95':  'U95',
-  'P98':  'U98',
+  'P95':  'P95',
+  'P98':  'P98',
   'E10':  'E10',
   'DL':   'DSL',
   'PDL':  'PRDSL',
@@ -81,8 +81,8 @@ const FUEL_TYPE_MAP: Record<string, FuelType> = {
 
   // FuelWatch WA codes
   'ULP':  'U91',
-  'PULP': 'U95',
-  '98RON':'U98',
+  'PULP': 'P95',
+  '98RON':'P98',
   'E85':  'E10',     // close approximation — E85 is its own thing but we don't track it
   'Diesel': 'DSL',
   'PremiumDiesel': 'PRDSL',
@@ -90,8 +90,8 @@ const FUEL_TYPE_MAP: Record<string, FuelType> = {
 
   // QLD Fuel Prices
   'Unleaded 91':       'U91',
-  'Premium 95':        'U95',
-  'Premium 98':        'U98',
+  'Premium 95':        'P95',
+  'Premium 98':        'P98',
   'Ethanol E10':       'E10',
   'Diesel - Regular':  'DSL',
   'Diesel - Premium':  'PRDSL',
@@ -99,8 +99,8 @@ const FUEL_TYPE_MAP: Record<string, FuelType> = {
 
   // VIC Servo Saver expected codes (spec-based — confirm when API live)
   'unleaded_91':   'U91',
-  'unleaded_95':   'U95',
-  'unleaded_98':   'U98',
+  'unleaded_95':   'P95',
+  'unleaded_98':   'P98',
   'ethanol_10':    'E10',
   'diesel':        'DSL',
   'premium_diesel':'PRDSL',
