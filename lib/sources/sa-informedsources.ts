@@ -5,32 +5,30 @@
  * Base URL:  https://fppdirectapi-prod.safuelpricinginformation.com.au
  * Env var:   SA_FUEL_API_TOKEN
  *
- * Geographic region:
+ * Geographic region confirmed via /Subscriber/GetCountryGeographicRegions?countryId=21:
  *   GeoRegionLevel = 3  (state level)
  *   GeoRegionId    = 4  (SOUTH AUSTRALIA)
  *
- * Confirmed by /Subscriber/GetCountryGeographicRegions?countryId=21 which
- * returns the full region tree. GetCountryGeographicInformation returns 404
- * for this subscriber — do not call it.
+ * NOTE: GetCountryGeographicInformation returns 404 for this subscriber — never call it.
  */
 
 import { cacheGet, cacheSet } from '../cache';
 import { distanceKm, normalizeBrand } from '../normalizers';
-import { FetchOptions, FetchResult, Station } from '../types';
+import { FetchOptions, FetchResult, FuelType, Station } from '../types';
 
-const BASE_URL    = 'https://fppdirectapi-prod.safuelpricinginformation.com.au';
-const COUNTRY_ID  = 21;
-const GEO_LEVEL   = 3;   // state-level region
-const GEO_ID      = 4;   // SOUTH AUSTRALIA
+const BASE_URL   = 'https://fppdirectapi-prod.safuelpricinginformation.com.au';
+const COUNTRY_ID = 21;
+const GEO_LEVEL  = 3;  // state-level region
+const GEO_ID     = 4;  // SOUTH AUSTRALIA
 
-const SITES_KEY    = 'sa:sites';
 const SNAPSHOT_KEY = 'sa:snapshot';
 const SNAPSHOT_TTL = 10 * 60 * 1000; // 10 minutes
 
-const FUEL_ID_MAP: Record<number, string> = {
+// Maps SA API fuel IDs to canonical FuelType values.
+const FUEL_ID_MAP: Record<number, FuelType> = {
   1:  'U91',
-  2:  'U95',
-  3:  'U98',
+  2:  'P95',
+  3:  'P98',
   4:  'LPG',
   5:  'DSL',
   8:  'E10',
@@ -42,23 +40,20 @@ const FUEL_ID_MAP: Record<number, string> = {
 // ── Raw API shapes ────────────────────────────────────────────────────────────
 
 interface SiteRaw {
-  S:  number;  // site ID
-  A:  string;  // address
-  N:  string;  // name
-  B:  string;  // brand (number as string in some responses)
-  P:  string;  // postcode
-  G1: number;  // suburb geo region ID
-  G2: number;  // city/district geo region ID
-  G3: number;  // state geo region ID
+  S:   number; // site ID
+  A:   string; // address
+  N:   string; // name
+  B:   string; // brand
+  P:   string; // postcode
   Lat: number;
   Lng: number;
 }
 
 interface SitePrice {
-  SiteId:              number;
-  FuelId:              number;
-  Price:               number;
-  TransactionDateUtc:  string;
+  SiteId:             number;
+  FuelId:             number;
+  Price:              number;
+  TransactionDateUtc: string;
 }
 
 interface SitesResponse  { S?: SiteRaw[] }
@@ -75,35 +70,33 @@ function authHeader(): HeadersInit {
   };
 }
 
-// ── Snapshot (sites + prices) ─────────────────────────────────────────────────
+// ── Snapshot (all SA stations + current prices) ───────────────────────────────
 
-async function fetchSnapshot(): Promise<Station[]> {
-  const cached = cacheGet<Station[]>(SNAPSHOT_KEY);
+interface Snapshot {
+  stations:    Station[];
+  refreshedAt: number;
+}
+
+async function fetchSnapshot(): Promise<Snapshot> {
+  const cached = cacheGet<Snapshot>(SNAPSHOT_KEY);
   if (cached) return cached;
 
   const headers = authHeader();
+  const params  = `countryId=${COUNTRY_ID}&geoRegionLevel=${GEO_LEVEL}&geoRegionId=${GEO_ID}`;
 
   const [sitesRes, pricesRes] = await Promise.all([
-    fetch(
-      `${BASE_URL}/Subscriber/GetFullSiteDetails` +
-      `?countryId=${COUNTRY_ID}&geoRegionLevel=${GEO_LEVEL}&geoRegionId=${GEO_ID}`,
-      { headers }
-    ),
-    fetch(
-      `${BASE_URL}/Price/GetSitesPrices` +
-      `?countryId=${COUNTRY_ID}&geoRegionLevel=${GEO_LEVEL}&geoRegionId=${GEO_ID}`,
-      { headers }
-    ),
+    fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?${params}`, { headers }),
+    fetch(`${BASE_URL}/Price/GetSitesPrices?${params}`,          { headers }),
   ]);
 
   if (!sitesRes.ok)  throw new Error(`SA sites ${sitesRes.status}: ${await sitesRes.text()}`);
   if (!pricesRes.ok) throw new Error(`SA prices ${pricesRes.status}: ${await pricesRes.text()}`);
 
   const sitesData  = await sitesRes.json()  as SitesResponse;
-  const priceData  = await pricesRes.json() as PricesResponse;
+  const pricesData = await pricesRes.json() as PricesResponse;
 
-  const now = Date.now();
-  const map = new Map<number, Station>();
+  const refreshedAt = Date.now();
+  const map         = new Map<number, Station>();
 
   for (const s of (sitesData.S ?? [])) {
     if (!s.Lat || !s.Lng) continue;
@@ -112,66 +105,79 @@ async function fetchSnapshot(): Promise<Station[]> {
       brand:    normalizeBrand(String(s.B || s.N)),
       name:     s.N,
       address:  s.A,
-      suburb:   '',   // SA full-site response doesn't include a separate suburb field
+      suburb:   '',
       state:    'SA',
       postcode: s.P,
       lat:      s.Lat,
       lng:      s.Lng,
       prices: {
-        U91: null, U95: null, U98: null,
+        U91: null, P95: null, P98: null,
         E10: null, DSL: null, PRDSL: null, LPG: null,
       },
-      updatedAt:          0,
-      updatedMinutesAgo:  9999,
-      source:             'sa-informedsources',
+      updatedAt:         0,
+      updatedMinutesAgo: 9999,
+      source:            'sa-informedsources',
     });
   }
 
-  for (const p of (priceData.SitePrices ?? [])) {
-    const station = map.get(p.SiteId);
+  for (const p of (pricesData.SitePrices ?? [])) {
+    const station  = map.get(p.SiteId);
     if (!station) continue;
     const fuelType = FUEL_ID_MAP[p.FuelId];
     if (!fuelType) continue;
+    if (p.Price <= 0) continue;
 
-    const priceCents = p.Price;  // API returns cents (e.g. 198.9)
-    const ts         = new Date(p.TransactionDateUtc).getTime();
+    station.prices[fuelType] = p.Price;
 
-    if (priceCents > 0) {
-      station.prices[fuelType] = priceCents;
-      if (ts > station.updatedAt) {
-        station.updatedAt         = ts;
-        station.updatedMinutesAgo = Math.round((now - ts) / 60_000);
-      }
+    const ts = new Date(p.TransactionDateUtc).getTime();
+    if (ts > station.updatedAt) {
+      station.updatedAt         = ts;
+      station.updatedMinutesAgo = Math.round((refreshedAt - ts) / 60_000);
     }
   }
 
-  const stations = Array.from(map.values());
-  cacheSet(SNAPSHOT_KEY, stations, SNAPSHOT_TTL);
-  return stations;
+  const snapshot: Snapshot = { stations: Array.from(map.values()), refreshedAt };
+  cacheSet(SNAPSHOT_KEY, snapshot, SNAPSHOT_TTL);
+  return snapshot;
 }
 
 // ── Public fetch ──────────────────────────────────────────────────────────────
 
 export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
-  const { lat, lng, radius = 5, fuelType = 'U91' } = opts;
+  const { lat, lng, radius = 5, fuelType = 'U91', limit = 30 } = opts;
 
-  let stations: Station[];
+  let snapshot: Snapshot;
+  let fromCache = false;
+
   try {
-    stations = await fetchSnapshot();
+    const preFetch = cacheGet<Snapshot>(SNAPSHOT_KEY);
+    fromCache = preFetch !== null;
+    snapshot  = preFetch ?? await fetchSnapshot();
   } catch (err) {
     console.error('[SA] fetchSnapshot error:', err);
-    return { stations: [], source: 'sa-informedsources', error: String(err) };
+    return {
+      stations:    [],
+      source:      'sa-informedsources',
+      cached:      false,
+      refreshedAt: 0,
+    };
   }
 
-  const nearby = stations
-    .filter(s => {
+  const nearby = snapshot.stations
+    .reduce<Station[]>((acc, s) => {
       const dist = distanceKm(lat, lng, s.lat, s.lng);
-      if (dist > radius) return false;
-      s.distanceKm = dist;
-      return true;
-    })
+      if (dist > radius) return acc;
+      acc.push({ ...s, distance: dist });
+      return acc;
+    }, [])
     .filter(s => s.prices[fuelType] !== null)
-    .sort((a, b) => (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999));
+    .sort((a, b) => (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999))
+    .slice(0, limit);
 
-  return { stations: nearby, source: 'sa-informedsources' };
+  return {
+    stations:    nearby,
+    source:      'sa-informedsources',
+    cached:      fromCache,
+    refreshedAt: snapshot.refreshedAt,
+  };
 }
