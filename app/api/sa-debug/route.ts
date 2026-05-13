@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 const BASE_URL = 'https://fppdirectapi-prod.safuelpricinginformation.com.au';
-const COUNTRY_ID = 21;
 
 export async function GET() {
   const token = process.env.SA_FUEL_API_TOKEN;
@@ -9,55 +8,35 @@ export async function GET() {
 
   const auth = { Authorization: `FPDAPI SubscriberToken=${token}`, 'Content-Type': 'application/json' };
 
-  const results: Record<string, any> = { token_prefix: token.slice(0, 8) + '...' };
-
-  // Step 1: geo discovery
-  try {
+  const probe = async (label: string, url: string) => {
     const ctrl = new AbortController();
     setTimeout(() => ctrl.abort(), 6000);
-    const geoRes = await fetch(`${BASE_URL}/Subscriber/GetCountryGeographicInformation?countryId=${COUNTRY_ID}`, { headers: auth, signal: ctrl.signal });
-    results.geo_status = geoRes.status;
-    if (geoRes.ok) {
-      results.geo_data = await geoRes.json();
-    } else {
-      results.geo_error = await geoRes.text();
+    try {
+      const res = await fetch(url, { headers: auth, signal: ctrl.signal });
+      const body = res.ok ? await res.json() : await res.text();
+      return { status: res.status, body: typeof body === 'string' ? body.slice(0, 200) : body };
+    } catch (e: any) {
+      return { threw: e?.message ?? String(e) };
     }
-  } catch (e: any) {
-    results.geo_threw = e?.message ?? String(e);
-  }
+  };
 
-  // Step 2: sites with fallback region
-  try {
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 6000);
-    const sitesRes = await fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=3&geoRegionId=1`, { headers: auth, signal: ctrl.signal });
-    results.sites_status = sitesRes.status;
-    if (sitesRes.ok) {
-      const data = await sitesRes.json();
-      results.sites_count = data?.S?.length ?? 0;
-      results.sites_sample = data?.S?.slice(0, 2) ?? [];
-    } else {
-      results.sites_error = await sitesRes.text();
-    }
-  } catch (e: any) {
-    results.sites_threw = e?.message ?? String(e);
-  }
+  const results: Record<string, any> = {};
 
-  // Step 3: prices with fallback region
-  try {
-    const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 6000);
-    const pricesRes = await fetch(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=3&geoRegionId=1`, { headers: auth, signal: ctrl.signal });
-    results.prices_status = pricesRes.status;
-    if (pricesRes.ok) {
-      const data = await pricesRes.json();
-      results.prices_count = data?.SitePrices?.length ?? 0;
-      results.prices_sample = data?.SitePrices?.slice(0, 2) ?? [];
+  // Try different geo endpoints
+  results.geo_regions_21    = await probe('geo_regions_21',    `${BASE_URL}/Subscriber/GetCountryGeographicRegions?countryId=21`);
+  results.geo_info_21       = await probe('geo_info_21',       `${BASE_URL}/Subscriber/GetCountryGeographicInformation?countryId=21`);
+  results.geo_regions_1     = await probe('geo_regions_1',     `${BASE_URL}/Subscriber/GetCountryGeographicRegions?countryId=1`);
+  results.geo_regions_noct  = await probe('geo_regions_noct',  `${BASE_URL}/Subscriber/GetCountryGeographicRegions`);
+
+  // Try sites with a range of level/id combos
+  for (const [level, id] of [[1,1],[1,2],[2,1],[2,2],[2,3],[2,4],[2,5],[3,4],[3,5],[4,1]]) {
+    const key = `sites_L${level}_I${id}`;
+    const r = await probe(key, `${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=21&geoRegionLevel=${level}&geoRegionId=${id}`);
+    if ((r as any).body?.S?.length > 0) {
+      results[key] = { status: (r as any).status, sites_count: (r as any).body.S.length, sample: (r as any).body.S[0] };
     } else {
-      results.prices_error = await pricesRes.text();
+      results[key] = r;
     }
-  } catch (e: any) {
-    results.prices_threw = e?.message ?? String(e);
   }
 
   return NextResponse.json(results, { headers: { 'Cache-Control': 'no-store' } });
