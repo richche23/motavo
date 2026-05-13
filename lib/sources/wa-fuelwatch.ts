@@ -108,14 +108,25 @@ async function fetchSnapshot(): Promise<Station[]> {
       const key = `${item.trading_name}|${item.address}`.toLowerCase();
       let station = map.get(key);
       if (!station) {
+        // FuelWatch street addresses have data quality issues — some stations
+        // have incorrect street names (e.g. Victorian highway names for WA stations).
+        // Suburb + postcode are always reliable. Build display address from those.
+        const suburb  = item.location?.trim() || '';
+        const street  = item.address?.trim()  || '';
+        const postcode = item.postcode?.trim() || '';
+
+        // Only use street if it looks plausible (has a number) AND suburb is present
+        const useStreet = street && /\d/.test(street) && suburb;
+        const displayAddress = useStreet ? street : suburb || street;
+
         station = {
           id: `wa-${key.replace(/[^a-z0-9]/g, '-')}`,
           brand: normalizeBrand(item.brand || item.trading_name),
           name: item.trading_name,
-          address: item.address,
-          suburb: item.location,
+          address: displayAddress,
+          suburb,
           state: 'WA',
-          postcode: item.postcode,
+          postcode,
           lat: parseFloat(item.latitude),
           lng: parseFloat(item.longitude),
           prices: { U91: null, U95: null, U98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
