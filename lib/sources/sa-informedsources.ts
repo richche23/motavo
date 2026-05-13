@@ -16,7 +16,7 @@
 
 import { cacheGet, cacheSet } from '../cache';
 import { distanceKm, normalizeBrand } from '../normalizers';
-import { FetchOptions, FetchResult, FuelType, Station } from '../types';
+import { FetchOptions, FetchResult, Station } from '../types';
 
 const BASE_URL    = 'https://fppdirectapi-prod.safuelpricinginformation.com.au';
 const COUNTRY_ID  = 21;
@@ -27,7 +27,7 @@ const SITES_KEY    = 'sa:sites';
 const SNAPSHOT_KEY = 'sa:snapshot';
 const SNAPSHOT_TTL = 10 * 60 * 1000; // 10 minutes
 
-const FUEL_ID_MAP: Record<number, FuelType> = {
+const FUEL_ID_MAP: Record<number, string> = {
   1:  'U91',
   2:  'U95',
   3:  'U98',
