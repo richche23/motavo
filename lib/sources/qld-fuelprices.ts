@@ -45,39 +45,42 @@ async function getQLDRegionId(): Promise<{ level: number; id: number }> {
       `${BASE_URL}/Subscriber/GetCountryGeographicInformation?countryId=${COUNTRY_ID}`,
       { headers: authHeader() }
     );
-    if (!res.ok) {
-      console.warn(`QLD geo info failed: ${res.status} — falling back to level=2 id=4`);
-      return { level: 2, id: 4 };
-    }
-    const data = await res.json() as {
-      GeographicRegions?: Array<{
-        GeoRegionLevel: number;
-        GeoRegionId: number;
-        Name: string;
-        SubRegions?: Array<{ GeoRegionId: number; Name: string }>;
-      }>;
-    };
-
-    const regions = data.GeographicRegions ?? [];
-    for (const r of regions) {
-      if (/queensland/i.test(r.Name)) {
-        const result = { level: r.GeoRegionLevel, id: r.GeoRegionId };
-        cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
-        return result;
-      }
-      for (const sub of (r.SubRegions ?? [])) {
-        if (/queensland/i.test(sub.Name)) {
-          const result = { level: r.GeoRegionLevel + 1, id: sub.GeoRegionId };
+    if (res.ok) {
+      const data = await res.json() as {
+        GeographicRegions?: Array<{
+          GeoRegionLevel: number; GeoRegionId: number; Name: string;
+          SubRegions?: Array<{ GeoRegionId: number; Name: string }>;
+        }>;
+      };
+      const isQLD = (name: string) => /queensland|^qld$/i.test(name);
+      for (const r of (data.GeographicRegions ?? [])) {
+        if (isQLD(r.Name)) {
+          const result = { level: r.GeoRegionLevel, id: r.GeoRegionId };
           cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
           return result;
         }
+        for (const sub of (r.SubRegions ?? [])) {
+          if (isQLD(sub.Name)) {
+            const result = { level: r.GeoRegionLevel + 1, id: sub.GeoRegionId };
+            cacheSet(GEO_KEY, result, 24 * 60 * 60 * 1000);
+            return result;
+          }
+        }
+      }
+      // No name match — try the first available region as fallback
+      const first = data.GeographicRegions?.[0];
+      if (first) {
+        const result = { level: first.GeoRegionLevel, id: first.GeoRegionId };
+        cacheSet(GEO_KEY, result, 60 * 60 * 1000);
+        return result;
       }
     }
   } catch (e) {
     console.warn('QLD geo discovery error:', e);
   }
 
-  const fallback = { level: 2, id: 4 };
+  // Hard fallbacks — try level 3 id 1 first (common for Informed Sources QLD)
+  const fallback = { level: 3, id: 1 };
   cacheSet(GEO_KEY, fallback, 60 * 60 * 1000);
   return fallback;
 }
