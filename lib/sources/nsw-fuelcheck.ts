@@ -13,8 +13,9 @@ import { cacheGet, cacheSet, cacheWrittenAt } from '../cache';
 import { distanceKm, normalizeBrand, normalizeFuelType, parseAddress } from '../normalizers';
 import { FetchOptions, FetchResult, FuelType, Station, StateCode } from '../types';
 
-// v2 covers NSW + TAS. v1 was NSW-only.
-const BASE = 'https://api.onegov.nsw.gov.au/FuelCheckApp/v2';
+// v2 covers NSW + TAS + ACT. v1 was NSW-only.
+// Note: path is 'fuelpricecheck' not 'FuelCheckApp' for v2.
+const BASE = 'https://api.onegov.nsw.gov.au/fuelpricecheck/v2';
 const TOKEN_URL = 'https://api.onegov.nsw.gov.au/oauth/client_credential/accesstoken?grant_type=client_credentials';
 const TOKEN_KEY = 'nsw:token';
 const SNAPSHOT_KEY = 'nsw:snapshot';
