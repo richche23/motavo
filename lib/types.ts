@@ -6,14 +6,14 @@
 
 export type FuelType =
   | 'U91'    // Unleaded 91
-  | 'U95'    // Premium 95
-  | 'U98'    // Premium 98
+  | 'P95'    // Premium 95
+  | 'P98'    // Premium 98
   | 'E10'    // 91 octane ethanol blend
   | 'DSL'    // Regular diesel
   | 'PRDSL'  // Premium diesel
   | 'LPG';   // Autogas
 
-export const FUEL_TYPES: FuelType[] = ['U91', 'U95', 'U98', 'E10', 'DSL', 'PRDSL', 'LPG'];
+export const FUEL_TYPES: FuelType[] = ['U91', 'P95', 'P98', 'E10', 'DSL', 'PRDSL', 'LPG'];
 
 export type StateCode = 'NSW' | 'VIC' | 'QLD' | 'WA' | 'SA' | 'TAS' | 'NT' | 'ACT';
 
