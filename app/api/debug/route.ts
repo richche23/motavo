@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     let geoData: unknown;
     try { geoData = JSON.parse(geoText); } catch { geoData = geoText; }
 
-    // Extended candidate list — covers all level/id combos that could be SA
+    // Site tests across all level/id combos
     const candidates = [
       { level: 1, id: 1 },
       { level: 2, id: 1 }, { level: 2, id: 2 }, { level: 2, id: 3 },
@@ -79,7 +79,6 @@ export async function GET(req: NextRequest) {
     ];
 
     const siteTests: Record<string, unknown> = {};
-
     for (const { level, id } of candidates) {
       try {
         const r   = await fetch(
@@ -89,10 +88,8 @@ export async function GET(req: NextRequest) {
         const txt = await r.text();
         let parsed: unknown;
         try { parsed = JSON.parse(txt); } catch { parsed = txt; }
-
         const arr   = (parsed as any)?.S;
         const count = Array.isArray(arr) ? arr.length : null;
-
         siteTests[`L${level}_ID${id}`] = {
           status:       r.status,
           stationCount: count,
@@ -103,7 +100,38 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ state, geoInfoStatus: geoRes.status, geoInfo: geoData, siteTests });
+    // ── Prices test for the confirmed working combo (L3_ID4) ──────────────────
+    // This is the call the SA source makes for prices. If it returns 0 price
+    // records, all stations will have null prices and be filtered out.
+    let pricesTest: unknown;
+    try {
+      const pr  = await fetch(
+        `${config.url}/Price/GetSitesPrices?countryId=21&geoRegionLevel=3&geoRegionId=4`,
+        { headers }
+      );
+      const txt = await pr.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(txt); } catch { parsed = txt; }
+      const arr   = (parsed as any)?.SitePrices;
+      const count = Array.isArray(arr) ? arr.length : null;
+      pricesTest = {
+        status:      pr.status,
+        priceCount:  count,
+        // Show first price record so we can verify the shape
+        firstRecord: Array.isArray(arr) && arr.length > 0 ? arr[0] : null,
+        rawSample:   count === 0 || count === null ? txt.substring(0, 300) : undefined,
+      };
+    } catch (e: any) {
+      pricesTest = { error: (e as any)?.message };
+    }
+
+    return NextResponse.json({
+      state,
+      geoInfoStatus: geoRes.status,
+      geoInfo:       geoData,
+      siteTests,
+      pricesTest_L3_ID4: pricesTest,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
   }
