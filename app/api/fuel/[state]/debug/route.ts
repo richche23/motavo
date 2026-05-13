@@ -1,58 +1,78 @@
-/**
- * Debug endpoint — returns raw geographic info from each state API.
- * Use to identify the correct geoRegionLevel and geoRegionId for each token.
- *
- * Usage:
- *   GET /api/debug?state=qld
- *   GET /api/debug?state=sa
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 
 const CONFIGS: Record<string, { url: string; tokenEnv: string }> = {
-  qld: {
-    url: 'https://fppdirectapi-prod.fuelpricesqld.com.au',
-    tokenEnv: 'QLD_FUEL_API_TOKEN',
-  },
-  sa: {
-    url: 'https://fppdirectapi-prod.safuelpricinginformation.com.au',
-    tokenEnv: 'SA_FUEL_API_TOKEN',
-  },
+  qld: { url: 'https://fppdirectapi-prod.fuelpricesqld.com.au', tokenEnv: 'QLD_FUEL_API_TOKEN' },
+  sa:  { url: 'https://fppdirectapi-prod.safuelpricinginformation.com.au', tokenEnv: 'SA_FUEL_API_TOKEN' },
 };
 
 export async function GET(req: NextRequest) {
   const state = req.nextUrl.searchParams.get('state')?.toLowerCase();
-  const config = state ? CONFIGS[state] : null;
 
+  // NSW credential check
+  if (state === 'nsw') {
+    const key    = process.env.NSW_FUELCHECK_API_KEY;
+    const secret = process.env.NSW_FUELCHECK_API_SECRET;
+
+    const result: Record<string, unknown> = {
+      NSW_FUELCHECK_API_KEY_set:    !!key,
+      NSW_FUELCHECK_API_SECRET_set: !!secret,
+      NSW_FUELCHECK_API_KEY_length:    key?.length ?? 0,
+      NSW_FUELCHECK_API_SECRET_length: secret?.length ?? 0,
+    };
+
+    // Try the token exchange if both are set
+    if (key && secret) {
+      const basic = Buffer.from(`${key}:${secret}`).toString('base64');
+      try {
+        const tokenRes = await fetch(
+          'https://api.onegov.nsw.gov.au/oauth/client_credential/accesstoken?grant_type=client_credentials',
+          { method: 'GET', headers: { Authorization: `Basic ${basic}` } }
+        );
+        const body = await tokenRes.text();
+        result.tokenExchangeStatus = tokenRes.status;
+        result.tokenExchangeResponse = body.substring(0, 300);
+      } catch (e: any) {
+        result.tokenExchangeError = e?.message;
+      }
+    }
+
+    return NextResponse.json(result);
+  }
+
+  // QLD / SA geographic info check
+  const config = state ? CONFIGS[state] : null;
   if (!config) {
     return NextResponse.json({
-      error: 'Pass ?state=qld or ?state=sa',
-      available: Object.keys(CONFIGS),
+      usage: 'Pass ?state=nsw, ?state=qld, or ?state=sa',
+      allEnvVarsPresent: {
+        NSW_FUELCHECK_API_KEY:    !!process.env.NSW_FUELCHECK_API_KEY,
+        NSW_FUELCHECK_API_SECRET: !!process.env.NSW_FUELCHECK_API_SECRET,
+        QLD_FUEL_API_TOKEN:       !!process.env.QLD_FUEL_API_TOKEN,
+        SA_FUEL_API_TOKEN:        !!process.env.SA_FUEL_API_TOKEN,
+      },
     });
   }
 
   const token = process.env[config.tokenEnv];
   if (!token) {
-    return NextResponse.json({ error: `${config.tokenEnv} not set in Vercel env vars` }, { status: 400 });
+    return NextResponse.json({ error: `${config.tokenEnv} not set` }, { status: 400 });
   }
+
+  const headers = { Authorization: `FPDAPI SubscriberToken=${token}`, 'Content-Type': 'application/json' };
 
   try {
     const geoRes = await fetch(
       `${config.url}/Subscriber/GetCountryGeographicInformation?countryId=21`,
-      { headers: { Authorization: `FPDAPI SubscriberToken=${token}`, 'Content-Type': 'application/json' } }
+      { headers }
     );
     const geoText = await geoRes.text();
     let geoData: unknown;
     try { geoData = JSON.parse(geoText); } catch { geoData = geoText; }
 
-    // Also try fetching sites with a few candidate region IDs so we can see which works
     const candidates = [
-      { level: 1, id: 1 },
-      { level: 2, id: 1 },
-      { level: 2, id: 2 },
-      { level: 2, id: 3 },
-      { level: 2, id: 4 },
-      { level: 2, id: 5 },
+      { level: 1, id: 1 }, { level: 2, id: 1 }, { level: 2, id: 2 },
+      { level: 2, id: 3 }, { level: 2, id: 4 }, { level: 2, id: 5 },
+      { level: 3, id: 1 }, { level: 3, id: 2 }, { level: 3, id: 3 },
     ];
 
     const siteTests: Record<string, unknown> = {};
@@ -60,25 +80,22 @@ export async function GET(req: NextRequest) {
       try {
         const r = await fetch(
           `${config.url}/Subscriber/GetFullSiteDetails?countryId=21&geoRegionLevel=${level}&geoRegionId=${id}`,
-          { headers: { Authorization: `FPDAPI SubscriberToken=${token}`, 'Content-Type': 'application/json' } }
+          { headers }
         );
         const txt = await r.text();
         let parsed: unknown;
         try { parsed = JSON.parse(txt); } catch { parsed = txt; }
-        // Count stations in the S array if present
-        const stations = Array.isArray((parsed as any)?.S) ? (parsed as any).S.length : 'not an array';
-        siteTests[`level${level}_id${id}`] = { status: r.status, stationCount: stations };
+        const arr = (parsed as any)?.S;
+        siteTests[`L${level}_ID${id}`] = {
+          status: r.status,
+          stationCount: Array.isArray(arr) ? arr.length : `S key missing, keys: ${Object.keys(parsed as any || {}).join(',')}`,
+        };
       } catch (e: any) {
-        siteTests[`level${level}_id${id}`] = { error: e?.message };
+        siteTests[`L${level}_ID${id}`] = { error: e?.message };
       }
     }
 
-    return NextResponse.json({
-      state,
-      geoInfoStatus: geoRes.status,
-      geoInfo: geoData,
-      siteTestResults: siteTests,
-    });
+    return NextResponse.json({ state, geoInfoStatus: geoRes.status, geoInfo: geoData, siteTests });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
   }
