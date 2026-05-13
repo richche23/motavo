@@ -58,6 +58,7 @@ async function getSARegionId(): Promise<{ level: number; id: number }> {
           SubRegions?: Array<{ GeoRegionId: number; Name: string }>;
         }>;
       };
+      console.log('[SA] geo regions:', JSON.stringify(data.GeographicRegions?.map(r => ({ id: r.GeoRegionId, name: r.Name, level: r.GeoRegionLevel }))));
       const isSA = (name: string) => /south.?australia|^sa$/i.test(name);
       for (const r of (data.GeographicRegions ?? [])) {
         if (isSA(r.Name)) {
@@ -111,17 +112,22 @@ async function fetchSnapshot(): Promise<Station[]> {
   if (cached) return cached;
 
   const { level, id } = await getSARegionId();
+  console.log('[SA] Using region level=%d id=%d', level, id);
 
   const [sitesRes, pricesRes] = await Promise.all([
     fetch(`${BASE_URL}/Subscriber/GetFullSiteDetails?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`, { headers: authHeader() }),
     fetch(`${BASE_URL}/Price/GetSitesPrices?countryId=${COUNTRY_ID}&geoRegionLevel=${level}&geoRegionId=${id}`,           { headers: authHeader() }),
   ]);
 
-  if (!sitesRes.ok)  throw new Error(`SA sites: ${sitesRes.status} ${await sitesRes.text()}`);
-  if (!pricesRes.ok) throw new Error(`SA prices: ${pricesRes.status} ${await pricesRes.text()}`);
+  console.log('[SA] sites status=%d prices status=%d', sitesRes.status, pricesRes.status);
+
+  if (!sitesRes.ok)  { const t = await sitesRes.text();  console.error('[SA] sites error:', t);  throw new Error(`SA sites: ${sitesRes.status} ${t}`);  }
+  if (!pricesRes.ok) { const t = await pricesRes.text(); console.error('[SA] prices error:', t); throw new Error(`SA prices: ${pricesRes.status} ${t}`); }
 
   const sitesData = await sitesRes.json() as { S?: SiteRaw[] };
   const priceData = await pricesRes.json() as PricesResponse;
+
+  console.log('[SA] sites count=%d prices count=%d', sitesData.S?.length ?? 0, priceData.SitePrices?.length ?? 0);
 
   const now = Date.now();
   const map = new Map<number, Station>();
