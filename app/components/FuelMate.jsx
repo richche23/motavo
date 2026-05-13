@@ -1351,7 +1351,7 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stations, fuelType, sort, reportsByStation, confirmedSet]);
 
-  const cheapestPrice = effectivePriceFor(sorted[0] || {});
+  const cheapestPrice = sorted[0] ? effectivePriceFor(sorted[0]) : null;
 
   return (
     <div>
