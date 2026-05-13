@@ -526,7 +526,7 @@ const STATE_API_PATH = {
   SA:  'sa',  TAS: 'tas', NT:  'nt',  ACT: 'act',
 };
 
-async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 5, limit = 30, locationKey, count = 18 }) {
+async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25, limit = 200, locationKey, count = 18 }) {
   const path = STATE_API_PATH[state];
   if (!path) {
     // Unknown state — only path is mock
