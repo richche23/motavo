@@ -22,7 +22,7 @@ const SNAPSHOT_KEY = 'qld:snapshot';
 const SNAPSHOT_TTL = 10 * 60 * 1000;
 
 const FUEL_ID_MAP: Record<number, FuelType> = {
-  1: 'U91', 2: 'U95', 3: 'U98', 4: 'LPG',
+  1: 'U91', 2: 'P95', 3: 'P98', 4: 'LPG',
   5: 'DSL', 8: 'E10', 10: 'PRDSL', 12: 'E10', 14: 'DSL',
 };
 
@@ -156,7 +156,7 @@ async function fetchSnapshot(): Promise<Station[]> {
       name: s.N, address: s.A, suburb: s.Suburb,
       state: 'QLD', postcode: s.Postcode,
       lat: s.Lat, lng: s.Lng,
-      prices: { U91: null, U95: null, U98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
+      prices: { U91: null, P95: null, P98: null, E10: null, DSL: null, PRDSL: null, LPG: null },
       updatedAt: 0, updatedMinutesAgo: 9999, source: 'qld-fuelprices',
     });
   }
