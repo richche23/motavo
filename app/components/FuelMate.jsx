@@ -2764,10 +2764,24 @@ const citySource = (state) => ({
 }[state] || 'state government feeds');
 
 const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
-  const stations = useMemo(
-    () => generateStations(city.center.lat, city.center.lng, `city-${city.slug}`, city.state, 18),
-    [city.slug]
-  );
+  const [stations, setStations] = useState([]);
+  const [loadingStations, setLoadingStations] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingStations(true);
+    fetchStationsForLocation({
+      lat: city.center.lat,
+      lng: city.center.lng,
+      state: city.state,
+      fuelType,
+      locationKey: `city-${city.slug}`,
+      count: 18,
+    }).then(s => {
+      if (!cancelled) { setStations(s); setLoadingStations(false); }
+    });
+    return () => { cancelled = true; };
+  }, [city.slug, fuelType]);
   const [viewMode, setViewMode] = useState('list');
   const [sort, setSort] = useState('price');
   const citySuburbs = SUBURBS.filter(s => s.city === city.slug);
@@ -2828,10 +2842,24 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
 };
 
 const SuburbView = ({ suburb, fuelType, onFuelType, onSearchSelect, onNav, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
-  const stations = useMemo(
-    () => generateStations(suburb.center.lat, suburb.center.lng, `sub-${suburb.slug}`, suburb.state, 12),
-    [suburb.slug]
-  );
+  const [stations, setStations] = useState([]);
+  const [loadingStations, setLoadingStations] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingStations(true);
+    fetchStationsForLocation({
+      lat: suburb.center.lat,
+      lng: suburb.center.lng,
+      state: suburb.state,
+      fuelType,
+      locationKey: `sub-${suburb.slug}`,
+      count: 12,
+    }).then(s => {
+      if (!cancelled) { setStations(s); setLoadingStations(false); }
+    });
+    return () => { cancelled = true; };
+  }, [suburb.slug, fuelType]);
   const [viewMode, setViewMode] = useState('list');
   const [sort, setSort] = useState('price');
   const parentCity = CITIES.find(c => c.slug === suburb.city);
