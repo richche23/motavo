@@ -146,8 +146,8 @@ async function fetchSnapshot(): Promise<Station[]> {
 }
 
 export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
-  const radius = opts.radius ?? 5;
-  const limit = opts.limit ?? 30;
+  const radius = opts.radius ?? 25;
+  const limit = opts.limit ?? 200;
   const allowedStates: StateCode[] = opts.state ? [opts.state] : ['NSW', 'TAS', 'ACT'];
 
   const wasCached = cacheGet<Station[]>(SNAPSHOT_KEY) !== null;
@@ -158,7 +158,6 @@ export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
     .filter(s => allowedStates.includes(s.state))
     .map(s => ({ ...s, distance: distanceKm(opts.lat, opts.lng, s.lat, s.lng) }))
     .filter(s => s.distance! <= radius)
-    .filter(s => (opts.fuelType ? s.prices[opts.fuelType] != null : true))
     .sort((a, b) => a.distance! - b.distance!)
     .slice(0, limit);
 
