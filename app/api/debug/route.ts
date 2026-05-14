@@ -8,7 +8,6 @@ const CONFIGS: Record<string, { url: string; tokenEnv: string }> = {
 export async function GET(req: NextRequest) {
   const state = req.nextUrl.searchParams.get('state')?.toLowerCase();
 
-  // NSW credential check
   if (state === 'nsw') {
     const key    = process.env.NSW_FUELCHECK_API_KEY;
     const secret = process.env.NSW_FUELCHECK_API_SECRET;
@@ -35,7 +34,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   }
 
-  // QLD / SA geographic info + site tests
   const config = state ? CONFIGS[state] : null;
   if (!config) {
     return NextResponse.json({
@@ -68,69 +66,48 @@ export async function GET(req: NextRequest) {
     let geoData: unknown;
     try { geoData = JSON.parse(geoText); } catch { geoData = geoText; }
 
-    // Site tests across all level/id combos
-    const candidates = [
-      { level: 1, id: 1 },
-      { level: 2, id: 1 }, { level: 2, id: 2 }, { level: 2, id: 3 },
-      { level: 2, id: 4 }, { level: 2, id: 5 },
-      { level: 3, id: 1 }, { level: 3, id: 2 }, { level: 3, id: 3 },
-      { level: 3, id: 4 }, { level: 3, id: 5 }, { level: 3, id: 6 },
-      { level: 3, id: 7 }, { level: 3, id: 8 },
-    ];
+    // Only test the confirmed working combo — skip the other 13 to save time
+    const sitesRes = await fetch(
+      `${config.url}/Subscriber/GetFullSiteDetails?countryId=21&geoRegionLevel=3&geoRegionId=4`,
+      { headers }
+    );
+    const sitesTxt = await sitesRes.text();
+    const sitesData = JSON.parse(sitesTxt) as { S?: any[] };
+    const stationCount = sitesData.S?.length ?? 0;
 
-    const siteTests: Record<string, unknown> = {};
-    for (const { level, id } of candidates) {
-      try {
-        const r   = await fetch(
-          `${config.url}/Subscriber/GetFullSiteDetails?countryId=21&geoRegionLevel=${level}&geoRegionId=${id}`,
-          { headers }
-        );
-        const txt = await r.text();
-        let parsed: unknown;
-        try { parsed = JSON.parse(txt); } catch { parsed = txt; }
-        const arr   = (parsed as any)?.S;
-        const count = Array.isArray(arr) ? arr.length : null;
-        siteTests[`L${level}_ID${id}`] = {
-          status:       r.status,
-          stationCount: count,
-          rawSample:    count === 0 || count === null ? txt.substring(0, 300) : undefined,
-        };
-      } catch (e: any) {
-        siteTests[`L${level}_ID${id}`] = { error: e?.message };
-      }
+    // Prices with full FuelId distribution
+    const pricesRes = await fetch(
+      `${config.url}/Price/GetSitesPrices?countryId=21&geoRegionLevel=3&geoRegionId=4`,
+      { headers }
+    );
+    const pricesTxt = await pricesRes.text();
+    const pricesData = JSON.parse(pricesTxt) as { SitePrices?: any[] };
+    const prices = pricesData.SitePrices ?? [];
+
+    // Count records per FuelId so we know which fuel types actually have data
+    const fuelIdCounts: Record<number, number> = {};
+    for (const p of prices) {
+      fuelIdCounts[p.FuelId] = (fuelIdCounts[p.FuelId] ?? 0) + 1;
     }
 
-    // ── Prices test for the confirmed working combo (L3_ID4) ──────────────────
-    // This is the call the SA source makes for prices. If it returns 0 price
-    // records, all stations will have null prices and be filtered out.
-    let pricesTest: unknown;
-    try {
-      const pr  = await fetch(
-        `${config.url}/Price/GetSitesPrices?countryId=21&geoRegionLevel=3&geoRegionId=4`,
-        { headers }
-      );
-      const txt = await pr.text();
-      let parsed: unknown;
-      try { parsed = JSON.parse(txt); } catch { parsed = txt; }
-      const arr   = (parsed as any)?.SitePrices;
-      const count = Array.isArray(arr) ? arr.length : null;
-      pricesTest = {
-        status:      pr.status,
-        priceCount:  count,
-        // Show first price record so we can verify the shape
-        firstRecord: Array.isArray(arr) && arr.length > 0 ? arr[0] : null,
-        rawSample:   count === 0 || count === null ? txt.substring(0, 300) : undefined,
-      };
-    } catch (e: any) {
-      pricesTest = { error: (e as any)?.message };
+    // Sample one record per FuelId so we can see the price range
+    const fuelIdSamples: Record<number, unknown> = {};
+    for (const p of prices) {
+      if (!fuelIdSamples[p.FuelId]) fuelIdSamples[p.FuelId] = p;
     }
 
     return NextResponse.json({
       state,
-      geoInfoStatus: geoRes.status,
-      geoInfo:       geoData,
-      siteTests,
-      pricesTest_L3_ID4: pricesTest,
+      geoInfoStatus:  geoRes.status,
+      geoInfo:        geoData,
+      sitesL3ID4:     { status: sitesRes.status, stationCount },
+      pricesL3ID4: {
+        status:        pricesRes.status,
+        totalRecords:  prices.length,
+        // Key question: does FuelId 1 (U91) have any records?
+        fuelIdCounts,
+        fuelIdSamples,
+      },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message }, { status: 500 });
