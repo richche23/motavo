@@ -10,10 +10,8 @@
  * State codes accepted: nsw, vic, qld, wa, sa, tas, nt, act
  * TAS and ACT are aliased to nsw (they share the FuelCheck scheme).
  */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { FetchOptions, FuelType, StateCode } from '@/lib/types';
-
 // Source modules — same export shape across all of them
 import { fetchStations as fetchNSW } from '@/lib/sources/nsw-fuelcheck';
 import { fetchStations as fetchVIC } from '@/lib/sources/vic-servosaver';
@@ -36,7 +34,8 @@ const SOURCE_BY_STATE: Record<string, { fetcher: Fetcher; state: StateCode }> = 
   nt:  { fetcher: fetchNT,  state: 'NT'  },
 };
 
-const VALID_FUEL_TYPES = ['U91', 'U95', 'U98', 'E10', 'DSL', 'PRDSL', 'LPG'] as const;
+// Must match the FuelType union in lib/types.ts exactly
+const VALID_FUEL_TYPES = ['U91', 'P95', 'P98', 'E10', 'DSL', 'PRDSL', 'LPG'] as const;
 
 export async function GET(
   req: NextRequest,
@@ -62,7 +61,8 @@ export async function GET(
   }
 
   const radius = sp.get('radius') ? parseFloat(sp.get('radius')!) : 5;
-  const limit = sp.get('limit') ? parseInt(sp.get('limit')!, 10) : 30;
+  const limit  = sp.get('limit')  ? parseInt(sp.get('limit')!, 10) : 30;
+
   const rawFuelType = sp.get('fuelType');
   const fuelType = rawFuelType && VALID_FUEL_TYPES.includes(rawFuelType as any)
     ? (rawFuelType as FuelType)
@@ -77,8 +77,7 @@ export async function GET(
       state: source.state,
       fuelType,
     });
-    // Cache headers: clients can hold for 5 minutes, CDN edges can serve from
-    // cache for 10. Tune based on how fresh you want frontends to be.
+
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=900',
@@ -93,6 +92,4 @@ export async function GET(
   }
 }
 
-// Edge runtime is faster but doesn't support all Node APIs. Stick with Node
-// for now since we use Buffer.from in the NSW auth flow.
 export const runtime = 'nodejs';
