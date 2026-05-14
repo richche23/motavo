@@ -10,6 +10,7 @@
  *   GeoRegionId    = 4  (SOUTH AUSTRALIA)
  *
  * NOTE: GetCountryGeographicInformation returns 404 for this subscriber — never call it.
+ * NOTE: FuelId 1 (U91) does not appear in SA price data. SA sells E10/P95 as cheapest grades.
  */
 
 import { cacheGet, cacheSet } from '../cache';
@@ -24,9 +25,11 @@ const GEO_ID     = 4;  // SOUTH AUSTRALIA
 const SNAPSHOT_KEY = 'sa:snapshot';
 const SNAPSHOT_TTL = 10 * 60 * 1000; // 10 minutes
 
-// Maps SA API fuel IDs to canonical FuelType values.
+// Maps SA API FuelIds to canonical FuelType values.
+// Confirmed present in live data (2026-05): 2,3,4,5,8,12,14,19
+// FuelId 1 (U91) is absent — SA does not sell standard 91 unleaded.
+// FuelId 19 maps to P98 (confirmed price range ~$2.30/L matches premium 98).
 const FUEL_ID_MAP: Record<number, FuelType> = {
-  1:  'U91',
   2:  'P95',
   3:  'P98',
   4:  'LPG',
@@ -35,6 +38,7 @@ const FUEL_ID_MAP: Record<number, FuelType> = {
   10: 'PRDSL',
   12: 'E10',
   14: 'DSL',
+  19: 'P98',
 };
 
 // ── Raw API shapes ────────────────────────────────────────────────────────────
@@ -144,7 +148,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
 // ── Public fetch ──────────────────────────────────────────────────────────────
 
 export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
-  const { lat, lng, radius = 5, fuelType = 'U91', limit = 30 } = opts;
+  const { lat, lng, radius = 5, fuelType, limit = 30 } = opts;
 
   let snapshot: Snapshot;
   let fromCache = false;
@@ -170,8 +174,16 @@ export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
       acc.push({ ...s, distance: dist });
       return acc;
     }, [])
-    .filter(s => s.prices[fuelType] !== null)
-    .sort((a, b) => (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999))
+    // Only filter by fuel type if one was explicitly requested.
+    // SA has no U91 — an unfiltered call should still return stations.
+    .filter(s => !fuelType || s.prices[fuelType] !== null)
+    .sort((a, b) => {
+      if (fuelType) {
+        return (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999);
+      }
+      // No fuel type specified — sort by distance
+      return (a.distance ?? 0) - (b.distance ?? 0);
+    })
     .slice(0, limit);
 
   return {
