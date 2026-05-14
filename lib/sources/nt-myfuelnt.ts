@@ -1,23 +1,20 @@
 /**
  * NT MyFuel NT — Northern Territory fuel pricing scheme.
  *
- * NO official API. Scrapes myfuelnt.nt.gov.au HTML.
+ * NO official API. Scrapes myfuelnt.nt.gov.au.
  *
  * Flow per snapshot refresh:
- *   1. GET homepage → extract __RequestVerificationToken + Set-Cookie
- *   2. One GET /Home/Results per fuel type (NT doesn't support all-fuel query)
- *   3. Merge results, combining prices onto each station by OutletId
+ *   1. GET homepage → extract __RequestVerificationToken + session cookie
+ *   2. GET /Home/Results (Darwin City, FuelCode=ALLU) → parse #serverJson
+ *      hidden input from HTML → JSON.parse → n.FuelOutlet array
+ *   3. Each station has real lat/lng and an AllFuels array with all prices
  *
- * Limitations:
- *   - NT site does not expose lat/lng anywhere in the HTML.
- *     Distance filtering is skipped; all Darwin area stations are returned.
- *   - Darwin City only (SuburbId=1). Covers 0800 postcode.
- *   - CSRF token + cookie required — one extra round-trip per cache miss.
- *   - HTML structure changes will break parsing.
+ * One request returns all fuel types via each station's AllFuels array.
+ * Lat/lng is available so proper radius filtering works.
  */
 
 import { cacheGet, cacheSet } from '../cache';
-import { normalizeBrand } from '../normalizers';
+import { distanceKm, normalizeBrand } from '../normalizers';
 import { FetchOptions, FetchResult, FuelType, Station } from '../types';
 
 const BASE_URL     = 'https://myfuelnt.nt.gov.au';
@@ -27,18 +24,49 @@ const SNAPSHOT_TTL = 10 * 60 * 1000; // 10 minutes
 const DARWIN_SUBURB    = 'DARWIN CITY (0800)';
 const DARWIN_SUBURB_ID = '1';
 
-// NT fuel codes to fetch. Each needs a separate request.
-// LAF (Low Aromatic Fuel) is the NT-mandated U91 substitute in some areas.
-const NT_FUEL_CODES: Array<{ ntCode: string; fuelType: FuelType }> = [
-  { ntCode: 'ULP',  fuelType: 'U91'   },
-  { ntCode: 'LAF',  fuelType: 'U91'   }, // Low Aromatic Fuel — U91 substitute
-  { ntCode: 'PULP', fuelType: 'P95'   },
-  { ntCode: 'P98',  fuelType: 'P98'   },
-  { ntCode: 'E10',  fuelType: 'E10'   },
-  { ntCode: 'DL',   fuelType: 'DSL'   },
-  { ntCode: 'PD',   fuelType: 'PRDSL' },
-  { ntCode: 'LPG',  fuelType: 'LPG'   },
-];
+// Confirmed fuel codes from the NT site dropdown.
+// ALLU = "Equivalent Unleaded" — returns all stations + their AllFuels pricing.
+const SEARCH_FUEL_CODE = 'ALLU';
+
+// NT site fuel codes → canonical FuelType.
+const NT_CODE_MAP: Record<string, FuelType> = {
+  U91: 'U91',
+  LAF: 'U91',   // Low Aromatic Fuel — NT-mandated U91 substitute
+  P95: 'P95',
+  P98: 'P98',
+  E10: 'E10',
+  DL:  'DSL',
+  PD:  'PRDSL',
+  LPG: 'LPG',
+};
+
+// ── Raw types from serverJson ─────────────────────────────────────────────────
+
+interface NTFuelEntry {
+  FuelCode:  string;
+  Price:     string;  // decimal cents, e.g. "235.9"
+  IsAvailable: boolean;
+}
+
+interface NTOutlet {
+  OutletId:    number;
+  Name:        string;
+  FullAddress: string;
+  Address:     string;
+  Suburb:      string;
+  Postcode:    string;
+  Latitude:    number;
+  Longitude:   number;
+  BrandId:     string;
+  FuelCode:    string;
+  FuelPrice:   string;
+  IsActive:    boolean;
+  AllFuels:    NTFuelEntry[];
+}
+
+interface NTServerJson {
+  FuelOutlet: NTOutlet[];
+}
 
 // ── Snapshot ──────────────────────────────────────────────────────────────────
 
@@ -51,163 +79,116 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const cached = cacheGet<Snapshot>(SNAPSHOT_KEY);
   if (cached) return cached;
 
+  const ua = 'Mozilla/5.0 (compatible; FuelMate/1.0; +https://fuelmate.app)';
+
   // Step 1: GET homepage for CSRF token + session cookie.
   const homeRes = await fetch(`${BASE_URL}/`, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; FuelMate/1.0; +https://fuelmate.app)',
-      Accept:       'text/html',
-    },
+    headers: { 'User-Agent': ua, Accept: 'text/html' },
     redirect: 'follow',
   });
   if (!homeRes.ok) throw new Error(`NT homepage ${homeRes.status}`);
 
   const homeHtml = await homeRes.text();
 
-  // Extract CSRF token from hidden input.
-  const tokenMatch = homeHtml.match(
-    /<input[^>]+name="__RequestVerificationToken"[^>]+value="([^"]+)"/
-  ) ?? homeHtml.match(
-    /<input[^>]+value="([^"]+)"[^>]+name="__RequestVerificationToken"/
-  );
-  if (!tokenMatch) throw new Error('NT: CSRF token not found in homepage');
+  const tokenMatch =
+    homeHtml.match(/<input[^>]+name="__RequestVerificationToken"[^>]+value="([^"]+)"/) ??
+    homeHtml.match(/<input[^>]+value="([^"]+)"[^>]+name="__RequestVerificationToken"/);
+  if (!tokenMatch) throw new Error('NT: CSRF token not found');
   const token = tokenMatch[1];
 
-  // Collect cookies from homepage response.
-  const setCookie = homeRes.headers.get('set-cookie') ?? '';
-  const cookies   = setCookie
+  const cookies = (homeRes.headers.get('set-cookie') ?? '')
     .split(/,(?=\s*\w+=)/)
     .map(c => c.split(';')[0].trim())
     .filter(Boolean)
     .join('; ');
 
+  // Step 2: GET results for Darwin City, all unleaded (includes AllFuels per station).
+  const params = new URLSearchParams({
+    __RequestVerificationToken: token,
+    searchOptions:              'suburbPostcode',
+    Suburb:                     DARWIN_SUBURB,
+    SuburbId:                   DARWIN_SUBURB_ID,
+    RegionId:                   '',
+    FuelCode:                   SEARCH_FUEL_CODE,
+    BrandIdentifier:            '',
+  });
+
+  const resultsRes = await fetch(`${BASE_URL}/Home/Results?${params}`, {
+    headers: {
+      Cookie:       cookies,
+      Referer:      `${BASE_URL}/`,
+      'User-Agent': ua,
+      Accept:       'text/html',
+    },
+    redirect: 'follow',
+  });
+  if (!resultsRes.ok) throw new Error(`NT results ${resultsRes.status}`);
+
+  const html = await resultsRes.text();
+
+  // Step 3: Extract #serverJson hidden input value.
+  // The value is HTML-entity-encoded JSON.
+  const jsonMatch =
+    html.match(/<input[^>]+id="serverJson"[^>]+value="([^"]*)"/) ??
+    html.match(/<input[^>]+value="([^"]*)"[^>]+id="serverJson"/);
+  if (!jsonMatch) throw new Error('NT: #serverJson not found in Results HTML');
+
+  const decoded  = decodeEntities(jsonMatch[1]);
+  const server   = JSON.parse(decoded) as NTServerJson;
+  const outlets  = server.FuelOutlet ?? [];
+
   const refreshedAt = Date.now();
-
-  // Step 2: Fetch results for each NT fuel code.
-  // Merge by OutletId so each station has all its prices on one object.
-  const stationMap = new Map<string, Station>();
-
-  await Promise.allSettled(
-    NT_FUEL_CODES.map(async ({ ntCode, fuelType }) => {
-      const params = new URLSearchParams({
-        __RequestVerificationToken: token,
-        searchOptions:              'suburbPostcode',
-        Suburb:                     DARWIN_SUBURB,
-        SuburbId:                   DARWIN_SUBURB_ID,
-        RegionId:                   '',
-        FuelCode:                   ntCode,
-        BrandIdentifier:            '',
-      });
-
-      const res = await fetch(`${BASE_URL}/Home/Results?${params}`, {
-        headers: {
-          Cookie:       cookies,
-          Referer:      `${BASE_URL}/`,
-          'User-Agent': 'Mozilla/5.0 (compatible; FuelMate/1.0; +https://fuelmate.app)',
-          Accept:       'text/html',
-        },
-        redirect: 'follow',
-      });
-      if (!res.ok) return;
-
-      const html = await res.text();
-      parseRows(html, fuelType, refreshedAt, stationMap);
-    })
-  );
-
-  const snapshot: Snapshot = {
-    stations:    Array.from(stationMap.values()),
-    refreshedAt,
-  };
-  cacheSet(SNAPSHOT_KEY, snapshot, SNAPSHOT_TTL);
-  return snapshot;
-}
-
-// ── HTML parser ───────────────────────────────────────────────────────────────
-
-function parseRows(
-  html:        string,
-  fuelType:    FuelType,
-  refreshedAt: number,
-  out:         Map<string, Station>
-): void {
-  // Match each <tr id="row-{id}" ...> block.
-  const rowRe = /<tr\s+id="(row-\d+)"[^>]*>([\s\S]*?)<\/tr>/g;
-  let m: RegExpExecArray | null;
-
-  while ((m = rowRe.exec(html)) !== null) {
-    const rowId  = m[1];                // e.g. "row-45"
-    const rowHtml = m[2];
-
-    // Name: first <strong> inside outletdetails cell.
-    const nameM = rowHtml.match(
-      /class="[^"]*outletdetails[^"]*"[^>]*>[\s\S]*?<strong>([^<]+)<\/strong>/
-    );
-    if (!nameM) continue;
-    const name = decodeEntities(nameM[1].trim());
-
-    // Address: full outletdetails cell text, strip name prefix.
-    const cellM = rowHtml.match(
-      /class="[^"]*outletdetails[^"]*">([\s\S]*?)<\/td>/
-    );
-    const rawAddr = cellM
-      ? decodeEntities(cellM[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
-      : '';
-    const address = rawAddr.startsWith(name)
-      ? rawAddr.slice(name.length).replace(/^[\s,]+/, '')
-      : rawAddr;
-
-    const suburbM  = address.match(/,\s*([^,]+),\s*NT\s*\d{4}/);
-    const suburb   = suburbM ? suburbM[1].trim() : '';
-    const postcodeM = address.match(/NT\s*(\d{4})/);
-    const postcode  = postcodeM ? postcodeM[1] : undefined;
-
-    // Price.
-    const priceM = rowHtml.match(
-      /class="fuelPrice[^"]*"[^>]*>[\s\S]*?<strong>([\d.]+)<\/strong>/
-    );
-    if (!priceM) continue;
-    const priceVal = parseFloat(priceM[1]);
-    if (isNaN(priceVal) || priceVal <= 0) continue;
-    // NT prices are decimal cents (e.g. 235.9 c/L).
-    // Store as integer tenths-of-a-cent to match SA/QLD format (e.g. 2359).
-    const price = Math.round(priceVal * 10);
-
-    if (out.has(rowId)) {
-      // Station already seen from another fuel type — just add this price.
-      out.get(rowId)!.prices[fuelType] = price;
-    } else {
+  const stations    = outlets
+    .filter(o => o.IsActive && o.Latitude && o.Longitude)
+    .map(o => {
       const prices: Record<FuelType, number | null> = {
         U91: null, P95: null, P98: null,
         E10: null, DSL: null, PRDSL: null, LPG: null,
       };
-      prices[fuelType] = price;
 
-      out.set(rowId, {
-        id:               `nt-${rowId}`,
-        brand:            normalizeBrand(name),
-        name,
-        address,
-        suburb,
-        state:            'NT',
-        postcode,
-        // NT HTML has no lat/lng. Fallback to Darwin CBD so the app doesn't crash.
-        lat:              -12.4634,
-        lng:              130.8456,
+      for (const f of (o.AllFuels ?? [])) {
+        const ft = NT_CODE_MAP[f.FuelCode];
+        if (!ft || !f.IsAvailable) continue;
+        const p = parseFloat(f.Price);
+        if (isNaN(p) || p <= 0) continue;
+        // NT prices are decimal cents (e.g. 235.9 c/L).
+        // Store as integer tenths-of-a-cent to match SA/QLD format (e.g. 2359).
+        const existing = prices[ft];
+        const val      = Math.round(p * 10);
+        // Keep the lower price if multiple NT codes map to the same FuelType (e.g. U91 + LAF).
+        if (existing === null || val < existing) {
+          prices[ft] = val;
+        }
+      }
+
+      return {
+        id:               `nt-${o.OutletId}`,
+        brand:            normalizeBrand(o.BrandId || o.Name),
+        name:             o.Name,
+        address:          o.FullAddress || `${o.Address}, ${o.Suburb}, NT ${o.Postcode}`,
+        suburb:           o.Suburb,
+        state:            'NT' as const,
+        postcode:         o.Postcode,
+        lat:              o.Latitude,
+        lng:              o.Longitude,
         prices,
         updatedAt:        refreshedAt,
         updatedMinutesAgo: 0,
         source:           'nt-myfuelnt',
-      });
-    }
-  }
+      } satisfies Station;
+    });
+
+  const snapshot: Snapshot = { stations, refreshedAt };
+  cacheSet(SNAPSHOT_KEY, snapshot, SNAPSHOT_TTL);
+  return snapshot;
 }
 
 function decodeEntities(s: string): string {
   return s
+    .replace(/&quot;/g, '"')
     .replace(/&amp;/g,  '&')
     .replace(/&lt;/g,   '<')
     .replace(/&gt;/g,   '>')
-    .replace(/&quot;/g, '"')
     .replace(/&#39;/g,  "'")
     .replace(/&nbsp;/g, ' ');
 }
@@ -215,7 +196,7 @@ function decodeEntities(s: string): string {
 // ── Public fetch ──────────────────────────────────────────────────────────────
 
 export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
-  const { fuelType, limit = 30 } = opts;
+  const { lat, lng, radius = 5, fuelType, limit = 30 } = opts;
 
   let snapshot: Snapshot;
   let fromCache = false;
@@ -234,17 +215,23 @@ export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
     };
   }
 
-  const results = snapshot.stations
+  const nearby = snapshot.stations
+    .reduce<Station[]>((acc, s) => {
+      const dist = distanceKm(lat, lng, s.lat, s.lng);
+      if (dist > radius) return acc;
+      acc.push({ ...s, distance: dist });
+      return acc;
+    }, [])
     .filter(s => !fuelType || s.prices[fuelType] !== null)
     .sort((a, b) =>
       fuelType
         ? (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999)
-        : 0
+        : (a.distance ?? 0)           - (b.distance ?? 0)
     )
     .slice(0, limit);
 
   return {
-    stations:    results,
+    stations:    nearby,
     source:      'nt-myfuelnt',
     cached:      fromCache,
     refreshedAt: snapshot.refreshedAt,
