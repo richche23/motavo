@@ -8,11 +8,15 @@
  * Base URL:  https://api.fuel.service.vic.gov.au/open-data/v1
  * Endpoint:  GET /fuel/prices  — all Victorian stations + 24hr-delayed prices
  *
- * Prices are in cents per litre (decimal, e.g. 188.8 = 188.8 c/L).
- * Stored as integer tenths-of-a-cent to match SA/NT format (e.g. 1888).
+ * NOTE: API docs claim prices are "cents per litre" (e.g. 188.8) but live
+ * data returns values in tenths-of-a-cent format (same as SA/QLD, e.g. 1695
+ * = 169.5 c/L). Do NOT multiply by 10.
  *
- * Rate limit: 10 requests per 60 seconds — our 10-minute cache makes this
- * trivially easy to stay within.
+ * NOTE: The name field from the API often returns a Salesforce record ID
+ * (e.g. "a030I00000PhFjoIAF") rather than a human-readable name. The source
+ * falls back to the first component of the address in that case.
+ *
+ * Rate limit: 10 requests per 60 seconds.
  */
 
 import { randomUUID } from 'crypto';
@@ -36,6 +40,10 @@ const VIC_FUEL_MAP: Partial<Record<string, FuelType>> = {
   LPG:  'LPG',
   // E85, B20, LNG, CNG have no canonical FuelType — skipped
 };
+
+// Salesforce record ID pattern (15 or 18 alphanumeric chars).
+// The VIC API returns these as station names when metadata isn't populated.
+const SFID_RE = /^[a-zA-Z0-9]{15,18}$/;
 
 // ── Raw API types ─────────────────────────────────────────────────────────────
 
@@ -110,7 +118,8 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const stations: Station[] = details
     .filter(d => d.fuelStation.location.latitude && d.fuelStation.location.longitude)
     .map(d => {
-      const s      = d.fuelStation;
+      const s = d.fuelStation;
+
       const prices: Record<FuelType, number | null> = {
         U91: null, P95: null, P98: null,
         E10: null, DSL: null, PRDSL: null, LPG: null,
@@ -119,22 +128,28 @@ async function fetchSnapshot(): Promise<Snapshot> {
       for (const p of (d.fuelPrices ?? [])) {
         const ft = VIC_FUEL_MAP[p.fuelType];
         if (!ft || !p.isAvailable || p.price === null) continue;
-        // Convert decimal cents → integer tenths-of-a-cent (e.g. 188.8 → 1888)
-        prices[ft] = Math.round(p.price * 10);
+        // Live data is already in tenths-of-a-cent (same as SA/QLD).
+        // Store as integer — do NOT multiply.
+        prices[ft] = Math.round(p.price);
       }
 
-      // Parse suburb from address: last suburb component before state + postcode
-      const suburbMatch = s.address.match(/,\s*([^,]+)\s+VIC\s+\d{4}/i);
-      const suburb      = suburbMatch ? suburbMatch[1].trim() : '';
-      const postcodeMatch = s.address.match(/VIC\s+(\d{4})/i);
-      const postcode    = postcodeMatch ? postcodeMatch[1] : undefined;
+      // The API sometimes returns a Salesforce record ID as the station name.
+      // Fall back to the street number + name from the address in that case.
+      const nameIsId  = SFID_RE.test(s.name ?? '');
+      const name      = nameIsId
+        ? (s.address?.split(',')[0]?.trim() ?? s.id)
+        : s.name;
 
-      const updatedAt = new Date(d.updatedAt).getTime() || refreshedAt;
+      const suburbMatch   = s.address.match(/,\s*([^,]+)\s+VIC\s+\d{4}/i);
+      const suburb        = suburbMatch ? suburbMatch[1].trim() : '';
+      const postcodeMatch = s.address.match(/VIC\s+(\d{4})/i);
+      const postcode      = postcodeMatch ? postcodeMatch[1] : undefined;
+      const updatedAt     = new Date(d.updatedAt).getTime() || refreshedAt;
 
       return {
         id:               `vic-${s.id}`,
-        brand:            normalizeBrand(s.brandId || s.name),
-        name:             s.name,
+        brand:            normalizeBrand(s.brandId),
+        name,
         address:          s.address,
         suburb,
         state:            'VIC' as const,
