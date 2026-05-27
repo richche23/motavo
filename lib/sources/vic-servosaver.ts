@@ -6,15 +6,16 @@
  * Env var: VIC_SERVOSAVER_API_KEY  (issued as x-consumer-id on approval)
  *
  * Base URL:  https://api.fuel.service.vic.gov.au/open-data/v1
- * Endpoint:  GET /fuel/prices  — all Victorian stations + 24hr-delayed prices
  *
- * NOTE: API docs claim prices are "cents per litre" (e.g. 188.8) but live
- * data returns values in tenths-of-a-cent format (same as SA/QLD, e.g. 1695
- * = 169.5 c/L). Do NOT multiply by 10.
+ * Two endpoints used per snapshot:
+ *   GET /fuel/reference-data/brands  — resolve brandId → human name
+ *   GET /fuel/prices                 — all Victorian stations + 24hr-delayed prices
  *
- * NOTE: The name field from the API often returns a Salesforce record ID
- * (e.g. "a030I00000PhFjoIAF") rather than a human-readable name. The source
- * falls back to the first component of the address in that case.
+ * NOTE: brandId in the prices response is a Salesforce record ID, not a brand
+ * code. The brands endpoint maps it to a human name (e.g. "BP", "Shell").
+ *
+ * NOTE: Live API returns prices in tenths-of-a-cent (same as SA/QLD),
+ * despite docs claiming "cents per litre". Do NOT multiply by 10.
  *
  * Rate limit: 10 requests per 60 seconds.
  */
@@ -41,11 +42,13 @@ const VIC_FUEL_MAP: Partial<Record<string, FuelType>> = {
   // E85, B20, LNG, CNG have no canonical FuelType — skipped
 };
 
-// Salesforce record ID pattern (15 or 18 alphanumeric chars).
-// The VIC API returns these as station names when metadata isn't populated.
-const SFID_RE = /^[a-zA-Z0-9]{15,18}$/;
-
 // ── Raw API types ─────────────────────────────────────────────────────────────
+
+interface VICBrand {
+  id:   string;
+  name: string;
+  type: string;
+}
 
 interface VICLocation {
   latitude:  number | null;
@@ -74,9 +77,8 @@ interface VICPriceDetail {
   updatedAt:   string;
 }
 
-interface VICPricesResponse {
-  fuelPriceDetails: VICPriceDetail[];
-}
+interface VICBrandsResponse   { brands: VICBrand[] }
+interface VICPricesResponse   { fuelPriceDetails: VICPriceDetail[] }
 
 // ── Auth headers ──────────────────────────────────────────────────────────────
 
@@ -102,18 +104,34 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const cached = cacheGet<Snapshot>(SNAPSHOT_KEY);
   if (cached) return cached;
 
-  const res = await fetch(`${BASE_URL}/fuel/prices`, {
-    headers: authHeaders(),
-  });
+  // Fetch brands and prices in parallel (each needs its own transaction ID).
+  const [brandsRes, pricesRes] = await Promise.all([
+    fetch(`${BASE_URL}/fuel/reference-data/brands`, { headers: authHeaders() }),
+    fetch(`${BASE_URL}/fuel/prices`,                { headers: authHeaders() }),
+  ]);
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`VIC prices ${res.status}: ${body.substring(0, 200)}`);
+  if (!brandsRes.ok) {
+    const body = await brandsRes.text().catch(() => '');
+    throw new Error(`VIC brands ${brandsRes.status}: ${body.substring(0, 200)}`);
+  }
+  if (!pricesRes.ok) {
+    const body = await pricesRes.text().catch(() => '');
+    throw new Error(`VIC prices ${pricesRes.status}: ${body.substring(0, 200)}`);
   }
 
-  const data        = await res.json() as VICPricesResponse;
+  const [brandsData, pricesData] = await Promise.all([
+    brandsRes.json() as Promise<VICBrandsResponse>,
+    pricesRes.json() as Promise<VICPricesResponse>,
+  ]);
+
+  // Build brandId → human-readable name lookup.
+  const brandMap = new Map<string, string>();
+  for (const b of (brandsData.brands ?? [])) {
+    if (b.id && b.name) brandMap.set(b.id, b.name);
+  }
+
   const refreshedAt = Date.now();
-  const details     = data.fuelPriceDetails ?? [];
+  const details     = pricesData.fuelPriceDetails ?? [];
 
   const stations: Station[] = details
     .filter(d => d.fuelStation.location.latitude && d.fuelStation.location.longitude)
@@ -129,16 +147,13 @@ async function fetchSnapshot(): Promise<Snapshot> {
         const ft = VIC_FUEL_MAP[p.fuelType];
         if (!ft || !p.isAvailable || p.price === null) continue;
         // Live data is already in tenths-of-a-cent (same as SA/QLD).
-        // Store as integer — do NOT multiply.
         prices[ft] = Math.round(p.price);
       }
 
-      // The API sometimes returns a Salesforce record ID as the station name.
-      // Fall back to the street number + name from the address in that case.
-      const nameIsId  = SFID_RE.test(s.name ?? '');
-      const name      = nameIsId
-        ? (s.address?.split(',')[0]?.trim() ?? s.id)
-        : s.name;
+      // Resolve brand name from the brands lookup.
+      // brandId in the prices response is a Salesforce record ID —
+      // the brands endpoint maps it to a human-readable name.
+      const brandName = brandMap.get(s.brandId) || s.brandId || 'Independent';
 
       const suburbMatch   = s.address.match(/,\s*([^,]+)\s+VIC\s+\d{4}/i);
       const suburb        = suburbMatch ? suburbMatch[1].trim() : '';
@@ -148,8 +163,8 @@ async function fetchSnapshot(): Promise<Snapshot> {
 
       return {
         id:               `vic-${s.id}`,
-        brand:            normalizeBrand(s.brandId),
-        name,
+        brand:            normalizeBrand(brandName),
+        name:             s.name && s.name !== s.id ? s.name : `${brandName} ${suburb || s.address.split(',')[0]?.trim() || ''}`.trim(),
         address:          s.address,
         suburb,
         state:            'VIC' as const,
