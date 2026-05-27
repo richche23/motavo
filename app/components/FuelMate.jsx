@@ -646,22 +646,15 @@ const STORAGE_KEYS = {
 const fmStorage = {
   async get(key) {
     try {
-      if (typeof window === 'undefined' || !window.storage) return null;
-      // Race the storage call against a 1.5s timeout — if the underlying
-      // API hangs (which we've seen happen in restricted iframes), we'd
-      // rather give up than block the whole app from hydrating.
-      const result = await Promise.race([
-        window.storage.get(key),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('storage-timeout')), 1500)),
-      ]);
-      if (!result) return null;
-      return JSON.parse(result.value);
+      if (typeof window === 'undefined') return null;
+      const val = localStorage.getItem(key);
+      return val ? JSON.parse(val) : null;
     } catch { return null; }
   },
   async set(key, value) {
     try {
-      if (typeof window === 'undefined' || !window.storage) return;
-      await window.storage.set(key, JSON.stringify(value));
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(key, JSON.stringify(value));
     } catch { /* swallow — storage is best-effort */ }
   },
 };
@@ -3125,7 +3118,15 @@ const NotFound = ({ onNav }) => (
 /* ===== APP ===== */
 
 export default function App() {
-  const [view, setView] = useState({ name: 'home' });
+  const [view, setView] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('fm:view');
+        if (saved) return JSON.parse(saved);
+      }
+    } catch {}
+    return { name: 'home' };
+  });
   const [fuelType, setFuelType] = useState('U91');
   const [location, setLocation] = useState(null);
   const [locating, setLocating] = useState(false);
@@ -3224,6 +3225,11 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
   }, [view.name, view.slug]);
+
+  // Persist current view so a browser refresh restores the same page.
+  useEffect(() => {
+    try { localStorage.setItem('fm:view', JSON.stringify(view)); } catch {}
+  }, [view]);
 
   // Global ⌘K / Ctrl+K to open search
   useEffect(() => {
