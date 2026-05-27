@@ -248,217 +248,6 @@ const STATE_TO_SOURCE = Object.entries(DATA_SOURCES).reduce((acc, [key, src]) =>
   return acc;
 }, {});
 
-// Major Australian suburbs across all states. Not exhaustive (AU has ~15,000
-// suburbs total) — focused on the most-searched ~170 across each capital and
-// notable regional centres. For coverage beyond this list, we fall back to
-// Nominatim (OpenStreetMap) geocoding at runtime.
-const SUBURBS = [
-  /* ===== NSW · Greater Sydney ===== */
-  // CBD + Inner
-  { slug: 'sydney-cbd',      name: 'Sydney CBD',      city: 'sydney', state: 'NSW', postcode: '2000', center: { lat: -33.8688, lng: 151.2093 } },
-  { slug: 'pyrmont',         name: 'Pyrmont',         city: 'sydney', state: 'NSW', postcode: '2009', center: { lat: -33.8688, lng: 151.1947 } },
-  { slug: 'ultimo',          name: 'Ultimo',          city: 'sydney', state: 'NSW', postcode: '2007', center: { lat: -33.8835, lng: 151.1972 } },
-  { slug: 'surry-hills',     name: 'Surry Hills',     city: 'sydney', state: 'NSW', postcode: '2010', center: { lat: -33.8839, lng: 151.2103 } },
-  { slug: 'darlinghurst',    name: 'Darlinghurst',    city: 'sydney', state: 'NSW', postcode: '2010', center: { lat: -33.8794, lng: 151.2189 } },
-  { slug: 'paddington',      name: 'Paddington',      city: 'sydney', state: 'NSW', postcode: '2021', center: { lat: -33.8836, lng: 151.2299 } },
-  { slug: 'woollahra',       name: 'Woollahra',       city: 'sydney', state: 'NSW', postcode: '2025', center: { lat: -33.8861, lng: 151.2422 } },
-  { slug: 'double-bay',      name: 'Double Bay',      city: 'sydney', state: 'NSW', postcode: '2028', center: { lat: -33.8780, lng: 151.2444 } },
-  { slug: 'bondi-junction',  name: 'Bondi Junction',  city: 'sydney', state: 'NSW', postcode: '2022', center: { lat: -33.8920, lng: 151.2484 } },
-  { slug: 'bondi',           name: 'Bondi',           city: 'sydney', state: 'NSW', postcode: '2026', center: { lat: -33.8915, lng: 151.2767 } },
-  { slug: 'coogee',          name: 'Coogee',          city: 'sydney', state: 'NSW', postcode: '2034', center: { lat: -33.9203, lng: 151.2589 } },
-  { slug: 'maroubra',        name: 'Maroubra',        city: 'sydney', state: 'NSW', postcode: '2035', center: { lat: -33.9501, lng: 151.2421 } },
-  { slug: 'randwick',        name: 'Randwick',        city: 'sydney', state: 'NSW', postcode: '2031', center: { lat: -33.9173, lng: 151.2412 } },
-  { slug: 'kensington',      name: 'Kensington',      city: 'sydney', state: 'NSW', postcode: '2033', center: { lat: -33.9145, lng: 151.2240 } },
-  { slug: 'redfern',         name: 'Redfern',         city: 'sydney', state: 'NSW', postcode: '2016', center: { lat: -33.8923, lng: 151.2046 } },
-  { slug: 'alexandria',      name: 'Alexandria',      city: 'sydney', state: 'NSW', postcode: '2015', center: { lat: -33.9119, lng: 151.1939 } },
-  { slug: 'mascot',          name: 'Mascot',          city: 'sydney', state: 'NSW', postcode: '2020', center: { lat: -33.9304, lng: 151.1936 } },
-  // Inner West
-  { slug: 'glebe',           name: 'Glebe',           city: 'sydney', state: 'NSW', postcode: '2037', center: { lat: -33.8800, lng: 151.1860 } },
-  { slug: 'newtown',         name: 'Newtown',         city: 'sydney', state: 'NSW', postcode: '2042', center: { lat: -33.8983, lng: 151.1789 } },
-  { slug: 'marrickville',    name: 'Marrickville',    city: 'sydney', state: 'NSW', postcode: '2204', center: { lat: -33.9106, lng: 151.1539 } },
-  { slug: 'leichhardt',      name: 'Leichhardt',      city: 'sydney', state: 'NSW', postcode: '2040', center: { lat: -33.8838, lng: 151.1568 } },
-  { slug: 'balmain',         name: 'Balmain',         city: 'sydney', state: 'NSW', postcode: '2041', center: { lat: -33.8580, lng: 151.1790 } },
-  { slug: 'rozelle',         name: 'Rozelle',         city: 'sydney', state: 'NSW', postcode: '2039', center: { lat: -33.8617, lng: 151.1731 } },
-  { slug: 'annandale',       name: 'Annandale',       city: 'sydney', state: 'NSW', postcode: '2038', center: { lat: -33.8786, lng: 151.1722 } },
-  { slug: 'camperdown',      name: 'Camperdown',      city: 'sydney', state: 'NSW', postcode: '2050', center: { lat: -33.8889, lng: 151.1781 } },
-  { slug: 'ashfield',        name: 'Ashfield',        city: 'sydney', state: 'NSW', postcode: '2131', center: { lat: -33.8895, lng: 151.1240 } },
-  { slug: 'burwood',         name: 'Burwood',         city: 'sydney', state: 'NSW', postcode: '2134', center: { lat: -33.8775, lng: 151.1042 } },
-  { slug: 'strathfield',     name: 'Strathfield',     city: 'sydney', state: 'NSW', postcode: '2135', center: { lat: -33.8786, lng: 151.0809 } },
-  { slug: 'concord',         name: 'Concord',         city: 'sydney', state: 'NSW', postcode: '2137', center: { lat: -33.8589, lng: 151.0989 } },
-  // North / Lower North Shore / Northern Beaches
-  { slug: 'north-sydney',    name: 'North Sydney',    city: 'sydney', state: 'NSW', postcode: '2060', center: { lat: -33.8389, lng: 151.2070 } },
-  { slug: 'crows-nest',      name: 'Crows Nest',      city: 'sydney', state: 'NSW', postcode: '2065', center: { lat: -33.8264, lng: 151.2014 } },
-  { slug: 'st-leonards',     name: 'St Leonards',     city: 'sydney', state: 'NSW', postcode: '2065', center: { lat: -33.8233, lng: 151.1948 } },
-  { slug: 'mosman',          name: 'Mosman',          city: 'sydney', state: 'NSW', postcode: '2088', center: { lat: -33.8281, lng: 151.2417 } },
-  { slug: 'neutral-bay',     name: 'Neutral Bay',     city: 'sydney', state: 'NSW', postcode: '2089', center: { lat: -33.8307, lng: 151.2186 } },
-  { slug: 'manly',           name: 'Manly',           city: 'sydney', state: 'NSW', postcode: '2095', center: { lat: -33.7969, lng: 151.2855 } },
-  { slug: 'dee-why',         name: 'Dee Why',         city: 'sydney', state: 'NSW', postcode: '2099', center: { lat: -33.7547, lng: 151.2856 } },
-  { slug: 'brookvale',       name: 'Brookvale',       city: 'sydney', state: 'NSW', postcode: '2100', center: { lat: -33.7637, lng: 151.2683 } },
-  { slug: 'chatswood',       name: 'Chatswood',       city: 'sydney', state: 'NSW', postcode: '2067', center: { lat: -33.7975, lng: 151.1830 } },
-  { slug: 'lane-cove',       name: 'Lane Cove',       city: 'sydney', state: 'NSW', postcode: '2066', center: { lat: -33.8141, lng: 151.1697 } },
-  { slug: 'ryde',            name: 'Ryde',            city: 'sydney', state: 'NSW', postcode: '2112', center: { lat: -33.8161, lng: 151.1056 } },
-  { slug: 'epping',          name: 'Epping',          city: 'sydney', state: 'NSW', postcode: '2121', center: { lat: -33.7728, lng: 151.0820 } },
-  // Hills + North West
-  { slug: 'castle-hill',     name: 'Castle Hill',     city: 'sydney', state: 'NSW', postcode: '2154', center: { lat: -33.7295, lng: 151.0001 } },
-  { slug: 'baulkham-hills',  name: 'Baulkham Hills',  city: 'sydney', state: 'NSW', postcode: '2153', center: { lat: -33.7615, lng: 150.9928 } },
-  { slug: 'hornsby',         name: 'Hornsby',         city: 'sydney', state: 'NSW', postcode: '2077', center: { lat: -33.7050, lng: 151.0992 } },
-  // West / South West
-  { slug: 'parramatta',      name: 'Parramatta',      city: 'sydney', state: 'NSW', postcode: '2150', center: { lat: -33.8150, lng: 151.0011 } },
-  { slug: 'blacktown',       name: 'Blacktown',       city: 'sydney', state: 'NSW', postcode: '2148', center: { lat: -33.7689, lng: 150.9067 } },
-  { slug: 'penrith',         name: 'Penrith',         city: 'sydney', state: 'NSW', postcode: '2750', center: { lat: -33.7510, lng: 150.6943 } },
-  { slug: 'liverpool',       name: 'Liverpool',       city: 'sydney', state: 'NSW', postcode: '2170', center: { lat: -33.9200, lng: 150.9239 } },
-  { slug: 'bankstown',       name: 'Bankstown',       city: 'sydney', state: 'NSW', postcode: '2200', center: { lat: -33.9166, lng: 151.0344 } },
-  { slug: 'campbelltown',    name: 'Campbelltown',    city: 'sydney', state: 'NSW', postcode: '2560', center: { lat: -34.0667, lng: 150.8169 } },
-  { slug: 'auburn',          name: 'Auburn',          city: 'sydney', state: 'NSW', postcode: '2144', center: { lat: -33.8497, lng: 151.0327 } },
-  // Southern Sydney
-  { slug: 'cronulla',        name: 'Cronulla',        city: 'sydney', state: 'NSW', postcode: '2230', center: { lat: -34.0556, lng: 151.1530 } },
-  { slug: 'miranda',         name: 'Miranda',         city: 'sydney', state: 'NSW', postcode: '2228', center: { lat: -34.0337, lng: 151.1006 } },
-  { slug: 'hurstville',      name: 'Hurstville',      city: 'sydney', state: 'NSW', postcode: '2220', center: { lat: -33.9670, lng: 151.1019 } },
-  { slug: 'sutherland',      name: 'Sutherland',      city: 'sydney', state: 'NSW', postcode: '2232', center: { lat: -34.0317, lng: 151.0573 } },
-
-  /* ===== NSW · Regional ===== */
-  { slug: 'newcastle',       name: 'Newcastle',       city: null,     state: 'NSW', postcode: '2300', center: { lat: -32.9283, lng: 151.7817 } },
-  { slug: 'wollongong',      name: 'Wollongong',      city: null,     state: 'NSW', postcode: '2500', center: { lat: -34.4278, lng: 150.8931 } },
-  { slug: 'maitland',        name: 'Maitland',        city: null,     state: 'NSW', postcode: '2320', center: { lat: -32.7339, lng: 151.5586 } },
-  { slug: 'central-coast',   name: 'Central Coast',   city: null,     state: 'NSW', postcode: '2250', center: { lat: -33.4279, lng: 151.3409 } },
-  { slug: 'wagga-wagga',     name: 'Wagga Wagga',     city: null,     state: 'NSW', postcode: '2650', center: { lat: -35.1170, lng: 147.3560 } },
-  { slug: 'tamworth',        name: 'Tamworth',        city: null,     state: 'NSW', postcode: '2340', center: { lat: -31.0900, lng: 150.9300 } },
-  { slug: 'orange',          name: 'Orange',          city: null,     state: 'NSW', postcode: '2800', center: { lat: -33.2840, lng: 149.1014 } },
-  { slug: 'dubbo',           name: 'Dubbo',           city: null,     state: 'NSW', postcode: '2830', center: { lat: -32.2569, lng: 148.6011 } },
-
-  /* ===== QLD · Greater Brisbane ===== */
-  { slug: 'south-brisbane',  name: 'South Brisbane',  city: 'brisbane', state: 'QLD', postcode: '4101', center: { lat: -27.4810, lng: 153.0211 } },
-  { slug: 'fortitude-valley',name: 'Fortitude Valley',city: 'brisbane', state: 'QLD', postcode: '4006', center: { lat: -27.4571, lng: 153.0345 } },
-  { slug: 'new-farm',        name: 'New Farm',        city: 'brisbane', state: 'QLD', postcode: '4005', center: { lat: -27.4669, lng: 153.0492 } },
-  { slug: 'west-end',        name: 'West End',        city: 'brisbane', state: 'QLD', postcode: '4101', center: { lat: -27.4814, lng: 153.0067 } },
-  { slug: 'toowong',         name: 'Toowong',         city: 'brisbane', state: 'QLD', postcode: '4066', center: { lat: -27.4842, lng: 152.9883 } },
-  { slug: 'st-lucia',        name: 'St Lucia',        city: 'brisbane', state: 'QLD', postcode: '4067', center: { lat: -27.4983, lng: 153.0150 } },
-  { slug: 'indooroopilly',   name: 'Indooroopilly',   city: 'brisbane', state: 'QLD', postcode: '4068', center: { lat: -27.4988, lng: 152.9737 } },
-  { slug: 'chermside',       name: 'Chermside',       city: 'brisbane', state: 'QLD', postcode: '4032', center: { lat: -27.3848, lng: 153.0317 } },
-  { slug: 'mount-gravatt',   name: 'Mount Gravatt',   city: 'brisbane', state: 'QLD', postcode: '4122', center: { lat: -27.5413, lng: 153.0700 } },
-  { slug: 'carindale',       name: 'Carindale',       city: 'brisbane', state: 'QLD', postcode: '4152', center: { lat: -27.5108, lng: 153.1058 } },
-  { slug: 'wynnum',          name: 'Wynnum',          city: 'brisbane', state: 'QLD', postcode: '4178', center: { lat: -27.4400, lng: 153.1717 } },
-  { slug: 'aspley',          name: 'Aspley',          city: 'brisbane', state: 'QLD', postcode: '4034', center: { lat: -27.3700, lng: 153.0167 } },
-  { slug: 'logan-central',   name: 'Logan Central',   city: 'brisbane', state: 'QLD', postcode: '4114', center: { lat: -27.6383, lng: 153.1100 } },
-  { slug: 'caboolture',      name: 'Caboolture',      city: 'brisbane', state: 'QLD', postcode: '4510', center: { lat: -27.0850, lng: 152.9522 } },
-  { slug: 'ipswich',         name: 'Ipswich',         city: 'brisbane', state: 'QLD', postcode: '4305', center: { lat: -27.6171, lng: 152.7619 } },
-
-  /* ===== QLD · Coast + Regional ===== */
-  { slug: 'gold-coast',      name: 'Gold Coast',      city: null,     state: 'QLD', postcode: '4217', center: { lat: -28.0167, lng: 153.4000 } },
-  { slug: 'surfers-paradise',name: 'Surfers Paradise',city: null,     state: 'QLD', postcode: '4217', center: { lat: -28.0028, lng: 153.4308 } },
-  { slug: 'broadbeach',      name: 'Broadbeach',      city: null,     state: 'QLD', postcode: '4218', center: { lat: -28.0294, lng: 153.4350 } },
-  { slug: 'burleigh-heads',  name: 'Burleigh Heads',  city: null,     state: 'QLD', postcode: '4220', center: { lat: -28.0917, lng: 153.4498 } },
-  { slug: 'southport',       name: 'Southport',       city: null,     state: 'QLD', postcode: '4215', center: { lat: -27.9650, lng: 153.4047 } },
-  { slug: 'coolangatta',     name: 'Coolangatta',     city: null,     state: 'QLD', postcode: '4225', center: { lat: -28.1697, lng: 153.5350 } },
-  { slug: 'maroochydore',    name: 'Maroochydore',    city: null,     state: 'QLD', postcode: '4558', center: { lat: -26.6594, lng: 153.0931 } },
-  { slug: 'noosa-heads',     name: 'Noosa Heads',     city: null,     state: 'QLD', postcode: '4567', center: { lat: -26.3961, lng: 153.0939 } },
-  { slug: 'cairns',          name: 'Cairns',          city: null,     state: 'QLD', postcode: '4870', center: { lat: -16.9203, lng: 145.7710 } },
-  { slug: 'townsville',      name: 'Townsville',      city: null,     state: 'QLD', postcode: '4810', center: { lat: -19.2576, lng: 146.8178 } },
-  { slug: 'toowoomba',       name: 'Toowoomba',       city: null,     state: 'QLD', postcode: '4350', center: { lat: -27.5598, lng: 151.9507 } },
-  { slug: 'mackay',          name: 'Mackay',          city: null,     state: 'QLD', postcode: '4740', center: { lat: -21.1411, lng: 149.1862 } },
-  { slug: 'bundaberg',       name: 'Bundaberg',       city: null,     state: 'QLD', postcode: '4670', center: { lat: -24.8661, lng: 152.3489 } },
-
-  /* ===== WA · Greater Perth ===== */
-  { slug: 'east-perth',      name: 'East Perth',      city: 'perth',  state: 'WA',  postcode: '6004', center: { lat: -31.9544, lng: 115.8742 } },
-  { slug: 'west-perth',      name: 'West Perth',      city: 'perth',  state: 'WA',  postcode: '6005', center: { lat: -31.9469, lng: 115.8408 } },
-  { slug: 'northbridge',     name: 'Northbridge',     city: 'perth',  state: 'WA',  postcode: '6003', center: { lat: -31.9469, lng: 115.8581 } },
-  { slug: 'leederville',     name: 'Leederville',     city: 'perth',  state: 'WA',  postcode: '6007', center: { lat: -31.9311, lng: 115.8408 } },
-  { slug: 'mount-lawley',    name: 'Mount Lawley',    city: 'perth',  state: 'WA',  postcode: '6050', center: { lat: -31.9355, lng: 115.8669 } },
-  { slug: 'joondalup',       name: 'Joondalup',       city: 'perth',  state: 'WA',  postcode: '6027', center: { lat: -31.7448, lng: 115.7661 } },
-  { slug: 'fremantle',       name: 'Fremantle',       city: 'perth',  state: 'WA',  postcode: '6160', center: { lat: -32.0569, lng: 115.7470 } },
-  { slug: 'subiaco',         name: 'Subiaco',         city: 'perth',  state: 'WA',  postcode: '6008', center: { lat: -31.9479, lng: 115.8273 } },
-  { slug: 'cottesloe',       name: 'Cottesloe',       city: 'perth',  state: 'WA',  postcode: '6011', center: { lat: -32.0019, lng: 115.7593 } },
-  { slug: 'scarborough',     name: 'Scarborough',     city: 'perth',  state: 'WA',  postcode: '6019', center: { lat: -31.8939, lng: 115.7569 } },
-  { slug: 'claremont',       name: 'Claremont',       city: 'perth',  state: 'WA',  postcode: '6010', center: { lat: -31.9831, lng: 115.7833 } },
-  { slug: 'victoria-park',   name: 'Victoria Park',   city: 'perth',  state: 'WA',  postcode: '6100', center: { lat: -31.9744, lng: 115.9006 } },
-  { slug: 'midland',         name: 'Midland',         city: 'perth',  state: 'WA',  postcode: '6056', center: { lat: -31.8881, lng: 116.0103 } },
-  { slug: 'armadale-wa',     name: 'Armadale',        city: 'perth',  state: 'WA',  postcode: '6112', center: { lat: -32.1500, lng: 116.0142 } },
-  { slug: 'rockingham',      name: 'Rockingham',      city: 'perth',  state: 'WA',  postcode: '6168', center: { lat: -32.2767, lng: 115.7297 } },
-
-  /* ===== WA · Regional ===== */
-  { slug: 'mandurah',        name: 'Mandurah',        city: null,     state: 'WA',  postcode: '6210', center: { lat: -32.5269, lng: 115.7217 } },
-  { slug: 'bunbury',         name: 'Bunbury',         city: null,     state: 'WA',  postcode: '6230', center: { lat: -33.3267, lng: 115.6411 } },
-  { slug: 'geraldton',       name: 'Geraldton',       city: null,     state: 'WA',  postcode: '6530', center: { lat: -28.7741, lng: 114.6093 } },
-  { slug: 'kalgoorlie',      name: 'Kalgoorlie',      city: null,     state: 'WA',  postcode: '6430', center: { lat: -30.7489, lng: 121.4655 } },
-
-  /* ===== VIC · Greater Melbourne ===== */
-  { slug: 'melbourne-cbd',   name: 'Melbourne CBD',   city: 'melbourne', state: 'VIC', postcode: '3000', center: { lat: -37.8136, lng: 144.9631 } },
-  { slug: 'south-melbourne', name: 'South Melbourne', city: 'melbourne', state: 'VIC', postcode: '3205', center: { lat: -37.8333, lng: 144.9583 } },
-  { slug: 'southbank',       name: 'Southbank',       city: 'melbourne', state: 'VIC', postcode: '3006', center: { lat: -37.8232, lng: 144.9645 } },
-  { slug: 'docklands',       name: 'Docklands',       city: 'melbourne', state: 'VIC', postcode: '3008', center: { lat: -37.8167, lng: 144.9457 } },
-  { slug: 'north-melbourne', name: 'North Melbourne', city: 'melbourne', state: 'VIC', postcode: '3051', center: { lat: -37.8000, lng: 144.9500 } },
-  { slug: 'carlton',         name: 'Carlton',         city: 'melbourne', state: 'VIC', postcode: '3053', center: { lat: -37.7986, lng: 144.9667 } },
-  { slug: 'fitzroy',         name: 'Fitzroy',         city: 'melbourne', state: 'VIC', postcode: '3065', center: { lat: -37.7958, lng: 144.9789 } },
-  { slug: 'collingwood',     name: 'Collingwood',     city: 'melbourne', state: 'VIC', postcode: '3066', center: { lat: -37.8029, lng: 144.9836 } },
-  { slug: 'richmond-vic',    name: 'Richmond',        city: 'melbourne', state: 'VIC', postcode: '3121', center: { lat: -37.8233, lng: 144.9981 } },
-  { slug: 'st-kilda',        name: 'St Kilda',        city: 'melbourne', state: 'VIC', postcode: '3182', center: { lat: -37.8676, lng: 144.9810 } },
-  { slug: 'south-yarra',     name: 'South Yarra',     city: 'melbourne', state: 'VIC', postcode: '3141', center: { lat: -37.8389, lng: 144.9925 } },
-  { slug: 'prahran',         name: 'Prahran',         city: 'melbourne', state: 'VIC', postcode: '3181', center: { lat: -37.8514, lng: 144.9919 } },
-  { slug: 'toorak',          name: 'Toorak',          city: 'melbourne', state: 'VIC', postcode: '3142', center: { lat: -37.8417, lng: 145.0083 } },
-  { slug: 'hawthorn',        name: 'Hawthorn',        city: 'melbourne', state: 'VIC', postcode: '3122', center: { lat: -37.8222, lng: 145.0353 } },
-  { slug: 'camberwell',      name: 'Camberwell',      city: 'melbourne', state: 'VIC', postcode: '3124', center: { lat: -37.8333, lng: 145.0606 } },
-  { slug: 'box-hill',        name: 'Box Hill',        city: 'melbourne', state: 'VIC', postcode: '3128', center: { lat: -37.8194, lng: 145.1264 } },
-  { slug: 'footscray',       name: 'Footscray',       city: 'melbourne', state: 'VIC', postcode: '3011', center: { lat: -37.8000, lng: 144.8983 } },
-  { slug: 'williamstown',    name: 'Williamstown',    city: 'melbourne', state: 'VIC', postcode: '3016', center: { lat: -37.8717, lng: 144.8950 } },
-  { slug: 'brunswick',       name: 'Brunswick',       city: 'melbourne', state: 'VIC', postcode: '3056', center: { lat: -37.7667, lng: 144.9667 } },
-  { slug: 'coburg',          name: 'Coburg',          city: 'melbourne', state: 'VIC', postcode: '3058', center: { lat: -37.7464, lng: 144.9647 } },
-  { slug: 'northcote',       name: 'Northcote',       city: 'melbourne', state: 'VIC', postcode: '3070', center: { lat: -37.7686, lng: 144.9978 } },
-  { slug: 'preston',         name: 'Preston',         city: 'melbourne', state: 'VIC', postcode: '3072', center: { lat: -37.7414, lng: 144.9939 } },
-  { slug: 'essendon',        name: 'Essendon',        city: 'melbourne', state: 'VIC', postcode: '3040', center: { lat: -37.7517, lng: 144.9192 } },
-  { slug: 'frankston',       name: 'Frankston',       city: 'melbourne', state: 'VIC', postcode: '3199', center: { lat: -38.1450, lng: 145.1244 } },
-  { slug: 'dandenong',       name: 'Dandenong',       city: 'melbourne', state: 'VIC', postcode: '3175', center: { lat: -37.9889, lng: 145.2156 } },
-  { slug: 'geelong',         name: 'Geelong',         city: 'melbourne', state: 'VIC', postcode: '3220', center: { lat: -38.1499, lng: 144.3617 } },
-  { slug: 'ballarat',        name: 'Ballarat',        city: 'melbourne', state: 'VIC', postcode: '3350', center: { lat: -37.5622, lng: 143.8503 } },
-  { slug: 'bendigo',         name: 'Bendigo',         city: 'melbourne', state: 'VIC', postcode: '3550', center: { lat: -36.7570, lng: 144.2784 } },
-
-  /* ===== SA · Greater Adelaide ===== */
-  { slug: 'adelaide-cbd',    name: 'Adelaide CBD',    city: 'adelaide', state: 'SA', postcode: '5000', center: { lat: -34.9285, lng: 138.6007 } },
-  { slug: 'north-adelaide',  name: 'North Adelaide',  city: 'adelaide', state: 'SA', postcode: '5006', center: { lat: -34.9067, lng: 138.5944 } },
-  { slug: 'glenelg',         name: 'Glenelg',         city: 'adelaide', state: 'SA', postcode: '5045', center: { lat: -34.9817, lng: 138.5111 } },
-  { slug: 'norwood-sa',      name: 'Norwood',         city: 'adelaide', state: 'SA', postcode: '5067', center: { lat: -34.9217, lng: 138.6322 } },
-  { slug: 'unley',           name: 'Unley',           city: 'adelaide', state: 'SA', postcode: '5061', center: { lat: -34.9528, lng: 138.5972 } },
-  { slug: 'burnside',        name: 'Burnside',        city: 'adelaide', state: 'SA', postcode: '5066', center: { lat: -34.9300, lng: 138.6500 } },
-  { slug: 'prospect',        name: 'Prospect',        city: 'adelaide', state: 'SA', postcode: '5082', center: { lat: -34.8867, lng: 138.5944 } },
-  { slug: 'salisbury',       name: 'Salisbury',       city: 'adelaide', state: 'SA', postcode: '5108', center: { lat: -34.7589, lng: 138.6411 } },
-  { slug: 'modbury',         name: 'Modbury',         city: 'adelaide', state: 'SA', postcode: '5092', center: { lat: -34.8400, lng: 138.6889 } },
-  { slug: 'port-adelaide',   name: 'Port Adelaide',   city: 'adelaide', state: 'SA', postcode: '5015', center: { lat: -34.8472, lng: 138.5083 } },
-  { slug: 'marion',          name: 'Marion',          city: 'adelaide', state: 'SA', postcode: '5043', center: { lat: -35.0028, lng: 138.5589 } },
-  { slug: 'henley-beach',    name: 'Henley Beach',    city: 'adelaide', state: 'SA', postcode: '5022', center: { lat: -34.9189, lng: 138.4944 } },
-  { slug: 'mount-barker',    name: 'Mount Barker',    city: 'adelaide', state: 'SA', postcode: '5251', center: { lat: -35.0667, lng: 138.8583 } },
-  { slug: 'mount-gambier',   name: 'Mount Gambier',   city: null,       state: 'SA', postcode: '5290', center: { lat: -37.8243, lng: 140.7822 } },
-
-  /* ===== TAS · Greater Hobart + Regional ===== */
-  { slug: 'glenorchy',       name: 'Glenorchy',       city: 'hobart', state: 'TAS', postcode: '7010', center: { lat: -42.8333, lng: 147.2750 } },
-  { slug: 'sandy-bay',       name: 'Sandy Bay',       city: 'hobart', state: 'TAS', postcode: '7005', center: { lat: -42.8956, lng: 147.3286 } },
-  { slug: 'battery-point',   name: 'Battery Point',   city: 'hobart', state: 'TAS', postcode: '7004', center: { lat: -42.8867, lng: 147.3361 } },
-  { slug: 'north-hobart',    name: 'North Hobart',    city: 'hobart', state: 'TAS', postcode: '7000', center: { lat: -42.8794, lng: 147.3164 } },
-  { slug: 'bellerive',       name: 'Bellerive',       city: 'hobart', state: 'TAS', postcode: '7018', center: { lat: -42.8769, lng: 147.3725 } },
-  { slug: 'kingston-tas',    name: 'Kingston',        city: 'hobart', state: 'TAS', postcode: '7050', center: { lat: -42.9744, lng: 147.3061 } },
-  { slug: 'new-town',        name: 'New Town',        city: 'hobart', state: 'TAS', postcode: '7008', center: { lat: -42.8589, lng: 147.3000 } },
-  { slug: 'launceston',      name: 'Launceston',      city: null,     state: 'TAS', postcode: '7250', center: { lat: -41.4391, lng: 147.1358 } },
-  { slug: 'devonport',       name: 'Devonport',       city: null,     state: 'TAS', postcode: '7310', center: { lat: -41.1810, lng: 146.3500 } },
-  { slug: 'burnie',          name: 'Burnie',          city: null,     state: 'TAS', postcode: '7320', center: { lat: -41.0500, lng: 145.9000 } },
-
-  /* ===== NT · Greater Darwin + Regional ===== */
-  { slug: 'palmerston',      name: 'Palmerston',      city: 'darwin', state: 'NT',  postcode: '0830', center: { lat: -12.4862, lng: 130.9831 } },
-  { slug: 'casuarina',       name: 'Casuarina',       city: 'darwin', state: 'NT',  postcode: '0810', center: { lat: -12.3819, lng: 130.8825 } },
-  { slug: 'nightcliff',      name: 'Nightcliff',      city: 'darwin', state: 'NT',  postcode: '0810', center: { lat: -12.3911, lng: 130.8542 } },
-  { slug: 'stuart-park',     name: 'Stuart Park',     city: 'darwin', state: 'NT',  postcode: '0820', center: { lat: -12.4500, lng: 130.8358 } },
-  { slug: 'fannie-bay',      name: 'Fannie Bay',      city: 'darwin', state: 'NT',  postcode: '0820', center: { lat: -12.4283, lng: 130.8350 } },
-  { slug: 'alice-springs',   name: 'Alice Springs',   city: null,     state: 'NT',  postcode: '0870', center: { lat: -23.6980, lng: 133.8807 } },
-  { slug: 'katherine',       name: 'Katherine',       city: null,     state: 'NT',  postcode: '0850', center: { lat: -14.4654, lng: 132.2635 } },
-
-  /* ===== ACT · Canberra suburbs ===== */
-  { slug: 'civic',           name: 'Civic',           city: 'canberra', state: 'ACT', postcode: '2601', center: { lat: -35.2820, lng: 149.1287 } },
-  { slug: 'belconnen',       name: 'Belconnen',       city: 'canberra', state: 'ACT', postcode: '2617', center: { lat: -35.2380, lng: 149.0670 } },
-  { slug: 'tuggeranong',     name: 'Tuggeranong',     city: 'canberra', state: 'ACT', postcode: '2900', center: { lat: -35.4180, lng: 149.0840 } },
-  { slug: 'gungahlin',       name: 'Gungahlin',       city: 'canberra', state: 'ACT', postcode: '2912', center: { lat: -35.1880, lng: 149.1340 } },
-  { slug: 'woden',           name: 'Woden',           city: 'canberra', state: 'ACT', postcode: '2606', center: { lat: -35.3450, lng: 149.0820 } },
-  { slug: 'dickson',         name: 'Dickson',         city: 'canberra', state: 'ACT', postcode: '2602', center: { lat: -35.2510, lng: 149.1390 } },
-  { slug: 'manuka',          name: 'Manuka',          city: 'canberra', state: 'ACT', postcode: '2603', center: { lat: -35.3170, lng: 149.1330 } },
-  { slug: 'kingston-act',    name: 'Kingston',        city: 'canberra', state: 'ACT', postcode: '2604', center: { lat: -35.3160, lng: 149.1410 } },
-  { slug: 'braddon',         name: 'Braddon',         city: 'canberra', state: 'ACT', postcode: '2612', center: { lat: -35.2740, lng: 149.1320 } },
-];
 
 function mulberry32(seed) {
   return function () {
@@ -1251,106 +1040,173 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
   );
 };
 
-const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor }) => {
-  const [activeId, setActiveId] = useState(null);
-  const priceFor = effectivePriceFor || ((s) => s.prices[fuelType]);
-  const visible = stations.filter(s => priceFor(s) != null);
-  if (visible.length === 0) {
-    return <div className="surface-card text-center py-16" style={{ color: 'var(--text-3)' }}>No mappable stations.</div>;
-  }
-  const meanLat = visible.reduce((s, st) => s + st.lat, 0) / visible.length;
-  const meanLng = visible.reduce((s, st) => s + st.lng, 0) / visible.length;
-  const VW = 800, VH = 520, PAD = 60;
+const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor, userLat, userLng }) => {
+  const mapRef       = useRef(null);
+  const mapObjRef    = useRef(null);
+  const markersRef   = useRef([]);
+  const popupRef     = useRef(null);
+  const priceFor     = effectivePriceFor || ((s) => s.prices[fuelType]);
+  const visible      = stations.filter(s => priceFor(s) != null && s.lat && s.lng);
 
-  const maxDist = Math.max(
-    ...visible.map(s => Math.hypot((s.lat - meanLat) * 111, (s.lng - meanLng) * 111 * Math.cos(meanLat * Math.PI / 180)))
-  );
-  const scale = Math.min((VW / 2 - PAD) / maxDist, (VH / 2 - PAD) / maxDist);
-  const project = (lat, lng) => {
-    const dy = -(lat - meanLat) * 111 * scale;
-    const dx = (lng - meanLng) * 111 * Math.cos(meanLat * Math.PI / 180) * scale;
-    return { x: VW / 2 + dx, y: VH / 2 + dy };
+  // Price-tier colour: cheapest=green, top-third=red, else orange
+  const pinColor = (price) => {
+    if (!price || visible.length === 0) return '#64748b';
+    const prices = visible.map(s => priceFor(s)).filter(Boolean).sort((a,b) => a-b);
+    const lo = prices[0], hi = prices[prices.length-1], spread = hi - lo;
+    if (spread < 1) return '#16a085';
+    const pct = (price - lo) / spread;
+    if (pct < 0.33) return '#16a085';
+    if (pct < 0.66) return '#ea580c';
+    return '#dc2626';
   };
-  const userPos = project(meanLat, meanLng);
+
+  const initMap = () => {
+    const L = window.L;
+    if (!mapRef.current || mapObjRef.current) return;
+    const lat = userLat || (visible[0]?.lat) || -33.8688;
+    const lng = userLng || (visible[0]?.lng) || 151.2093;
+    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true })
+                 .setView([lat, lng], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+    mapObjRef.current = map;
+
+    // User location pin
+    if (userLat && userLng) {
+      const userIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:16px;height:16px;background:#1e5fe0;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(30,95,224,0.25)"></div>`,
+        iconSize: [16,16], iconAnchor: [8,8],
+      });
+      L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
+       .addTo(map)
+       .bindPopup('<strong style="font-family:sans-serif">Your location</strong>');
+    }
+
+    addMarkers(map);
+  };
+
+  const addMarkers = (map) => {
+    const L = window.L;
+    if (!map) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    visible.forEach((s) => {
+      const price = priceFor(s);
+      const color = pinColor(price);
+      const isCheap = price === cheapestPrice;
+      const label = price != null ? (price/10).toFixed(1) : '—';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${color};
+          color:#fff;
+          font-family:'JetBrains Mono',monospace;
+          font-size:11px;
+          font-weight:700;
+          padding:3px 7px;
+          border-radius:20px;
+          white-space:nowrap;
+          box-shadow:0 2px 6px rgba(0,0,0,0.25);
+          border:2px solid rgba(255,255,255,0.7);
+          ${isCheap ? 'outline:2px solid '+color+';outline-offset:2px;' : ''}
+        ">${label}¢</div>`,
+        iconSize: [60,24], iconAnchor: [30,12],
+      });
+
+      const popup = L.popup({ maxWidth: 280, className: 'fm-popup' }).setContent(`
+        <div style="font-family:'DM Sans',sans-serif;padding:2px 0">
+          <div style="font-weight:700;font-size:15px;margin-bottom:2px">${s.brand}</div>
+          <div style="color:#64748b;font-size:12px;margin-bottom:6px">${s.address}${s.suburb ? ', '+s.suburb : ''}${s.state ? ' '+s.state : ''}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${color};margin-bottom:8px">${label}<span style="font-size:13px;color:#94a3b8">¢/L</span></div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago'}</div>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
+             target="_blank" rel="noopener noreferrer"
+             style="display:block;text-align:center;padding:7px 12px;background:#1e5fe0;color:#fff;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none">
+            ↗ Directions
+          </a>
+        </div>
+      `);
+
+      const marker = L.marker([s.lat, s.lng], { icon })
+        .addTo(map)
+        .bindPopup(popup)
+        .on('click', () => { onSelect && onSelect(s); });
+      markersRef.current.push(marker);
+    });
+  };
+
+  // Load Leaflet once, then init map
+  useEffect(() => {
+    const loadAndInit = () => {
+      if (!document.getElementById('leaflet-css')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-css';
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+      if (!window.L) {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = () => initMap();
+        document.head.appendChild(script);
+      } else {
+        initMap();
+      }
+    };
+    loadAndInit();
+    return () => {
+      if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-render markers when stations or fuelType changes
+  useEffect(() => {
+    if (mapObjRef.current) addMarkers(mapObjRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stations, fuelType, cheapestPrice]);
+
+  if (visible.length === 0) {
+    return (
+      <div className="surface-card text-center py-16" style={{ color: 'var(--text-3)' }}>
+        No stations with price data to map.
+      </div>
+    );
+  }
 
   return (
-    <div className="overflow-hidden" style={{ background: '#f4f7fc', border: '1px solid var(--border)', borderRadius: 12 }}>
-      <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full h-auto block" style={{ aspectRatio: `${VW}/${VH}` }}>
-        <defs>
-          <pattern id="grid-fine-d" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#dde4ee" strokeWidth="0.5" />
-          </pattern>
-          <pattern id="grid-coarse-d" width="100" height="100" patternUnits="userSpaceOnUse">
-            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#c8d2e1" strokeWidth="0.7" />
-          </pattern>
-          <radialGradient id="user-glow-d">
-            <stop offset="0%" stopColor="#1e5fe0" stopOpacity="0.28" />
-            <stop offset="60%" stopColor="#1e5fe0" stopOpacity="0.05" />
-            <stop offset="100%" stopColor="#1e5fe0" stopOpacity="0" />
-          </radialGradient>
-          <filter id="pin-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-
-        <rect width={VW} height={VH} fill="url(#grid-fine-d)" />
-        <rect width={VW} height={VH} fill="url(#grid-coarse-d)" opacity="0.6" />
-
-        <g stroke="#ffffff" strokeWidth="6" strokeLinecap="round" opacity="0.95">
-          <line x1="0" y1={VH * 0.62} x2={VW} y2={VH * 0.42} />
-          <line x1={VW * 0.18} y1="0" x2={VW * 0.32} y2={VH} />
-          <line x1={VW * 0.78} y1="0" x2={VW * 0.62} y2={VH} />
-          <line x1="0" y1={VH * 0.78} x2={VW * 0.85} y2={VH * 0.92} />
-        </g>
-
-        <circle cx={userPos.x} cy={userPos.y} r="80" fill="url(#user-glow-d)" />
-        <circle cx={userPos.x} cy={userPos.y} r="11" fill="#1e5fe0" filter="url(#pin-glow)" />
-        <circle cx={userPos.x} cy={userPos.y} r="5" fill="#ffffff" />
-
-        {[1, 3, 5].map(km => (
-          <g key={km}>
-            <circle cx={userPos.x} cy={userPos.y} r={km * scale} fill="none" stroke="#94a3b8" strokeDasharray="2 5" strokeWidth="1" opacity="0.55" />
-            <text x={userPos.x + km * scale - 4} y={userPos.y - 4} fontSize="10" fill="#64748b" textAnchor="end" fontFamily="JetBrains Mono, monospace" fontWeight="500">{km}km</text>
-          </g>
+    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div ref={mapRef} style={{ height: '520px', width: '100%' }} />
+      {/* Legend */}
+      <div style={{
+        position: 'absolute', bottom: 24, left: 16, zIndex: 1000,
+        background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
+        borderRadius: 10, padding: '8px 12px',
+        border: '1px solid rgba(0,0,0,0.08)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+        display: 'flex', gap: 12, alignItems: 'center',
+        fontFamily: "'DM Sans', sans-serif", fontSize: 11,
+      }}>
+        {[['#16a085','Cheapest'],['#ea580c','Mid'],['#dc2626','Expensive']].map(([c,l]) => (
+          <span key={l} style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <span style={{ display:'inline-block', width:10, height:10, borderRadius:'50%', background:c }} />
+            {l}
+          </span>
         ))}
-
-        {visible.map((s) => {
-          const { x, y } = project(s.lat, s.lng);
-          const sPrice = priceFor(s);
-          const isCheap = sPrice === cheapestPrice;
-          const isActive = activeId === s.id;
-          const fill = isCheap ? '#16a085' : '#ffffff';
-          const stroke = isCheap ? '#0f7d68' : '#64748b';
-          return (
-            <g key={s.id} style={{ cursor: 'pointer' }}
-               onClick={() => { setActiveId(s.id); onSelect && onSelect(s); }}>
-              <line x1={userPos.x} y1={userPos.y} x2={x} y2={y}
-                    stroke={isCheap ? '#16a085' : '#64748b'} strokeOpacity={isActive ? 0.35 : 0.12} strokeWidth="1" strokeDasharray="2 3" />
-              <circle cx={x} cy={y} r={isActive ? 11 : 8} fill={fill} stroke={stroke} strokeWidth="2.5"
-                      className={isCheap && !isActive ? 'pulse-pin' : ''}
-                      style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
-              {(isActive || isCheap) && (
-                <g>
-                  <rect x={x + 12} y={y - 18} rx="5" ry="5" width="58" height="24" fill={isCheap ? '#16a085' : '#0f172a'} />
-                  <text x={x + 41} y={y - 1} fontSize="12" fontWeight="600" fontFamily="JetBrains Mono, monospace"
-                        fill="#ffffff" textAnchor="middle">{sPrice.toFixed(1)}</text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        <g fontFamily="JetBrains Mono, monospace" fill="#94a3b8" opacity="0.85">
-          <text x="20" y="32" fontSize="10" fontWeight="500" letterSpacing="0.1em">N ↑</text>
-          <text x={VW - 20} y={VH - 16} fontSize="10" fontWeight="500" textAnchor="end" letterSpacing="0.1em">FUELMATE · LIVE</text>
-        </g>
-      </svg>
+      </div>
     </div>
   );
 };
 
-const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal }) => {
+
+const StationList = 
+const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal, userLat, userLng }) => {
   // Helper: effective price = trusted user report (if any) > official
   const effectivePriceFor = (station) => {
     const reports = reportsByStation[station.id] || [];
@@ -1419,6 +1275,8 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
           cheapestPrice={cheapestPrice}
           onSelect={onSelectStation}
           effectivePriceFor={effectivePriceFor}
+          userLat={userLat}
+          userLng={userLng}
         />
       )}
     </div>
@@ -1628,23 +1486,7 @@ function searchLocal(q) {
       state: c.state,
     }));
 
-  const suburbMatches = SUBURBS
-    .filter(s =>
-      s.name.toLowerCase().includes(lower) ||
-      s.postcode.startsWith(lower)
-    )
-    .map(s => ({
-      type: 'suburb',
-      id: `sub-${s.slug}`,
-      label: s.name,
-      sublabel: `${s.state} ${s.postcode}`,
-      slug: s.slug,
-      lat: s.center.lat,
-      lng: s.center.lng,
-      state: s.state,
-    }));
-
-  // Score by relevance: prefix match > contains; cities first
+  // Score by relevance: prefix match > contains
   const score = (item) => {
     const labelLower = item.label.toLowerCase();
     if (labelLower.startsWith(lower)) return 0;
@@ -1652,7 +1494,7 @@ function searchLocal(q) {
     return 2;
   };
 
-  return [...cityMatches, ...suburbMatches]
+  return cityMatches
     .sort((a, b) => score(a) - score(b))
     .slice(0, 6);
 }
@@ -1814,10 +1656,8 @@ const AddressSearch = ({
     }
     const groups = [];
     const cities = results.filter(r => r.type === 'city');
-    const suburbs = results.filter(r => r.type === 'suburb');
     const addresses = results.filter(r => r.type === 'address');
     if (cities.length) groups.push({ title: 'Cities', items: cities });
-    if (suburbs.length) groups.push({ title: 'Suburbs', items: suburbs });
     if (addresses.length) groups.push({ title: 'Addresses', items: addresses });
     return groups;
   }, [results, query, popularSuggestions]);
@@ -2710,7 +2550,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                          reportsByStation={reportsByStationFor(stations)}
                          confirmedSet={confirmedSet}
                          onConfirmReport={onConfirmReport}
-                         onOpenReportModal={onOpenReportModal} />
+                         onOpenReportModal={onOpenReportModal}
+                         userLat={location?.lat}
+                         userLng={location?.lng} />
           </div>
         )}
 
@@ -2746,25 +2588,6 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
           </div>
         </section>
 
-        <section className="mt-14">
-          <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>Suburbs</div>
-          <h2 className="font-display font-semibold text-2xl md:text-3xl mb-5">Find prices in your suburb</h2>
-          <div className="surface-card overflow-hidden">
-            <div className="grid md:grid-cols-3">
-              {SUBURBS.map((s, i) => (
-                <button key={s.slug} type="button" onClick={() => onNav({ name: 'suburb', slug: s.slug })}
-                        className="text-left px-4 py-3 transition-colors flex items-baseline justify-between gap-2"
-                        style={{ color: 'var(--text-2)', borderBottom: '1px solid var(--border)',
-                                 borderRight: ((i + 1) % 3 !== 0) ? '1px solid var(--border)' : 'none' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}>
-                  <span className="font-medium text-sm">{s.name}</span>
-                  <span className="font-mono text-tiny" style={{ color: 'var(--text-4)' }}>{s.state} {s.postcode}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );
@@ -2836,7 +2659,6 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
   }, [city.slug, fuelType]);
   const [viewMode, setViewMode] = useState('list');
   const [sort, setSort] = useState('price');
-  const citySuburbs = SUBURBS.filter(s => s.city === city.slug);
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -2873,106 +2695,10 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
                    onConfirmReport={onConfirmReport}
                    onOpenReportModal={onOpenReportModal} />
 
-      {citySuburbs.length > 0 && (
-        <section className="mt-14">
-          <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>In this city</div>
-          <h2 className="font-display font-semibold text-2xl md:text-3xl mb-5">Suburbs in {city.name}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-            {citySuburbs.map(s => (
-              <button key={s.slug} type="button" onClick={() => onNav({ name: 'suburb', slug: s.slug })}
-                      className="hover-raise text-left p-3.5"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                <div className="font-medium text-sm">{s.name}</div>
-                <div className="font-mono text-tiny mt-0.5" style={{ color: 'var(--text-4)' }}>{s.postcode}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 };
 
-const SuburbView = ({ suburb, fuelType, onFuelType, onSearchSelect, onNav, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
-  const [stations, setStations] = useState([]);
-  const [loadingStations, setLoadingStations] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingStations(true);
-    fetchStationsForLocation({
-      lat: suburb.center.lat,
-      lng: suburb.center.lng,
-      state: suburb.state,
-      fuelType,
-      locationKey: `sub-${suburb.slug}`,
-      count: 12,
-    }).then(s => {
-      if (!cancelled) { setStations(s); setLoadingStations(false); }
-    });
-    return () => { cancelled = true; };
-  }, [suburb.slug, fuelType]);
-  const [viewMode, setViewMode] = useState('list');
-  const [sort, setSort] = useState('price');
-  const parentCity = CITIES.find(c => c.slug === suburb.city);
-
-  return (
-    <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
-      <div className="text-sm mb-5 inline-flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--text-4)' }}>
-        <button type="button" onClick={() => onNav({ name: 'home' })} className="ulink">Home</button>
-        <ChevronRight size={12} />
-        {parentCity ? (
-          <>
-            <button type="button" onClick={() => onNav({ name: 'city', slug: parentCity.slug })} className="ulink">{parentCity.name}</button>
-            <ChevronRight size={12} />
-          </>
-        ) : null}
-        <span style={{ color: 'var(--text)' }} className="font-medium">{suburb.name}</span>
-      </div>
-
-      <div className="mb-8">
-        <div className="font-mono text-tiny font-medium track-wide mb-2" style={{ color: 'var(--accent)' }}>{suburb.state} · {suburb.postcode}</div>
-        <h1 className="font-display font-semibold text-4xl md:text-5xl lead-tight mb-3">
-          Cheapest fuel in <span className="brand-gradient">{suburb.name}</span>
-        </h1>
-        <p className="text-base md:text-lg max-w-2xl" style={{ color: 'var(--text-3)' }}>
-          {stations.length} stations within a ~10km radius, ranked by today's price.
-        </p>
-      </div>
-
-      <div className="mb-5">
-        <AddressSearch onSelect={onSearchSelect} variant="compact" placeholder="Change location — search address, suburb, or postcode…" />
-      </div>
-
-      <div className="mb-5"><FuelTypePicker value={fuelType} onChange={onFuelType} /></div>
-      <div className="mb-5"><SavingsBanner stations={stations} fuelType={fuelType} /></div>
-      <div className="mb-6"><PriceStats stations={stations} fuelType={fuelType} /></div>
-      <div className="my-6"><AdSlot size="leaderboard" /></div>
-
-      <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
-                   onViewMode={setViewMode} sort={sort} onSort={setSort}
-                   reportsByStation={reportsByStationFor(stations)}
-                   confirmedSet={confirmedSet}
-                   onConfirmReport={onConfirmReport}
-                   onOpenReportModal={onOpenReportModal} />
-
-      <section className="mt-14 p-7 md:p-9 relative overflow-hidden"
-               style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14 }}>
-        <div aria-hidden="true" className="absolute inset-0 pointer-events-none"
-             style={{ background: 'radial-gradient(circle at 0% 100%, rgba(22,160,133,0.10), transparent 60%)' }} />
-        <div className="relative">
-          <h2 className="font-display font-semibold text-2xl md:text-3xl mb-3 lead-tight">Save more in {suburb.name}</h2>
-          <p className="text-sm md:text-base mb-1" style={{ color: 'var(--text-2)' }}>
-            A few habits compound: fill up early in the cycle, avoid weekend peaks, and check before — not at — the pump.
-          </p>
-          <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-            The {suburb.state} cycle pattern affects every station in this list, even between brands.
-          </p>
-        </div>
-      </section>
-    </div>
-  );
-};
 
 const EditorialView = ({ slug, onNav }) => {
   if (slug !== 'cycles') return null;
@@ -3329,8 +3055,6 @@ export default function App() {
   const handleSearchSelect = useCallback((result) => {
     if (result.type === 'city') {
       setView({ name: 'city', slug: result.slug });
-    } else if (result.type === 'suburb') {
-      setView({ name: 'suburb', slug: result.slug });
     } else {
       setLocation({
         lat: result.lat,
@@ -3365,13 +3089,6 @@ export default function App() {
         return <CityView city={c} fuelType={fuelType} onFuelType={setFuelType}
                          onSearchSelect={handleSearchSelect} onNav={setView}
                          {...reportsCommonProps} />;
-      }
-      case 'suburb': {
-        const s = SUBURBS.find(x => x.slug === view.slug);
-        if (!s) return <NotFound onNav={setView} />;
-        return <SuburbView suburb={s} fuelType={fuelType} onFuelType={setFuelType}
-                           onSearchSelect={handleSearchSelect} onNav={setView}
-                           {...reportsCommonProps} />;
       }
       case 'editorial': return <EditorialView slug={view.slug} onNav={setView} />;
       case 'about':   return <AboutView />;
