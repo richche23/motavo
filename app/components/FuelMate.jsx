@@ -1205,7 +1205,6 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 };
 
 
-const StationList = 
 const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal, userLat, userLng }) => {
   // Helper: effective price = trusted user report (if any) > official
   const effectivePriceFor = (station) => {
