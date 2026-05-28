@@ -104,10 +104,17 @@ async function fetchSnapshot(): Promise<Snapshot> {
 
   for (const s of (sitesData.S ?? [])) {
     if (!s.Lat || !s.Lng) continue;
+    // s.N is sometimes a numeric site-registration code (e.g. "3421074").
+    // Fall back to the street component of the address when that happens.
+    const nameIsCode = /^\d+$/.test(String(s.N || '').trim());
+    const displayName = nameIsCode
+      ? (s.A?.split(',')[0]?.trim() || String(s.S))
+      : (s.N || s.A?.split(',')[0]?.trim() || String(s.S));
+    const brandStr = String(s.B || '').trim();
     map.set(s.S, {
       id:       `sa-${s.S}`,
-      brand:    normalizeBrand(String(s.B || s.N)),
-      name:     s.N,
+      brand:    normalizeBrand(brandStr || displayName),
+      name:     displayName,
       address:  s.A,
       suburb:   '',
       state:    'SA',
@@ -131,7 +138,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
     if (!fuelType) continue;
     if (p.Price <= 0) continue;
 
-    station.prices[fuelType] = p.Price;
+    station.prices[fuelType] = p.Price / 10; // API returns tenths-of-a-cent; convert to c/L
 
     const ts = new Date(p.TransactionDateUtc).getTime();
     if (ts > station.updatedAt) {
