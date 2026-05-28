@@ -663,7 +663,6 @@ const BrandMark = ({ brand, size = 36 }) => {
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
           onLoad={() => setLoaded(true)}
           onError={() => setSrcIdx(i => Math.min(i + 1, logos.length))}
           style={{
@@ -2809,7 +2808,9 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
                    reportsByStation={reportsByStationFor(stations)}
                    confirmedSet={confirmedSet}
                    onConfirmReport={onConfirmReport}
-                   onOpenReportModal={onOpenReportModal} />
+                   onOpenReportModal={onOpenReportModal}
+                   userLat={city.center.lat}
+                   userLng={city.center.lng} />
 
     </div>
   );
