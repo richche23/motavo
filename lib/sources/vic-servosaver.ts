@@ -213,11 +213,7 @@ export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
       return acc;
     }, [])
     .filter(s => !fuelType || s.prices[fuelType] !== null)
-    .sort((a, b) =>
-      fuelType
-        ? (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999)
-        : (a.distance ?? 0)           - (b.distance ?? 0)
-    )
+    .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0)) // always sort by distance — frontend handles price/distance toggle
     .slice(0, limit);
 
   return {
