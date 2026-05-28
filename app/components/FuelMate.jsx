@@ -1040,7 +1040,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
   );
 };
 
-const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor, userLat, userLng }) => {
+const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor, userLat, userLng, mapHeight }) => {
   const mapRef       = useRef(null);
   const mapObjRef    = useRef(null);
   const markersRef   = useRef([]);
@@ -1098,7 +1098,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
       const price = priceFor(s);
       const color = pinColor(price);
       const isCheap = price === cheapestPrice;
-      const label = price != null ? (price/10).toFixed(1) : '—';
+      const label = price != null ? price.toFixed(1) : '—';
 
       const icon = L.divIcon({
         className: '',
@@ -1182,7 +1182,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 
   return (
     <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
-      <div ref={mapRef} style={{ height: '520px', width: '100%' }} />
+      <div ref={mapRef} style={{ height: mapHeight || '520px', width: '100%' }} />
       {/* Legend */}
       <div style={{
         position: 'absolute', bottom: 24, left: 16, zIndex: 1000,
@@ -1206,7 +1206,9 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 
 
 const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal, userLat, userLng }) => {
-  // Helper: effective price = trusted user report (if any) > official
+  // Mobile-only toggle (desktop always shows both)
+  const [mobileView, setMobileView] = useState('map');
+
   const effectivePriceFor = (station) => {
     const reports = reportsByStation[station.id] || [];
     const fuelReports = reports
@@ -1233,52 +1235,81 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
 
   const cheapestPrice = sorted[0] ? effectivePriceFor(sorted[0]) : null;
 
-  return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <Toggle value={sort} onChange={onSort} options={[
-          { key: 'price', label: 'Cheapest', icon: TrendingDown },
-          { key: 'distance', label: 'Closest', icon: Navigation },
-        ]} />
-        <Toggle value={viewMode} onChange={onViewMode} options={[
-          { key: 'list', label: 'List', icon: List },
-          { key: 'map',  label: 'Map',  icon: MapIcon },
-        ]} />
-      </div>
-
-      {viewMode === 'list' ? (
-        <div className="space-y-2.5">
-          {sorted.map((s, i) => (
-            <div key={s.id} className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
-              <StationCard
-                station={s}
-                fuelType={fuelType}
-                rank={i}
-                cheapestPrice={cheapestPrice}
-                onSelect={onSelectStation}
-                reports={reportsByStation[s.id] || []}
-                confirmedSet={confirmedSet}
-                onConfirmReport={onConfirmReport}
-                onOpenReportModal={onOpenReportModal}
-              />
-            </div>
-          ))}
-          {sorted.length === 0 && (
-            <div className="text-center py-12" style={{ color: 'var(--text-4)' }}>No stations carrying this fuel type within range.</div>
-          )}
+  const cardList = (
+    <div className="space-y-2.5">
+      {sorted.map((s, i) => (
+        <div key={s.id} className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
+          <StationCard
+            station={s}
+            fuelType={fuelType}
+            rank={i}
+            cheapestPrice={cheapestPrice}
+            onSelect={onSelectStation}
+            reports={reportsByStation[s.id] || []}
+            confirmedSet={confirmedSet}
+            onConfirmReport={onConfirmReport}
+            onOpenReportModal={onOpenReportModal}
+          />
         </div>
-      ) : (
-        <StationMap
-          stations={sorted}
-          fuelType={fuelType}
-          cheapestPrice={cheapestPrice}
-          onSelect={onSelectStation}
-          effectivePriceFor={effectivePriceFor}
-          userLat={userLat}
-          userLng={userLng}
-        />
+      ))}
+      {sorted.length === 0 && (
+        <div className="text-center py-12" style={{ color: 'var(--text-4)' }}>No stations carrying this fuel type within range.</div>
       )}
     </div>
+  );
+
+  const mapEl = (h) => (
+    <StationMap
+      stations={sorted}
+      fuelType={fuelType}
+      cheapestPrice={cheapestPrice}
+      onSelect={onSelectStation}
+      effectivePriceFor={effectivePriceFor}
+      userLat={userLat}
+      userLng={userLng}
+      mapHeight={h}
+    />
+  );
+
+  // Sort controls used in both layouts
+  const sortControls = (
+    <div className="flex items-center gap-2">
+      <Toggle value={sort} onChange={onSort} options={[
+        { key: 'price', label: 'Cheapest', icon: TrendingDown },
+        { key: 'distance', label: 'Closest', icon: Navigation },
+      ]} />
+    </div>
+  );
+
+  return (
+    <>
+      {/* ── Desktop: map left (sticky) + scrollable list right ───────────── */}
+      <div className="hidden md:flex gap-4" style={{ alignItems: 'flex-start' }}>
+        {/* Sticky map column */}
+        <div style={{ flex: '1 1 60%', position: 'sticky', top: 72, zIndex: 1 }}>
+          {mapEl('calc(100vh - 96px)')}
+        </div>
+        {/* Scrollable list column */}
+        <div style={{ flex: '0 0 38%', minWidth: 0 }}>
+          <div className="flex items-center justify-between mb-3">
+            {sortControls}
+          </div>
+          {cardList}
+        </div>
+      </div>
+
+      {/* ── Mobile: toggle between map and list ──────────────────────────── */}
+      <div className="md:hidden">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          {sortControls}
+          <Toggle value={mobileView} onChange={setMobileView} options={[
+            { key: 'map',  label: 'Map',  icon: MapIcon },
+            { key: 'list', label: 'List', icon: List },
+          ]} />
+        </div>
+        {mobileView === 'list' ? cardList : mapEl('420px')}
+      </div>
+    </>
   );
 };
 
