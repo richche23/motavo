@@ -2653,7 +2653,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                          userLat={location?.lat}
                          userLng={location?.lng} />
           </div>
-        )}
+        ) : null}
 
         <div className="my-10">
           <AdSlot size="leaderboard" label="leaderboard 728×90 — AdSense slot" />
