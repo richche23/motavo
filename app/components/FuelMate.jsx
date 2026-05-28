@@ -2961,21 +2961,13 @@ const NotFound = ({ onNav }) => (
 /* ===== APP ===== */
 
 export default function App() {
-  const [view, setView] = useState(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('fm:view');
-        if (saved) return JSON.parse(saved);
-      }
-    } catch {}
-    return { name: 'home' };
-  });
+  const [view, setView] = useState({ name: 'home' });
   const [fuelType, setFuelType] = useState('U91');
   const [location, setLocation] = useState(null);
   const [locating, setLocating] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('fm:theme') === 'dark';
+      return localStorage.getItem('fm:color-scheme') === 'dark';
     }
     return false;
   });
@@ -3068,10 +3060,6 @@ export default function App() {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
   }, [view.name, view.slug]);
 
-  // Persist current view so a browser refresh restores the same page.
-  useEffect(() => {
-    try { localStorage.setItem('fm:view', JSON.stringify(view)); } catch {}
-  }, [view]);
 
   // Global ⌘K / Ctrl+K to open search
   useEffect(() => {
@@ -3228,7 +3216,7 @@ export default function App() {
         onToggleDark={() => {
           const next = !darkMode;
           setDarkMode(next);
-          localStorage.setItem('fm:theme', next ? 'dark' : 'light');
+          localStorage.setItem('fm:color-scheme', next ? 'dark' : 'light');
         }}
       />
       <main className="flex-1">{renderView()}</main>
