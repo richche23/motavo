@@ -1187,6 +1187,12 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-centre when the user navigates to a new city
+  useEffect(() => {
+    if (!mapObjRef.current || !userLat || !userLng) return;
+    mapObjRef.current.setView([userLat, userLng], 13);
+  }, [userLat, userLng]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Re-render markers when stations or fuelType changes
   useEffect(() => {
     if (mapObjRef.current) addMarkers(mapObjRef.current);
@@ -1231,8 +1237,18 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 
 
 const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal, userLat, userLng }) => {
-  // Mobile-only toggle (desktop always shows both)
   const [mobileView, setMobileView] = useState('map');
+  const [selectedId, setSelectedId] = useState(null);
+  const cardRefs = useRef({});
+
+  const handleMapSelect = useCallback((station) => {
+    setSelectedId(station.id);
+    onSelectStation && onSelectStation(station);
+    setTimeout(() => {
+      const el = cardRefs.current[station.id];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }, [onSelectStation]);
 
   const effectivePriceFor = (station) => {
     const reports = reportsByStation[station.id] || [];
@@ -1263,17 +1279,19 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
   const cardList = (
     <div className="space-y-2.5">
       {sorted.map((s, i) => (
-        <div key={s.id} className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
+        <div key={s.id} ref={el => { cardRefs.current[s.id] = el; }}
+             className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
           <StationCard
             station={s}
             fuelType={fuelType}
             rank={i}
             cheapestPrice={cheapestPrice}
-            onSelect={onSelectStation}
+            onSelect={(st) => { setSelectedId(st.id); onSelectStation && onSelectStation(st); }}
             reports={reportsByStation[s.id] || []}
             confirmedSet={confirmedSet}
             onConfirmReport={onConfirmReport}
             onOpenReportModal={onOpenReportModal}
+            isSelected={selectedId === s.id}
           />
         </div>
       ))}
@@ -1288,7 +1306,7 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
       stations={sorted}
       fuelType={fuelType}
       cheapestPrice={cheapestPrice}
-      onSelect={onSelectStation}
+      onSelect={handleMapSelect}
       effectivePriceFor={effectivePriceFor}
       userLat={userLat}
       userLng={userLng}
@@ -2305,7 +2323,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
   return (
     <header className="sticky top-0 z-30 glass" style={{ borderBottom: '1px solid var(--border)' }}>
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center gap-4">
-        <button type="button" onClick={goHome} className="flex items-center shrink-0" aria-label="FuelMate home">
+        <button type="button" onClick={goHome} className="flex items-center shrink-0" aria-label="FuelMate home" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
           <FuelMateLogo markSize={30} wordSize={20} />
         </button>
 
@@ -2528,53 +2546,79 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
   return (
     <div>
-      <section className="relative grid-bg spotlight">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 pt-12 md:pt-20 pb-10 md:pb-16 relative">
-          <div className="max-w-4xl">
-            <Pill tone="accent" className="mb-6">
-              <span className="w-1.5 h-1.5 rounded-full pulse-glow" style={{ background: 'var(--success)' }} />
-              Live · all 8 states and territories
-            </Pill>
-            <h1 className="font-display font-semibold lead-tight tracking-tight" style={{ fontSize: 'clamp(2.75rem, 8vw, 6rem)' }}>
-              The cheapest fuel <br className="hidden sm:inline" /><span className="brand-gradient">near you</span>, in five seconds.
-            </h1>
-            <div className="mt-8 flex items-center gap-3 flex-wrap">
-              <button type="button" onClick={onLocate}
-                className="inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors"
-                style={{ background: 'var(--accent)', color: '#ffffff', borderRadius: 10,
-                  boxShadow: '0 0 0 1px rgba(30,95,224,0.30), 0 8px 24px -8px rgba(30,95,224,0.45)' }}>
-                <Navigation size={15} /> Find prices near me
-              </button>
-              <button type="button" onClick={() => onNav({ name: 'cities' })}
-                className="inline-flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors"
-                style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
-                Browse cities <MoveRight size={14} />
-              </button>
+      {!location && (
+        <section style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+          <div className="max-w-6xl mx-auto px-4 md:px-6"
+               style={{ paddingTop: 'clamp(3rem, 8vw, 5.5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
+            <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
+
+              {/* Left: headline + search */}
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-5"
+                     style={{ background: 'var(--green-soft)', color: 'var(--green-dark)', border: '1px solid var(--green-light)' }}>
+                  <span className="pulse-glow" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', display: 'inline-block', flexShrink: 0 }} />
+                  Live prices · 8 states · no paid listings
+                </div>
+
+                <h1 className="font-display font-semibold"
+                    style={{ fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', lineHeight: 1.06, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
+                  Stop overpaying<br/>for fuel.
+                </h1>
+                <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
+                  Real government data, ranked by price or distance. Free, independent, no sponsored results.
+                </p>
+
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <AddressSearch onSelect={onSearchSelect} variant="large" placeholder="Search suburb, postcode or address…" />
+                </div>
+
+                <button type="button" onClick={onLocate} disabled={locating}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-60"
+                        style={{ color: 'var(--text-3)', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer' }}>
+                  {locating ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
+                  {locating ? 'Locating…' : 'Use my current location'}
+                </button>
+                {locError && (
+                  <p className="text-tiny mt-2" style={{ color: 'var(--warn)' }}>
+                    <AlertCircle size={11} style={{ display: 'inline', marginRight: 4 }} />
+                    Couldn't get your location — try searching instead.
+                  </p>
+                )}
+
+                <div className="flex items-center gap-6 mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+                  {[['8', 'States covered'], ['0', 'Paid listings'], ['Free', 'Always']].map(([val, label]) => (
+                    <div key={label}>
+                      <div className="font-display font-bold" style={{ fontSize: '1.4rem', lineHeight: 1, letterSpacing: '-0.02em' }}>{val}</div>
+                      <div className="text-tiny mt-0.5" style={{ color: 'var(--text-4)' }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: quick city list */}
+              <div className="hidden md:block">
+                <div className="text-tiny font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Browse by city</div>
+                <div className="space-y-1.5">
+                  {CITIES.map(c => (
+                    <button key={c.slug} type="button" onClick={() => onNav({ name: 'city', slug: c.slug })}
+                            className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
+                        <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
+                      </div>
+                      <span className="text-tiny" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 md:px-6 pb-16">
-        {!location ? (
-          <div className="grid md:grid-cols-3 gap-4 md:gap-5">
-            <div className="md:col-span-2">
-              <LocationPrompt onLocate={onLocate} onSample={onSample} onSearchSelect={onSearchSelect} isLocating={locating} hasError={locError} />
-            </div>
-            <div className="surface-card p-6">
-              <Compass size={18} style={{ color: 'var(--accent)' }} className="mb-3" />
-              <h3 className="font-display font-semibold text-lg mb-3">How it works</h3>
-              <ol className="text-sm space-y-3" style={{ color: 'var(--text-3)' }}>
-                {['Share your location or pick a suburb.', 'See live prices ranked by cheapest or closest.', 'Tap a station to get directions.'].map((step, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="font-mono font-semibold tabular-nums shrink-0" style={{ color: 'var(--accent)' }}>0{i + 1}</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        ) : (
+        {location ? (
           <div className="space-y-5">
             <div className="flex items-end justify-between flex-wrap gap-3 pt-2">
               <div>
