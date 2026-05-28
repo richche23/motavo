@@ -220,7 +220,6 @@ const BRAND_NAMES = Object.keys(BRANDS);
 // like logo.dev (requires API key and a backend proxy to keep the key server-side).
 // Try sources in order; BrandMark cycles on error
 const LOGO_SOURCES = [
-  (d) => `https://img.logo.dev/${d}?token=pk_X-1ZO13GSgeOoUrIuJ6BeQ&size=128&format=png`,
   (d) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
   (d) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
 ];
@@ -402,9 +401,10 @@ async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25
 
 function formatPriceCents(c) {
   if (c == null) return '—';
-  const whole = Math.floor(c);
-  const dec = String(Math.round((c - whole) * 10));
-  return { whole: String(whole), dec };
+  let whole = Math.floor(c);
+  let dec   = Math.round((c - whole) * 10);
+  if (dec >= 10) { whole += 1; dec = 0; } // handle rounding up at boundary
+  return { whole: String(whole), dec: String(dec) };
 }
 
 function timeAgoLabel(min) {
@@ -655,6 +655,7 @@ const BrandMark = ({ brand, size = 36 }) => {
       {/* Real logo, fades in when loaded */}
       {showLogo && (
         <img
+          key={srcIdx}
           src={logoUrl}
           alt=""
           width={size}
@@ -662,8 +663,9 @@ const BrandMark = ({ brand, size = 36 }) => {
           loading="lazy"
           decoding="async"
           referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
           onLoad={() => setLoaded(true)}
-          onError={() => setSrcIdx(i => Math.min(i + 1, logos.length))} // try next source
+          onError={() => setSrcIdx(i => Math.min(i + 1, logos.length))}
           style={{
             position: 'absolute',
             inset: 0,
@@ -1400,7 +1402,7 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
 };
 
 const PriceStats = ({ stations, fuelType }) => {
-  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null);
+  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
   if (prices.length === 0) return null;
   const cheapest = Math.min(...prices);
   const highest = Math.max(...prices);
@@ -1437,7 +1439,7 @@ const PriceStats = ({ stations, fuelType }) => {
  * no meaningful spread.
  */
 const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
-  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null);
+  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
   if (prices.length < 3) return null;
 
   const cheapest = Math.min(...prices);
@@ -3199,7 +3201,7 @@ export default function App() {
         return <CitiesIndexView onNav={setView} />;
       case 'city': {
         const c = CITIES.find(x => x.slug === view.slug) || CITIES[0];
-        return <CityView city={c} fuelType={fuelType} onFuelType={setFuelType}
+        return <CityView key={view.slug} city={c} fuelType={fuelType} onFuelType={setFuelType}
                          onSearchSelect={handleSearchSelect} onNav={setView}
                          {...reportsCommonProps} />;
       }
