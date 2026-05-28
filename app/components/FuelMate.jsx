@@ -1193,17 +1193,21 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stations, fuelType, cheapestPrice]);
 
-  if (visible.length === 0) {
-    return (
-      <div className="surface-card text-center py-16" style={{ color: 'var(--text-3)' }}>
-        No stations with price data to map.
-      </div>
-    );
-  }
-
   return (
     <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      {/* Map div is ALWAYS rendered so mapRef.current is non-null when useEffect fires.
+          The empty-state overlay appears on top when there are no stations to show. */}
       <div ref={mapRef} style={{ height: mapHeight || '520px', width: '100%' }} />
+      {visible.length === 0 && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'var(--surface)', color: 'var(--text-3)',
+          fontSize: 14,
+        }}>
+          No stations with price data to map.
+        </div>
+      )}
       {/* Legend */}
       <div style={{
         position: 'absolute', bottom: 24, left: 16, zIndex: 1000,
@@ -2520,7 +2524,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
     return () => { cancelled = true; };
   }, [location?.key, location?.lat, location?.lng, fuelType]);
   const [viewMode, setViewMode] = useState('list');
-  const [sort, setSort] = useState('price');
+  const [sort, setSort] = useState('distance');
 
   return (
     <div>
@@ -2709,7 +2713,7 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
     return () => { cancelled = true; };
   }, [city.slug, fuelType]);
   const [viewMode, setViewMode] = useState('list');
-  const [sort, setSort] = useState('price');
+  const [sort, setSort] = useState('distance');
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
