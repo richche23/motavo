@@ -1067,6 +1067,8 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     const lng = userLng || (visible[0]?.lng) || 151.2093;
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true })
                  .setView([lat, lng], 13);
+    // Force a size recalculation in case CSS finished loading after init
+    setTimeout(() => map.invalidateSize(), 100);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
@@ -1140,27 +1142,46 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     });
   };
 
-  // Load Leaflet once, then init map
+  // Load Leaflet CSS + JS, then init map.
+  // Must wait for CSS to finish loading before calling L.map() —
+  // without it, Leaflet tile containers have 0px height and render blank.
   useEffect(() => {
-    const loadAndInit = () => {
-      if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
-      if (!window.L) {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.onload = () => initMap();
-        document.head.appendChild(script);
-      } else {
-        initMap();
-      }
+    let cancelled = false;
+
+    const doInit = () => {
+      if (cancelled) return;
+      // Small rAF so the container has been painted at its final size
+      requestAnimationFrame(() => {
+        if (!cancelled) initMap();
+      });
     };
-    loadAndInit();
+
+    const loadJS = () => {
+      if (window.L) { doInit(); return; }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = doInit;
+      document.head.appendChild(script);
+    };
+
+    // Inject CSS if not already present, wait for it to load before JS
+    let link = document.getElementById('leaflet-css');
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.setAttribute('rel', 'stylesheet');
+      link.setAttribute('href', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+      link.onload = loadJS;
+      document.head.appendChild(link);
+    } else if (document.styleSheets && Array.from(document.styleSheets).some(s => { try { return s.href && s.href.includes('leaflet'); } catch { return false; } })) {
+      // CSS already applied
+      loadJS();
+    } else {
+      link.addEventListener('load', loadJS, { once: true });
+    }
+
     return () => {
+      cancelled = true;
       if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
