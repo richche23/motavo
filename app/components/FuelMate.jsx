@@ -176,21 +176,35 @@ const FUEL_TYPES = [
 ];
 
 const BRANDS = {
-  '7-Eleven':         { color: '#00833C', short: '7E', domain: '7eleven.com.au' },
-  'Ampol':            { color: '#1d4ed8', short: 'AM', domain: 'ampol.com.au' },
-  'BP':               { color: '#16a34a', short: 'BP', domain: 'bp.com' },
-  'Caltex Woolworths':{ color: '#dc2626', short: 'CW', domain: 'caltex.com.au' },
-  'Coles Express':    { color: '#ef4444', short: 'CE', domain: 'colesexpress.com.au' },
-  'Costco':           { color: '#2563eb', short: 'CO', domain: 'costco.com.au' },
-  'EG Ampol':         { color: '#0ea5e9', short: 'EA', domain: 'egaustralia.com' },
-  'Liberty':          { color: '#e11d48', short: 'LI', domain: 'libertyoil.com.au' },
-  'Metro Petroleum':  { color: '#0284c7', short: 'MP', domain: 'metropetroleum.com.au' },
-  'Mobil':            { color: '#f43f5e', short: 'MO', domain: 'mobil.com.au' },
-  'Puma':             { color: '#fbbf24', short: 'PU', domain: 'pumaenergy.com' },
-  'Shell':            { color: '#facc15', short: 'SH', domain: 'shell.com.au' },
-  'United':           { color: '#3b82f6', short: 'UN', domain: 'unitedpetroleum.com.au' },
-  'Vibe':             { color: '#a855f7', short: 'VI', domain: 'vibepetroleum.com.au' },
-  'Independent':      { color: '#52525b', short: 'IN', domain: null },
+  // Major national chains
+  '7-Eleven':          { color: '#008837', short: '7E', domain: '7eleven.com.au' },
+  'Ampol':             { color: '#1d4ed8', short: 'AM', domain: 'ampol.com.au' },
+  'BP':                { color: '#16a34a', short: 'BP', domain: 'bp.com' },
+  'Caltex':            { color: '#dc2626', short: 'CX', domain: 'caltex.com.au' },
+  'Caltex Woolworths': { color: '#dc2626', short: 'CW', domain: 'woolworthspetrol.com.au' },
+  'Coles Express':     { color: '#ef4444', short: 'CE', domain: 'colesexpress.com.au' },
+  'Costco':            { color: '#2563eb', short: 'CO', domain: 'costco.com.au' },
+  'EG':                { color: '#0369a1', short: 'EG', domain: 'eg.group' },
+  'EG Ampol':          { color: '#0369a1', short: 'EG', domain: 'eg.group' },
+  'Liberty':           { color: '#e11d48', short: 'LI', domain: 'libertyoil.com.au' },
+  'Metro Petroleum':   { color: '#0284c7', short: 'MP', domain: 'metropetroleum.com.au' },
+  'Mobil':             { color: '#c2001e', short: 'MO', domain: 'mobil.com' },
+  'Puma':              { color: '#d97706', short: 'PU', domain: 'pumaenergy.com.au' },
+  'Shell':             { color: '#e8a800', short: 'SH', domain: 'shell.com.au' },
+  'United':            { color: '#3b82f6', short: 'UN', domain: 'unitedpetroleum.com.au' },
+  'Vibe':              { color: '#a855f7', short: 'VI', domain: 'vibepetroleum.com.au' },
+  // Australian independents
+  'Reddy Express':     { color: '#dc2626', short: 'RE', domain: 'reddyexpress.com.au' },
+  'Astron':            { color: '#1e3a8a', short: 'AS', domain: 'astronpetroleum.com.au' },
+  'Eagle':             { color: '#b45309', short: 'EA', domain: 'eagleboysgas.com.au' },
+  'Eagle Group':       { color: '#b45309', short: 'EA', domain: 'eagleboysgas.com.au' },
+  'On The Run':        { color: '#dc2626', short: 'OT', domain: 'ontherun.com.au' },
+  'Lowes Petroleum':   { color: '#1d4ed8', short: 'LP', domain: 'lowespetroleum.com.au' },
+  'Speedway':          { color: '#b91c1c', short: 'SW', domain: null },
+  'Night Owl':         { color: '#4f46e5', short: 'NO', domain: 'nightowl.com.au' },
+  'IGA':               { color: '#dc2626', short: 'IG', domain: 'iga.com.au' },
+  // Fallback
+  'Independent':       { color: '#52525b', short: '··', domain: null },
 };
 const BRAND_NAMES = Object.keys(BRANDS);
 
@@ -204,9 +218,15 @@ const BRAND_NAMES = Object.keys(BRANDS);
 //
 // Production note: for higher-fidelity logos, swap this for a paid service
 // like logo.dev (requires API key and a backend proxy to keep the key server-side).
-function brandLogoUrl(domain) {
-  if (!domain) return null;
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+// Try sources in order; BrandMark cycles on error
+const LOGO_SOURCES = [
+  (d) => `https://img.logo.dev/${d}?token=pk_X-1ZO13GSgeOoUrIuJ6BeQ&size=128&format=png`,
+  (d) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
+  (d) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
+];
+function brandLogoUrls(domain) {
+  if (!domain) return [];
+  return LOGO_SOURCES.map(fn => fn(domain));
 }
 
 const CITIES = [
@@ -589,18 +609,21 @@ const FuelMateLogo = ({ markSize = 32, wordSize = 22 }) => (
  *      light surfaces alike.
  */
 const BrandMark = ({ brand, size = 36 }) => {
-  const b = BRANDS[brand] || BRANDS['Independent'];
-  const logoUrl = brandLogoUrl(b.domain);
+  const b     = BRANDS[brand] || null;
+  const color = b?.color || '#64748b';
+  // Derive readable 2-char initials when brand isn't in our list
+  const short = b?.short || (() => {
+    if (!brand) return '··';
+    const words = brand.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/ +/);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return brand.substring(0, 2).toUpperCase();
+  })();
+  const logos = brandLogoUrls(b?.domain || null);
+  const [srcIdx, setSrcIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [errored, setErrored] = useState(false);
-
-  // Reset state when the brand changes (e.g. station card re-used in a list)
-  useEffect(() => {
-    setLoaded(false);
-    setErrored(false);
-  }, [brand]);
-
-  const showLogo = logoUrl && !errored;
+  useEffect(() => { setSrcIdx(0); setLoaded(false); }, [brand]);
+  const logoUrl  = logos[srcIdx] ?? null;
+  const showLogo = !!logoUrl;
 
   return (
     <div
@@ -609,17 +632,15 @@ const BrandMark = ({ brand, size = 36 }) => {
         width: size,
         height: size,
         borderRadius: 8,
-        background: showLogo && loaded ? '#ffffff' : b.color,
+        background: showLogo && loaded ? '#ffffff' : color,
         border: showLogo && loaded ? '1px solid var(--border)' : 'none',
-        boxShadow: showLogo && loaded
-          ? '0 1px 2px rgba(15,23,42,0.05)'
-          : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.18)',
+        boxShadow: showLogo && loaded ? '0 1px 2px rgba(15,23,42,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.18)',
         transition: 'background 200ms ease, border-color 200ms ease, box-shadow 200ms ease',
       }}
       aria-hidden="true"
       title={brand}
     >
-      {/* Monogram — always rendered as the immediate fallback */}
+      {/* Monogram fallback */}
       <div
         className="absolute inset-0 flex items-center justify-center font-mono font-bold text-white"
         style={{
@@ -628,7 +649,7 @@ const BrandMark = ({ brand, size = 36 }) => {
           transition: 'opacity 200ms ease',
         }}
       >
-        {b.short}
+        {short}
       </div>
 
       {/* Real logo, fades in when loaded */}
@@ -642,7 +663,7 @@ const BrandMark = ({ brand, size = 36 }) => {
           decoding="async"
           referrerPolicy="no-referrer"
           onLoad={() => setLoaded(true)}
-          onError={() => setErrored(true)}
+          onError={() => setSrcIdx(i => Math.min(i + 1, logos.length))} // try next source
           style={{
             position: 'absolute',
             inset: 0,
@@ -2951,8 +2972,7 @@ export default function App() {
   const [locating, setLocating] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('fm:theme') === 'dark' ||
-        (!localStorage.getItem('fm:theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      return localStorage.getItem('fm:theme') === 'dark';
     }
     return false;
   });
