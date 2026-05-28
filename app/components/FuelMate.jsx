@@ -1063,8 +1063,8 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
   const initMap = () => {
     const L = window.L;
     if (!mapRef.current || mapObjRef.current) return;
-    const lat = userLat || (visible[0]?.lat) || -33.8688;
-    const lng = userLng || (visible[0]?.lng) || 151.2093;
+    const lat = userLat || -33.8688;
+    const lng = userLng || 151.2093;
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true })
                  .setView([lat, lng], 13);
     // Force a size recalculation in case CSS finished loading after init
@@ -1341,16 +1341,38 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
         </div>
       </div>
 
-      {/* ── Mobile: toggle between map and list ──────────────────────────── */}
-      <div className="md:hidden">
-        <div className="flex items-center justify-between gap-3 mb-4">
+      {/* ── Mobile: map on top, list below ────────────────────────────────── */}
+      <div className="md:hidden space-y-4">
+        <div className="flex items-center justify-between gap-3">
           {sortControls}
           <Toggle value={mobileView} onChange={setMobileView} options={[
             { key: 'map',  label: 'Map',  icon: MapIcon },
             { key: 'list', label: 'List', icon: List },
           ]} />
         </div>
-        {mobileView === 'list' ? cardList : mapEl('420px')}
+        {mobileView === 'map' ? (
+          <>
+            {mapEl('360px')}
+            <div className="space-y-2.5 mt-3">
+              {sorted.slice(0,5).map((s, i) => (
+                <div key={s.id} ref={el => { cardRefs.current[s.id] = el; }}>
+                  <StationCard
+                    station={s}
+                    fuelType={fuelType}
+                    rank={i}
+                    cheapestPrice={sorted[0] ? effectivePriceFor(sorted[0]) : null}
+                    onSelect={(st) => { setSelectedId(st.id); onSelectStation && onSelectStation(st); }}
+                    reports={reportsByStation[s.id] || []}
+                    confirmedSet={confirmedSet}
+                    onConfirmReport={onConfirmReport}
+                    onOpenReportModal={onOpenReportModal}
+                    isSelected={selectedId === s.id}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        ) : cardList}
       </div>
     </>
   );
@@ -2658,34 +2680,6 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
         <div className="my-10">
           <AdSlot size="leaderboard" label="leaderboard 728×90 — AdSense slot" />
         </div>
-
-        <section>
-          <div className="flex items-baseline justify-between mb-5 flex-wrap gap-2">
-            <div>
-              <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>Capital cities</div>
-              <h2 className="font-display font-semibold text-2xl md:text-3xl">Browse by city</h2>
-            </div>
-            <button type="button" onClick={() => onNav({ name: 'cities' })}
-                    className="text-sm font-medium ulink inline-flex items-center gap-1" style={{ color: 'var(--accent)' }}>
-              All cities <ArrowRight size={14} />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {CITIES.map(c => (
-              <button key={c.slug} type="button"
-                      onClick={() => onNav({ name: 'city', slug: c.slug })}
-                      className="hover-raise p-4 text-left transition-colors"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="font-mono text-tiny font-medium track-wide" style={{ color: 'var(--text-4)' }}>{c.state}</div>
-                  <ArrowUpRight size={14} style={{ color: 'var(--text-4)' }} />
-                </div>
-                <div className="font-display font-semibold text-xl md:text-2xl leading-tight mb-1">{c.name}</div>
-                <div className="text-tiny" style={{ color: 'var(--text-4)' }}>Cycle: {c.cycle}</div>
-              </button>
-            ))}
-          </div>
-        </section>
 
       </div>
     </div>
