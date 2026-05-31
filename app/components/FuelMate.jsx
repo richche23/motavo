@@ -453,18 +453,20 @@ const STORAGE_KEYS = {
 };
 
 const fmStorage = {
+  // Uses sessionStorage so state survives a refresh but clears when the
+  // browser tab/app is closed — gives a clean home screen on next open.
   async get(key) {
     try {
       if (typeof window === 'undefined') return null;
-      const val = localStorage.getItem(key);
+      const val = sessionStorage.getItem(key);
       return val ? JSON.parse(val) : null;
     } catch { return null; }
   },
   async set(key, value) {
     try {
       if (typeof window === 'undefined') return;
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch { /* swallow — storage is best-effort */ }
+      sessionStorage.setItem(key, JSON.stringify(value));
+    } catch { /* swallow */ }
   },
 };
 
@@ -479,48 +481,6 @@ const REPORT_REJECT_THRESHOLD = 25;        // Cents difference vs official that'
 
 const REPORTER_NAMES = ['Mike', 'Sarah', 'Jake', 'Ana', 'Tim', 'Em', 'Raj', 'Pat', 'Sam', 'Kel'];
 
-// Generate deterministic "seed" reports for a station so the demo feels alive
-function getSeedReports(station) {
-  const rng = mulberry32(hashStr(station.id + ':reports'));
-  if (rng() > 0.42) return [];
-
-  const numReports = rng() < 0.6 ? 1 : (rng() < 0.9 ? 2 : 3);
-  const fuelChoices = ['U91', 'U91', 'P95', 'DSL', 'E10']; // weight U91
-  const out = [];
-
-  for (let i = 0; i < numReports; i++) {
-    const ft = fuelChoices[Math.floor(rng() * fuelChoices.length)];
-    const officialPrice = station.prices[ft];
-    if (officialPrice == null) continue;
-
-    const minutesAgo = Math.floor(rng() * REPORT_FRESHNESS_MIN);
-    const offset = (rng() - 0.55) * 5;                       // skewed slightly cheaper
-    const price = +(officialPrice + offset).toFixed(1);
-    const confirms = rng() < 0.35 ? Math.floor(rng() * 4) : 0;
-
-    out.push({
-      id: `seed-${station.id}-${i}`,
-      stationId: station.id,
-      fuelType: ft,
-      price,
-      timestamp: Date.now() - minutesAgo * 60_000,
-      reporter: REPORTER_NAMES[Math.floor(rng() * REPORTER_NAMES.length)],
-      seedConfirms: confirms,
-      note: null,
-      isSeed: true,
-    });
-  }
-  return out;
-}
-
-function isReportTrusted(report, userConfirmedSet) {
-  const totalConfirms = (report.seedConfirms || 0) + (userConfirmedSet.has(report.id) ? 1 : 0);
-  return totalConfirms >= REPORT_TRUSTED_MIN_CONFIRMS;
-}
-
-function reportConfirmCount(report, userConfirmedSet) {
-  return (report.seedConfirms || 0) + (userConfirmedSet.has(report.id) ? 1 : 0);
-}
 
 /* =====================================================================
    FUELMATE LOGO — inline SVG, scales to any size
@@ -2640,7 +2600,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
               </div>
 
               {/* Right: quick city list */}
-              <div className="hidden md:block">
+              <div>
                 <div className="text-tiny font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Browse by city</div>
                 <div className="space-y-1.5">
                   {CITIES.map(c => (
@@ -3078,9 +3038,8 @@ export default function App() {
   const getReportsForStation = useCallback((station) => {
     if (!station) return [];
     const cutoff = Date.now() - REPORT_FRESHNESS_MIN * 60_000;
-    const seed = getSeedReports(station);
     const user = userReports[station.id] || [];
-    return [...seed, ...user].filter(r => r.timestamp >= cutoff);
+    return user.filter(r => r.timestamp >= cutoff);
   }, [userReports]);
 
   const reportsByStationFor = useCallback((stations) => {
