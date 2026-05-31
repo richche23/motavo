@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Menu, X, ArrowRight, ArrowUpRight, Navigation,
   ChevronRight, TrendingDown, TrendingUp, AlertCircle,
-  Map as MapIcon, List, Mail, Shield, Info,
+  Map as MapIcon, List, Shield, Info,
   Loader2, Zap, Target, Compass, MoveRight,
   Search, MapPin, Building2, Home, Command,
   ThumbsUp, CheckCircle2, Users, Edit3, Check,
@@ -387,14 +387,19 @@ async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25
     if (!res.ok) throw new Error(`API ${res.status}`);
     const data = await res.json();
 
-    if (!data?.stations?.length) {
-      // No live data yet (e.g. stub source) → fall back to mock
-      return generateStations(lat, lng, locationKey, state, count);
-    }
+    // API responded successfully. If it returned no stations, that's a REAL
+    // "no data for this area" result — show an honest empty state rather than
+    // fabricated prices. Serving mock data on a live site erodes trust and
+    // could send someone to a station with a made-up price.
+    if (!data?.stations?.length) return [];
     // Backend already filters by radius/limit and sorts by distance.
     return data.stations;
   } catch {
-    // Network unreachable, artifact iframe, or backend not deployed yet.
+    // Genuine fetch failure (offline, or the artifact-preview iframe where
+    // /api isn't reachable). Mock data only here so the preview still demos.
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('fuelmate.au')) {
+      return []; // production: never show fabricated data
+    }
     return generateStations(lat, lng, locationKey, state, count);
   }
 }
@@ -950,6 +955,15 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
                 />
                 {timeAgoLabel(station.updatedMinutesAgo)}
               </span>
+              {station.updatedMinutesAgo >= 1440 && (
+                <span
+                  className="inline-flex items-center gap-1 text-tiny font-medium"
+                  style={{ color: 'var(--warn)' }}
+                  title="This price hasn't updated in over a day and may be out of date."
+                >
+                  <AlertCircle size={11} /> may be outdated
+                </span>
+              )}
               {diff != null && diff > 0 && (
                 <span className="inline-flex items-center gap-1 font-mono" style={{ color: 'var(--warn)' }}>+{diff.toFixed(1)}¢</span>
               )}
@@ -2458,7 +2472,6 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               { label: 'Cities', view: { name: 'cities' } },
               { label: 'How cycles work', view: { name: 'editorial', slug: 'cycles' } },
               { label: 'About', view: { name: 'about' } },
-              { label: 'Contact', view: { name: 'contact' } },
             ].map(item => (
               <button key={item.label} type="button" onClick={() => goto(item.view)}
                       className="w-full text-left py-3 font-medium inline-flex items-center justify-between"
@@ -2504,7 +2517,6 @@ const Footer = ({ onNav }) => (
             {[
               { label: 'About FuelMate', view: { name: 'about' } },
               { label: 'How fuel cycles work', view: { name: 'editorial', slug: 'cycles' } },
-              { label: 'Contact', view: { name: 'contact' } },
               { label: 'Privacy policy', view: { name: 'privacy' } },
               { label: 'Terms of service', view: { name: 'terms' } },
             ].map(item => (
@@ -2659,9 +2671,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
           </div>
         ) : null}
 
-        <div className="my-10">
-          <AdSlot size="leaderboard" label="leaderboard 728×90 — AdSense slot" />
-        </div>
+        {/* Ad slot removed until there's meaningful traffic — re-enable by
+            restoring <AdSlot size="leaderboard" /> here and the AdSense
+            script in app/layout.tsx. */}
 
       </div>
     </div>
@@ -2852,29 +2864,6 @@ const AboutView = () => (
     </>} />
 );
 
-const ContactView = () => (
-  <StaticPage icon={Mail} title="Contact"
-    intro="Spot a price that looks wrong, want to suggest a feature, or covering us in a story? Get in touch."
-    body={<>
-      <div className="surface-card p-6 md:p-7 space-y-5" style={{ borderRadius: 14 }}>
-        {[
-          { label: 'General enquiries', email: 'hello@fuelmate.com.au' },
-          { label: 'Press & partnerships', email: 'press@fuelmate.com.au' },
-          { label: 'Data corrections', email: 'data@fuelmate.com.au', note: 'We aggregate from official feeds. If a price is wrong on our site, it\'s almost always already wrong upstream. We\'ll still pass it on.' },
-        ].map(({ label, email, note }) => (
-          <div key={email}>
-            <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>{label}</div>
-            <a className="text-lg font-mono font-medium ulink" style={{ color: 'var(--text)' }} href={`mailto:${email}`}>{email}</a>
-            {note && <p className="text-sm mt-1.5" style={{ color: 'var(--text-3)' }}>{note}</p>}
-          </div>
-        ))}
-      </div>
-      <p className="text-sm" style={{ color: 'var(--text-4)' }}>
-        We aim to reply within 2 business days. FuelMate is operated by an independent Australian sole trader.
-      </p>
-    </>} />
-);
-
 const PrivacyView = () => (
   <StaticPage icon={Shield} title="Privacy policy"
     intro="A short, plain-English summary. No dark patterns, no upsells."
@@ -2920,8 +2909,8 @@ const NotFound = ({ onNav }) => (
 
 /* ===== APP ===== */
 
-export default function App() {
-  const [view, setView] = useState({ name: 'home' });
+export default function App({ initialView } = {}) {
+  const [view, setView] = useState(initialView || { name: 'home' });
   const [fuelType, setFuelType] = useState('U91');
   const [location, setLocation] = useState(null);
   const [locating, setLocating] = useState(false);
@@ -3072,6 +3061,20 @@ export default function App() {
     showToast('Confirmed — thanks!');
   }, [showToast]);
 
+  // If the user landed on /near-me, trigger geolocation once on mount.
+  const didAutoLocate = useRef(false);
+  useEffect(() => {
+    if (initialView?.locate && !didAutoLocate.current) {
+      didAutoLocate.current = true;
+      // Defer slightly so the UI paints first
+      const t = setTimeout(() => handleLocateRef.current?.(), 300);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLocateRef = useRef(null);
+
   const handleLocate = useCallback(() => {
     setLocError(false);
     setLocating(true);
@@ -3102,6 +3105,9 @@ export default function App() {
       { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
     );
   }, []);
+
+  // Keep the ref pointing at the latest handleLocate (used by /near-me auto-locate)
+  handleLocateRef.current = handleLocate;
 
   const handleSample = useCallback((sampleKey) => {
     if (!sampleKey) { setLocation(null); setLocError(false); return; }
@@ -3155,7 +3161,6 @@ export default function App() {
       }
       case 'editorial': return <EditorialView slug={view.slug} onNav={setView} />;
       case 'about':   return <AboutView />;
-      case 'contact': return <ContactView />;
       case 'privacy': return <PrivacyView />;
       case 'terms':   return <TermsView />;
       default:        return <NotFound onNav={setView} />;
