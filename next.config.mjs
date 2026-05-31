@@ -1,12 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Allow station-logo favicons from Google's S2 service
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'www.google.com', pathname: '/s2/favicons/**' },
-    ],
+
+  async headers() {
+    return [
+      {
+        // Allow Google + other crawlers to index the whole site.
+        // This removes the default `noindex` that was blocking organic traffic.
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'index, follow' },
+        ],
+      },
+      {
+        // Long-cache the fonts/static chunks (immutable, content-hashed by Next).
+        source: '/_next/static/(.*)',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+    ];
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
