@@ -8,7 +8,7 @@ import {
   Loader2, Zap, Target, Compass, MoveRight,
   Search, MapPin, Building2, Home, Command,
   ThumbsUp, CheckCircle2, Users, Edit3, Check,
-  Sun, Moon
+  Sun, Moon, Gauge
 } from 'lucide-react';
 
 /* =====================================================================
@@ -238,6 +238,9 @@ const CITIES = [
   { slug: 'hobart',    name: 'Hobart',    state: 'TAS', live: true, pop: '250K', cycle: 'Stable',            center: { lat: -42.8821, lng: 147.3272 } },
   { slug: 'darwin',    name: 'Darwin',    state: 'NT',  live: true, pop: '150K', cycle: 'Stable',            center: { lat: -12.4634, lng: 130.8456 } },
 ];
+
+// Map a state code to its representative capital-city entry (for cycle labels)
+const cityForState = (state) => CITIES.find(c => c.state === state) || null;
 
 /**
  * Government fuel price data sources by state. All Australian states now
@@ -1371,6 +1374,134 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
         ) : cardList}
       </div>
     </>
+  );
+};
+
+// ── Price-cycle history (localStorage — persists across sessions) ────────────
+// We log the daily cheapest price per state+fuel. Over repeat visits this lets
+// FuelMate show where today's price sits within its recent range — i.e. whether
+// you're near the bottom of the cycle (fill up) or just after a hike (wait).
+// The signal sharpens the more the app is used, which is the whole point.
+const CYCLE_HISTORY_DAYS = 45;
+
+function cycleHistoryKey(state, fuelType) {
+  return `fm:cycle:${state || 'NA'}:${fuelType}`;
+}
+function readCycleHistory(state, fuelType) {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(cycleHistoryKey(state, fuelType));
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function recordCyclePoint(state, fuelType, cheapest) {
+  if (typeof window === 'undefined' || cheapest == null) {
+    return readCycleHistory(state, fuelType);
+  }
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let hist = readCycleHistory(state, fuelType);
+  const existing = hist.find(h => h.d === today);
+  if (existing) existing.p = Math.min(existing.p, cheapest); // keep day's lowest
+  else hist.push({ d: today, p: cheapest });
+  hist = hist.slice(-CYCLE_HISTORY_DAYS);
+  try { localStorage.setItem(cycleHistoryKey(state, fuelType), JSON.stringify(hist)); } catch {}
+  return hist;
+}
+
+/**
+ * CycleSignal — "is now a good time to fill up?" verdict.
+ * Day one: uses the live price spread as a soft signal.
+ * After a few days of repeat visits: compares today's cheapest against the
+ * recent low/high to place you in the local price cycle.
+ */
+const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
+  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
+  const cheapest = prices.length ? Math.min(...prices) : null;
+  const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
+
+  // Per-device fallback history (localStorage)
+  const [localHistory, setLocalHistory] = useState(() => readCycleHistory(state, fuelType));
+  useEffect(() => {
+    if (cheapest == null) return;
+    setLocalHistory(recordCyclePoint(state, fuelType, cheapest));
+  }, [state, fuelType, cheapest]);
+
+  // Authoritative server history (logged daily by the cron, regardless of visits)
+  const [serverHistory, setServerHistory] = useState(null);
+  useEffect(() => {
+    if (!state) return;
+    let cancelled = false;
+    fetch(`/api/cycle/${String(state).toLowerCase()}?fuel=${fuelType}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && Array.isArray(d?.history)) setServerHistory(d.history); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [state, fuelType]);
+
+  if (cheapest == null) return null;
+
+  // Prefer the server's daily log once it has a few days; else use local.
+  const history = (serverHistory && serverHistory.length >= 4) ? serverHistory : localHistory;
+  const points = history.map(h => h.p).filter(p => p != null && p < 400);
+  const daysTracked = history.length;
+  const low = points.length ? Math.min(...points) : cheapest;
+  const high = points.length ? Math.max(...points) : cheapest;
+  const span = high - low;
+  const hasSignal = daysTracked >= 4 && span >= 3;
+  const position = hasSignal ? Math.max(0, Math.min(1, (cheapest - low) / span)) : null;
+
+  let verdict;
+  if (hasSignal) {
+    if (position <= 0.20) {
+      verdict = { Icon: TrendingDown, color: 'var(--success)', bg: 'var(--green-soft)',
+        title: 'Great time to fill up',
+        detail: `Cheapest nearby is near its ${daysTracked}-day low (${low.toFixed(1)}–${high.toFixed(1)}¢ range).` };
+    } else if (position <= 0.55) {
+      verdict = { Icon: TrendingDown, color: 'var(--success)', bg: 'var(--green-soft)',
+        title: 'Decent time to fill up',
+        detail: `Prices are in the lower half of their recent ${low.toFixed(1)}–${high.toFixed(1)}¢ range.` };
+    } else if (position <= 0.80) {
+      verdict = { Icon: AlertCircle, color: 'var(--warn)', bg: 'rgba(234,88,12,0.08)',
+        title: 'Prices still on the high side',
+        detail: 'Above the middle of the recent range — wait a few days if your tank allows.' };
+    } else {
+      verdict = { Icon: TrendingUp, color: 'var(--danger)', bg: 'rgba(220,38,38,0.08)',
+        title: 'Prices recently spiked',
+        detail: `Near the ${daysTracked}-day high — hold off filling up if you can.` };
+    }
+  } else {
+    // Honest first-visit fallback — no false precision without history.
+    const saving = avg != null ? avg - cheapest : 0;
+    verdict = { Icon: Gauge, color: 'var(--accent)', bg: 'var(--blue-soft)',
+      title: 'Learning your local cycle',
+      detail: saving > 2
+        ? `Cheapest right now is ${cheapest.toFixed(1)}¢ — about ${saving.toFixed(0)}¢/L under the local average. Check back over a few days and FuelMate will flag when you're near the bottom of the ${cycleLabel || 'local'} cycle.`
+        : `Cheapest right now is ${cheapest.toFixed(1)}¢. Prices look tightly clustered. Check back over a few days and FuelMate will flag the bottom of the ${cycleLabel || 'local'} cycle.` };
+  }
+
+  const { Icon } = verdict;
+  return (
+    <div className="surface-card" style={{ padding: '14px 16px', borderRadius: 12, borderLeft: `3px solid ${verdict.color}` }}>
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, borderRadius: 10, background: verdict.bg, color: verdict.color }}>
+          <Icon size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-display font-semibold" style={{ color: verdict.color, fontSize: '0.98rem' }}>{verdict.title}</div>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)', lineHeight: 1.5 }}>{verdict.detail}</p>
+          {hasSignal && (
+            <div className="mt-2.5">
+              <div style={{ position: 'relative', height: 6, borderRadius: 999, background: 'linear-gradient(90deg, var(--success) 0%, var(--warn) 65%, var(--danger) 100%)', opacity: 0.85 }}>
+                <div style={{ position: 'absolute', top: '50%', left: `${position * 100}%`, transform: 'translate(-50%,-50%)', width: 12, height: 12, borderRadius: 999, background: '#fff', border: `2px solid ${verdict.color}`, boxShadow: '0 1px 3px rgba(15,23,42,0.25)' }} />
+              </div>
+              <div className="flex justify-between mt-1 text-tiny" style={{ color: 'var(--text-4)' }}>
+                <span>Cycle low</span><span>Cycle high</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -2656,6 +2787,8 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
             <SavingsBanner stations={stations} fuelType={fuelType} />
 
+            <CycleSignal stations={stations} fuelType={fuelType} state={location?.state} cycleLabel={cityForState(location?.state)?.cycle} />
+
             <FuelTypePicker value={fuelType} onChange={onFuelType} />
 
             <PriceStats stations={stations} fuelType={fuelType} />
@@ -2772,8 +2905,8 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
 
       <div className="mb-5"><FuelTypePicker value={fuelType} onChange={onFuelType} /></div>
       <div className="mb-5"><SavingsBanner stations={stations} fuelType={fuelType} /></div>
+      <div className="mb-5"><CycleSignal stations={stations} fuelType={fuelType} state={city.state} cycleLabel={city.cycle} /></div>
       <div className="mb-6"><PriceStats stations={stations} fuelType={fuelType} /></div>
-      <div className="my-6"><AdSlot size="leaderboard" /></div>
 
       <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
                    onViewMode={setViewMode} sort={sort} onSort={setSort}
@@ -2831,7 +2964,6 @@ const EditorialView = ({ slug, onNav }) => {
           </button>
         </p>
       </div>
-      <div className="my-12"><AdSlot size="rectangle" /></div>
     </article>
   );
 };
