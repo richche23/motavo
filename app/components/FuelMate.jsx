@@ -2955,34 +2955,13 @@ export default function App({ initialView } = {}) {
       ]);
       if (cancelled) return;
 
-      if (savedLocation) setLocation(savedLocation);
+      // Intentionally do NOT restore the saved location on load — the site
+      // should always open on the clean home page, not jump straight to the
+      // last searched area. Users search or tap "Use my location" each visit.
       if (savedFuel) setFuelType(savedFuel);
       if (Array.isArray(savedConfirms)) setConfirmedReportIds(new Set(savedConfirms));
 
       hydratedRef.current = true;
-
-      // Background-only refresh: only if we already had a saved geolocation
-      // (so the user sees something immediately), AND consent is granted,
-      // AND it's not been refreshed recently. Failure here is silent.
-      if (savedConsent === 'granted'
-          && savedLocation?.key === 'geo'
-          && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (cancelled) return;
-            setLocation((prev) => ({
-              ...(prev || {}),
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              key: 'geo',
-              label: prev?.label || 'your current location',
-              state: prev?.state || 'NSW',
-            }));
-          },
-          () => { /* silent — saved location stays */ },
-          { enableHighAccuracy: false, timeout: 4000, maximumAge: 5 * 60_000 }
-        );
-      }
     })();
     return () => { cancelled = true; };
   }, []);
