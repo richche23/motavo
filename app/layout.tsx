@@ -1,33 +1,90 @@
-import type { Metadata } from 'next';
-import './globals.css';
+import type { Metadata, Viewport } from 'next';
+
+const BASE = 'https://www.fuelmate.au';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(BASE),
   title: 'FuelMate — Cheapest fuel near you, Australia-wide',
   description:
     'Real-time fuel prices for Australian drivers. Compare petrol, diesel and LPG across NSW, VIC, QLD, WA, SA, NT, TAS and ACT. Free, independent, government data.',
-  keywords: ['fuel prices Australia', 'cheap petrol', 'fuel comparison', 'petrol prices', 'diesel prices'],
+  keywords: [
+    'fuel prices Australia',
+    'cheap petrol',
+    'fuel comparison',
+    'petrol prices',
+    'diesel prices',
+  ],
+  alternates: { canonical: BASE },
+  manifest: '/manifest.webmanifest',
+  openGraph: {
+    title: 'FuelMate — Cheapest fuel near you, Australia-wide',
+    description:
+      'Real-time fuel prices for Australian drivers. Free, independent, government data.',
+    url: BASE,
+    siteName: 'FuelMate',
+    locale: 'en_AU',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'FuelMate — Cheapest fuel near you',
+    description: 'Real-time Australian fuel prices. Free and independent.',
+  },
 };
 
-const ADSENSE_CLIENT = 'ca-pub-8867825238666070';
+export const viewport: Viewport = {
+  themeColor: '#1e5fe0',
+  width: 'device-width',
+  initialScale: 1,
+};
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// Site-wide structured data
+const siteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'FuelMate',
+  url: BASE,
+  description:
+    'Real-time fuel price comparison for Australian drivers, using official government data.',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${BASE}/?q={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
+const orgJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'FuelMate',
+  url: BASE,
+  description: 'Independent Australian fuel price comparison.',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en-AU">
       <head>
+        {/* Start the Leaflet CDN connection early so the map paints faster */}
+        <link rel="preconnect" href="https://unpkg.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://unpkg.com" />
+        <link rel="preconnect" href="https://tile.openstreetmap.org" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-        {/* AdSense verification meta tag — checked by Google's crawler */}
-        <meta name="google-adsense-account" content={ADSENSE_CLIENT} />
-        {/* AdSense script — inline in <head> so crawlers see it in raw HTML */}
-        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-          crossOrigin="anonymous"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
       <body>{children}</body>
