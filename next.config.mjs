@@ -6,14 +6,14 @@ const nextConfig = {
     return [
       {
         // Allow Google + other crawlers to index the whole site.
-        // This removes the default `noindex` that was blocking organic traffic.
+        // Removes the default `noindex` that was blocking organic traffic.
         source: '/(.*)',
         headers: [
           { key: 'X-Robots-Tag', value: 'index, follow' },
         ],
       },
       {
-        // Long-cache the fonts/static chunks (immutable, content-hashed by Next).
+        // Long-cache the content-hashed static chunks (immutable).
         source: '/_next/static/(.*)',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
@@ -23,4 +23,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
