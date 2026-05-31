@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import './globals.css';
 
 const BASE = 'https://www.fuelmate.au';
 
