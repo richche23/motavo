@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { SUBURBS } from '../lib/suburbs';
 
 const BASE = 'https://www.fuelmate.au';
 
@@ -17,6 +18,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 1,
   };
 
+  const nearMe = {
+    url: `${BASE}/near-me`,
+    lastModified: now,
+    changeFrequency: 'daily' as const,
+    priority: 0.7,
+  };
+
   const cities = CITIES.map((slug) => ({
     url: `${BASE}/${slug}`,
     lastModified: now,
@@ -24,5 +32,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  return [home, ...cities];
+  const suburbs = SUBURBS.map((s) => ({
+    url: `${BASE}/fuel/${s.slug}`,
+    lastModified: now,
+    changeFrequency: 'daily' as const,
+    priority: 0.6,
+  }));
+
+  return [home, nearMe, ...cities, ...suburbs];
 }
