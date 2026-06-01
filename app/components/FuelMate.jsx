@@ -3071,10 +3071,10 @@ const NotFound = ({ onNav }) => (
 
 /* ===== APP ===== */
 
-export default function App({ initialView } = {}) {
+export default function App({ initialView, initialLocation } = {}) {
   const [view, setView] = useState(initialView || { name: 'home' });
   const [fuelType, setFuelType] = useState('U91');
-  const [location, setLocation] = useState(null);
+  const [location, setLocation] = useState(initialLocation || null);
   const [locating, setLocating] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
