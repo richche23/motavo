@@ -20,6 +20,30 @@ const GlobalStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
+    /* Soft brand-coloured mesh behind the hero, fading to the page bg below.
+       Pure CSS — no image, no load cost. Tuned for both light and dark mode
+       via the --hero-* variables defined per theme. */
+    .hero-mesh {
+      position: relative;
+      isolation: isolate;
+      background:
+        radial-gradient(60% 70% at 12% 8%,  var(--hero-a) 0%, transparent 60%),
+        radial-gradient(55% 65% at 88% 0%,  var(--hero-b) 0%, transparent 58%),
+        radial-gradient(70% 60% at 70% 35%, var(--hero-c) 0%, transparent 65%),
+        var(--bg);
+    }
+    /* Fade the mesh out toward the bottom so it blends into the plain page */
+    .hero-mesh::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 45%;
+      background: linear-gradient(to bottom, transparent, var(--bg));
+      pointer-events: none;
+      z-index: -1;
+    }
+    .hero-mesh > * { position: relative; z-index: 0; }
+
     :root {
       --bg: #f7f9fc;
       --bg-2: #eef2f8;
@@ -38,6 +62,9 @@ const GlobalStyles = () => (
       --blue-dark: #1648b0;
       --blue-light: #d6e4ff;
       --blue-soft: #ebf2ff;
+      --hero-a: rgba(30, 95, 224, 0.18);
+      --hero-b: rgba(22, 160, 133, 0.16);
+      --hero-c: rgba(120, 90, 230, 0.12);
       --green: #16a085;
       --green-dark: #0f7d68;
       --green-light: #c8efe5;
@@ -68,6 +95,9 @@ const GlobalStyles = () => (
 
       --blue-light: rgba(30, 95, 224, 0.20);
       --blue-soft: rgba(30, 95, 224, 0.12);
+      --hero-a: rgba(30, 95, 224, 0.28);
+      --hero-b: rgba(22, 160, 133, 0.24);
+      --hero-c: rgba(120, 90, 230, 0.20);
       --green-light: rgba(22, 160, 133, 0.20);
       --green-soft: rgba(22, 160, 133, 0.10);
       --accent-glow: rgba(30, 95, 224, 0.30);
@@ -2694,7 +2724,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
   return (
     <div>
       {!location && (
-        <section style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+        <section className="hero-mesh">
           <div className="max-w-6xl mx-auto px-4 md:px-6"
                style={{ paddingTop: 'clamp(3rem, 8vw, 5.5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
             <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
