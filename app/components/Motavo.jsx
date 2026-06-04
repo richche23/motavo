@@ -8,8 +8,39 @@ import {
   Loader2, Zap, Target, Compass, MoveRight,
   Search, MapPin, Building2, Home, Command,
   ThumbsUp, CheckCircle2, Users, Edit3, Check,
-  Sun, Moon, Gauge
+  Sun, Moon, Gauge, Fuel
 } from 'lucide-react';
+import EVPanel from './EVPanel';
+
+/* =====================================================================
+   Large, prominent Fuel / EV mode toggle (home view)
+   ===================================================================== */
+const ModeToggle = ({ mode, onMode }) => {
+  const base = {
+    display: 'inline-flex', alignItems: 'center', gap: 10,
+    padding: '14px 30px', fontSize: 16, fontWeight: 700,
+    borderRadius: 12, border: 'none', cursor: 'pointer',
+    transition: 'all .15s ease', letterSpacing: '-0.01em',
+  };
+  const on = { ...base, background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 10px var(--accent-glow)' };
+  const off = { ...base, background: 'transparent', color: 'var(--text-2)' };
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 16px 6px' }}>
+      <div
+        role="tablist"
+        aria-label="Choose Fuel or EV"
+        style={{ display: 'inline-flex', gap: 6, padding: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 16 }}
+      >
+        <button type="button" role="tab" aria-selected={mode === 'fuel'} style={mode === 'fuel' ? on : off} onClick={() => onMode('fuel')}>
+          <Fuel size={20} /> Fuel
+        </button>
+        <button type="button" role="tab" aria-selected={mode === 'ev'} style={mode === 'ev' ? on : off} onClick={() => onMode('ev')}>
+          <Zap size={20} /> EV charging
+        </button>
+      </div>
+    </div>
+  );
+};
 
 /* =====================================================================
    Motavo — Australian fuel price comparison
@@ -2508,22 +2539,6 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
           >
             <Home size={15} />
           </button>
-          <a
-            href="/ev"
-            className="inline-flex items-center px-3 py-1.5 text-sm font-semibold transition-colors hover-raise"
-            style={{
-              background: 'var(--surface)',
-              color: 'var(--text-2)',
-              border: '1px solid var(--border)',
-              borderRadius: 9,
-              textDecoration: 'none',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
-            title="EV charging"
-          >
-            EV charging
-          </a>
           <button
             type="button"
             onClick={onOpenSearch}
@@ -3057,6 +3072,7 @@ const NotFound = ({ onNav }) => (
 
 export default function App({ initialView, initialLocation } = {}) {
   const [view, setView] = useState(initialView || { name: 'home' });
+  const [mode, setMode] = useState('fuel'); // 'fuel' | 'ev' — home view toggle
   const [fuelType, setFuelType] = useState('U91');
   const [location, setLocation] = useState(initialLocation || null);
   const [locating, setLocating] = useState(false);
@@ -3271,11 +3287,18 @@ export default function App({ initialView, initialLocation } = {}) {
   const renderView = () => {
     switch (view.name) {
       case 'home':
-        return <HomeView location={location} locating={locating} locError={locError}
-                         fuelType={fuelType} onFuelType={setFuelType}
-                         onLocate={handleLocate} onSample={handleSample}
-                         onSearchSelect={handleSearchSelect} onNav={setView}
-                         {...reportsCommonProps} />;
+        return (
+          <>
+            <ModeToggle mode={mode} onMode={setMode} />
+            {mode === 'ev'
+              ? <EVPanel />
+              : <HomeView location={location} locating={locating} locError={locError}
+                          fuelType={fuelType} onFuelType={setFuelType}
+                          onLocate={handleLocate} onSample={handleSample}
+                          onSearchSelect={handleSearchSelect} onNav={setView}
+                          {...reportsCommonProps} />}
+          </>
+        );
       case 'cities':
         return <CitiesIndexView onNav={setView} />;
       case 'city': {
