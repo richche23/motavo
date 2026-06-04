@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Search, Navigation, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import { SUBURBS } from '@/lib/suburbs';
 
@@ -18,16 +18,112 @@ function priceLabel(s) {
   return 'Price varies';
 }
 
+/* ─── Charger map (Leaflet via unpkg, mirrors the fuel StationMap) ─── */
+const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
+  const mapRef = useRef(null);
+  const mapObjRef = useRef(null);
+  const markersRef = useRef([]);
+  const visible = stations.filter(s => s.lat && s.lng);
+
+  const colorFor = (s) => (s.level === 'DC' ? '#0e7c6b' : s.level === 'AC' ? '#64748b' : '#94a3b8');
+
+  const initMap = () => {
+    const L = window.L;
+    if (!mapRef.current || mapObjRef.current) return;
+    const lat = userLat || -37.8136;
+    const lng = userLng || 144.9631;
+    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true }).setView([lat, lng], 12);
+    setTimeout(() => map.invalidateSize(), 100);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19,
+    }).addTo(map);
+    mapObjRef.current = map;
+
+    if (userLat && userLng) {
+      const userIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:16px;height:16px;background:#0e7c6b;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(14,124,107,0.25)"></div>`,
+        iconSize: [16, 16], iconAnchor: [8, 8],
+      });
+      L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map).bindPopup('<strong style="font-family:sans-serif">Your location</strong>');
+    }
+    addMarkers(map);
+  };
+
+  const addMarkers = (map) => {
+    const L = window.L;
+    if (!map) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+
+    visible.forEach((s) => {
+      const color = colorFor(s);
+      const label = s.maxPowerKw != null ? `${s.maxPowerKw}kW` : (s.level || '⚡');
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:${color};color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);border:2px solid rgba(255,255,255,0.7)">${label}</div>`,
+        iconSize: [56, 24], iconAnchor: [28, 12],
+      });
+      const conns = s.connectors.map(c => c.type + (c.count > 1 ? ` ×${c.count}` : '')).join(' · ');
+      const popup = L.popup({ maxWidth: 280, className: 'fm-popup' }).setContent(`
+        <div style="font-family:'Hanken Grotesk',sans-serif;padding:2px 0">
+          <div style="font-weight:700;font-size:15px;margin-bottom:2px">${s.network}</div>
+          <div style="color:#64748b;font-size:12px;margin-bottom:6px">${s.address || ''}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${color};margin-bottom:6px">${priceLabel(s)}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance != null ? s.distance + ' km · ' : ''}${conns}</div>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener noreferrer"
+             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none">↗ Directions</a>
+        </div>`);
+      const marker = L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(popup);
+      markersRef.current.push(marker);
+    });
+  };
+
+  // Load Leaflet CSS + JS (idempotent — shared with the fuel map), then init.
+  useEffect(() => {
+    let cancelled = false;
+    const doInit = () => { if (!cancelled) requestAnimationFrame(() => { if (!cancelled) initMap(); }); };
+    const loadJS = () => {
+      if (window.L) { doInit(); return; }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = doInit;
+      document.head.appendChild(script);
+    };
+    let link = document.getElementById('leaflet-css');
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.setAttribute('rel', 'stylesheet');
+      link.setAttribute('href', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+      link.onload = loadJS;
+      document.head.appendChild(link);
+    } else if (window.L) { loadJS(); }
+    else { link.addEventListener('load', loadJS, { once: true }); }
+    return () => { cancelled = true; if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { if (mapObjRef.current && userLat && userLng) mapObjRef.current.setView([userLat, userLng], 12); }, [userLat, userLng]);
+  useEffect(() => { if (mapObjRef.current) addMarkers(mapObjRef.current); /* eslint-disable-next-line */ }, [stations]);
+
+  return (
+    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      <div ref={mapRef} style={{ height: mapHeight || '520px', width: '100%' }} />
+    </div>
+  );
+};
+
 /**
  * Embeddable EV charger finder. Mirrors the fuel home: a hero with search +
- * "use my location" until a location is chosen, then the charger results.
- * Renders inside the app shell (.fm-app), so it inherits theme + fonts.
+ * "use my location" until a location is chosen, then list/map of chargers.
  */
 export default function EVPanel() {
   const [coords, setCoords] = useState(null);
   const [locLabel, setLocLabel] = useState('');
   const [radius, setRadius] = useState(10);
   const [level, setLevel] = useState('ALL'); // ALL | AC | DC
+  const [viewMode, setViewMode] = useState('list'); // list | map
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -38,7 +134,7 @@ export default function EVPanel() {
   const load = useCallback(async (lat, lng, r = radius, lvl = level) => {
     setLoading(true); setError('');
     try {
-      const params = new URLSearchParams({ lat: String(lat), lng: String(lng), radius: String(r), limit: '40' });
+      const params = new URLSearchParams({ lat: String(lat), lng: String(lng), radius: String(r), limit: '60' });
       if (lvl !== 'ALL') params.set('level', lvl);
       const res = await fetch(`/api/ev?${params}`);
       const data = await res.json();
@@ -52,8 +148,6 @@ export default function EVPanel() {
     }
   }, [radius, level]);
 
-  // Load whenever a location is set or filters change (no auto-geolocate —
-  // the hero shows first, mirroring the fuel home).
   useEffect(() => { if (coords) load(coords.lat, coords.lng, radius, level); }, [coords, radius, level, load]);
 
   const useMyLocation = () => {
@@ -77,7 +171,6 @@ export default function EVPanel() {
   };
 
   const reset = () => { setCoords(null); setStations([]); setQuery(''); setLocLabel(''); };
-
   const STATS = [['Live', 'Locations'], ['0', 'Paid listings'], ['Free', 'Always']];
 
   return (
@@ -105,7 +198,7 @@ export default function EVPanel() {
         .ev-panel .ev-search input::placeholder { color:var(--text-4); }
       `}</style>
 
-      {/* HERO — shown until a location is chosen (mirrors the fuel home) */}
+      {/* HERO — until a location is chosen */}
       {!coords && (
         <section className="hero-mesh">
           <div className="max-w-6xl mx-auto px-4 md:px-6"
@@ -116,7 +209,6 @@ export default function EVPanel() {
                 <span className="pulse-glow" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', display: 'inline-block', flexShrink: 0 }} />
                 Live locations · Australia-wide · indicative pricing
               </div>
-
               <h1 className="font-display font-semibold"
                   style={{ fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', lineHeight: 1.06, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
                 Stop guessing<br/>where to charge.
@@ -124,15 +216,11 @@ export default function EVPanel() {
               <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                 Live charger locations from Open Charge Map, with indicative network pricing. Free, independent, no sponsored results.
               </p>
-
               <div className="ev-search" style={{ marginBottom: '0.75rem', position: 'relative', maxWidth: 440 }}>
                 <Search size={18} style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-4)' }} />
                 <input list="ev-suburbs" value={query} onChange={e => onSuburbPick(e.target.value)} placeholder="Search suburb or postcode…" />
-                <datalist id="ev-suburbs">
-                  {suburbOptions.map(o => <option key={o.key} value={o.label} />)}
-                </datalist>
+                <datalist id="ev-suburbs">{suburbOptions.map(o => <option key={o.key} value={o.label} />)}</datalist>
               </div>
-
               <button type="button" onClick={useMyLocation} disabled={locating}
                       className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-60"
                       style={{ color: 'var(--text-3)', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer' }}>
@@ -145,7 +233,6 @@ export default function EVPanel() {
                   Couldn't get your location — try searching instead.
                 </p>
               )}
-
               <div className="flex items-center gap-6 mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
                 {STATS.map(([val, label]) => (
                   <div key={label}>
@@ -159,7 +246,7 @@ export default function EVPanel() {
         </section>
       )}
 
-      {/* RESULTS — once a location is chosen */}
+      {/* RESULTS */}
       {coords && (
         <div className="max-w-6xl mx-auto px-4 md:px-6 pb-16">
           <div className="space-y-5">
@@ -180,6 +267,10 @@ export default function EVPanel() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <div className="seg" role="group" aria-label="List or map">
+                <button className={viewMode === 'list' ? 'on' : ''} onClick={() => setViewMode('list')}>List</button>
+                <button className={viewMode === 'map' ? 'on' : ''} onClick={() => setViewMode('map')}>Map</button>
+              </div>
               <div className="seg" role="group" aria-label="Charger type">
                 {['ALL', 'AC', 'DC'].map(l => (
                   <button key={l} className={level === l ? 'on' : ''} onClick={() => setLevel(l)}>{l === 'ALL' ? 'All' : l}</button>
@@ -198,38 +289,42 @@ export default function EVPanel() {
               <span>{INDICATIVE_NOTE}</span>
             </div>
 
-            <div className="space-y-3">
-              {loading && <div className="muted">Finding chargers…</div>}
-              {error && !loading && <div className="muted">Couldn’t load chargers: {error}</div>}
-              {!loading && !error && stations.length === 0 && (
-                <div className="muted">No chargers found here. Try a wider radius or a different area.</div>
-              )}
-              {!loading && stations.map(s => (
-                <div className="card" key={s.id}>
-                  <div className="ctop">
-                    <div>
-                      <div className="net">{s.network}</div>
-                      {s.address && <div className="addr">{s.address}</div>}
+            {viewMode === 'map' ? (
+              <EVMap stations={stations} userLat={coords.lat} userLng={coords.lng} />
+            ) : (
+              <div className="space-y-3">
+                {loading && <div className="muted">Finding chargers…</div>}
+                {error && !loading && <div className="muted">Couldn’t load chargers: {error}</div>}
+                {!loading && !error && stations.length === 0 && (
+                  <div className="muted">No chargers found here. Try a wider radius or a different area.</div>
+                )}
+                {!loading && stations.map(s => (
+                  <div className="card" key={s.id}>
+                    <div className="ctop">
+                      <div>
+                        <div className="net">{s.network}</div>
+                        {s.address && <div className="addr">{s.address}</div>}
+                      </div>
+                      <div>
+                        <div className="price">{priceLabel(s)}</div>
+                        {s.distance != null && <div className="dist">{s.distance} km</div>}
+                      </div>
                     </div>
-                    <div>
-                      <div className="price">{priceLabel(s)}</div>
-                      {s.distance != null && <div className="dist">{s.distance} km</div>}
+                    <div className="chips">
+                      {s.level && <span className={`chip ${s.level === 'DC' ? 'dc' : ''}`}>{s.level} charging</span>}
+                      {s.maxPowerKw != null && <span className="chip">up to {s.maxPowerKw} kW</span>}
+                      {s.connectors.map((c, i) => (
+                        <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
+                      ))}
+                    </div>
+                    <div className="crow">
+                      <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
+                      {s.operational === false && <span className="off">May be offline</span>}
                     </div>
                   </div>
-                  <div className="chips">
-                    {s.level && <span className={`chip ${s.level === 'DC' ? 'dc' : ''}`}>{s.level} charging</span>}
-                    {s.maxPowerKw != null && <span className="chip">up to {s.maxPowerKw} kW</span>}
-                    {s.connectors.map((c, i) => (
-                      <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
-                    ))}
-                  </div>
-                  <div className="crow">
-                    <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
-                    {s.operational === false && <span className="off">May be offline</span>}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
