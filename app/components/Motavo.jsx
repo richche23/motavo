@@ -2507,9 +2507,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
 
         <nav className="hidden md:flex items-center gap-0.5 ml-4 flex-1">
           {[
-            { label: 'Near me', view: { name: 'home' }, isHome: true },
             { label: 'Cities', view: { name: 'cities' } },
-            { label: 'How cycles work', view: { name: 'editorial', slug: 'cycles' } },
           ].map(item => (
             <button
               key={item.label} type="button" onClick={() => item.isHome ? goHome() : goto(item.view)}
@@ -2628,9 +2626,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
         <div className="md:hidden fade-up" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
           <div className="max-w-6xl mx-auto px-4 py-4">
             {[
-              { label: 'Near me', view: { name: 'home' } },
               { label: 'Cities', view: { name: 'cities' } },
-              { label: 'How cycles work', view: { name: 'editorial', slug: 'cycles' } },
               { label: 'About', view: { name: 'about' } },
             ].map(item => (
               <button key={item.label} type="button" onClick={() => goto(item.view)}
@@ -2726,9 +2722,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
         <section className="hero-mesh">
           <div className="max-w-6xl mx-auto px-4 md:px-6"
                style={{ paddingTop: 'clamp(3rem, 8vw, 5.5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
-            <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
-
-              {/* Left: headline + search */}
+            <div style={{ maxWidth: 560 }}>
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-5"
                      style={{ background: 'var(--green-soft)', color: 'var(--green-dark)', border: '1px solid var(--green-light)' }}>
@@ -2769,24 +2763,14 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                     </div>
                   ))}
                 </div>
-              </div>
 
-              {/* Right: quick city list */}
-              <div>
-                <div className="text-tiny font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Browse by city</div>
-                <div className="space-y-1.5">
-                  {CITIES.map(c => (
-                    <button key={c.slug} type="button" onClick={() => onNav({ name: 'city', slug: c.slug })}
-                            className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
-                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
-                        <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
-                      </div>
-                      <span className="text-tiny" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
-                    </button>
-                  ))}
-                </div>
+                <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
+                        className="hover-raise inline-flex items-center gap-3 px-4 py-3 mt-6 transition-colors"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
+                  <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
+                  <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
+                  <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+                </button>
               </div>
             </div>
           </div>
