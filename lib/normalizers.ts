@@ -1,6 +1,6 @@
 /**
  * Helpers to normalize the various ways the same brand or fuel type is named
- * across state APIs. The frontend BRANDS dictionary in FuelMate.jsx uses a
+ * across state APIs. The frontend BRANDS dictionary in Motavo.jsx uses a
  * canonical set of names — these mappers translate from raw API responses.
  */
 

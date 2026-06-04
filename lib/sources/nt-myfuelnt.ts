@@ -79,7 +79,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const cached = cacheGet<Snapshot>(SNAPSHOT_KEY);
   if (cached) return cached;
 
-  const ua = 'Mozilla/5.0 (compatible; FuelMate/1.0; +https://fuelmate.app)';
+  const ua = 'Mozilla/5.0 (compatible; Motavo/1.0; +https://motavo.com.au)';
 
   // Step 1: GET homepage for CSRF token + session cookie.
   const homeRes = await fetch(`${BASE_URL}/`, {

@@ -8,8 +8,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['Space Grotesk', 'ui-sans-serif', 'system-ui'],
-        body:    ['DM Sans', 'ui-sans-serif', 'system-ui'],
+        display: ['Fraunces', 'ui-sans-serif', 'system-ui'],
+        body:    ['Hanken Grotesk', 'ui-sans-serif', 'system-ui'],
         mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       fontSize: {

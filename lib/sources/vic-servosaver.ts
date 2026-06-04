@@ -86,7 +86,7 @@ function authHeaders(): HeadersInit {
   const key = process.env.VIC_SERVOSAVER_API_KEY;
   if (!key) throw new Error('VIC_SERVOSAVER_API_KEY not set');
   return {
-    'User-Agent':      'FuelMate/1.0 (+https://fuelmate.au)',
+    'User-Agent':      'Motavo/1.0 (+https://motavo.com.au)',
     'x-consumer-id':   key,
     'x-transactionid': randomUUID(),
     'Content-Type':    'application/json',

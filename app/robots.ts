@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: 'https://www.fuelmate.au/sitemap.xml',
-    host: 'https://www.fuelmate.au',
+    sitemap: 'https://www.motavo.com.au/sitemap.xml',
+    host: 'https://www.motavo.com.au',
   };
 }

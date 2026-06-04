@@ -2,14 +2,14 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'FuelMate — Cheapest fuel near you',
-    short_name: 'FuelMate',
+    name: 'Motavo — Cheapest fuel near you',
+    short_name: 'Motavo',
     description:
       'Real-time Australian fuel prices. Compare petrol, diesel and LPG near you. Free, independent, government data.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#f7f9fc',
-    theme_color: '#1e5fe0',
+    background_color: '#f6f5f1',
+    theme_color: '#0e7c6b',
     orientation: 'portrait',
     categories: ['travel', 'utilities', 'navigation'],
     icons: [

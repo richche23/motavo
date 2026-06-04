@@ -57,7 +57,7 @@ export default async function StatusPage() {
 
   return (
     <main style={{ maxWidth: 720, margin: '40px auto', padding: '0 24px', fontFamily: 'ui-sans-serif, system-ui' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>FuelMate API status</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>Motavo API status</h1>
       <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>
         Live diagnostic. Each row hits the corresponding state API with a sample lat/lng.
       </p>
@@ -68,7 +68,7 @@ export default async function StatusPage() {
           const stub = c.ok && c.stations === 0;
           const broken = !c.ok;
           const colorBg = live ? '#e6f7f3' : stub ? '#fef3c7' : '#fee2e2';
-          const colorBorder = live ? '#16a085' : stub ? '#f59e0b' : '#dc2626';
+          const colorBorder = live ? '#0e7c6b' : stub ? '#f59e0b' : '#dc2626';
           const label = live ? 'Live' : stub ? 'Stub (mock fallback)' : 'Error';
           const refreshedLabel = c.refreshedAt
             ? new Date(c.refreshedAt).toLocaleString('en-AU')

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import FuelMate from '../../components/FuelMate';
+import Motavo from '../../components/Motavo';
 import { SUBURBS, suburbBySlug } from '../../../lib/suburbs';
 
-const BASE = 'https://www.fuelmate.au';
+const BASE = 'https://www.motavo.com.au';
 
 // Local fuel-cycle context per state (mirrors the city data)
 const STATE_CYCLE: Record<string, string> = {
@@ -35,7 +35,7 @@ export function generateMetadata({
   const s = suburbBySlug(params.suburb);
   if (!s) return {};
 
-  const title = `Cheapest Fuel in ${s.name}, ${s.state} ${s.postcode} — Live Petrol Prices | FuelMate`;
+  const title = `Cheapest Fuel in ${s.name}, ${s.state} ${s.postcode} — Live Petrol Prices | Motavo`;
   const description = `Compare live petrol, diesel, E10 and LPG prices around ${s.name} (${s.postcode}), ${s.state}. Free, independent fuel price comparison from official government data — no app, no login, no ads. ${s.name} follows ${STATE_CYCLE[s.state] || 'a local price cycle'}.`;
   const url = `${BASE}/fuel/${s.slug}`;
 
@@ -44,7 +44,7 @@ export function generateMetadata({
     description,
     alternates: { canonical: url },
     openGraph: {
-      title, description, url, siteName: 'FuelMate', locale: 'en_AU', type: 'website',
+      title, description, url, siteName: 'Motavo', locale: 'en_AU', type: 'website',
     },
     twitter: { card: 'summary_large_image', title, description },
   };
@@ -63,7 +63,7 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
     name: `Cheapest Fuel in ${s.name}, ${s.state}`,
     description: `Live petrol, diesel and LPG prices around ${s.name} ${s.postcode}, ${s.state}.`,
     url: `${BASE}/fuel/${s.slug}`,
-    isPartOf: { '@type': 'WebSite', name: 'FuelMate', url: BASE },
+    isPartOf: { '@type': 'WebSite', name: 'Motavo', url: BASE },
     about: {
       '@type': 'Service',
       name: `Fuel price comparison in ${s.name}`,
@@ -81,7 +81,7 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <FuelMate
+      <Motavo
         initialLocation={{
           lat: s.lat,
           lng: s.lng,
@@ -106,7 +106,7 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
           Finding cheap fuel in {s.name}, {s.state}
         </h2>
         <p style={{ marginBottom: 12 }}>
-          FuelMate shows live petrol, diesel, E10, 95, 98 and LPG prices for service
+          Motavo shows live petrol, diesel, E10, 95, 98 and LPG prices for service
           stations around {s.name} ({s.postcode}) and the surrounding {s.state} area.
           Prices come from {source} and update continuously — there's no app to
           download, no login, and no ads.

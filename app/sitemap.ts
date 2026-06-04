@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { SUBURBS } from '../lib/suburbs';
 
-const BASE = 'https://www.fuelmate.au';
+const BASE = 'https://www.motavo.com.au';
 
 const CITIES = [
   'sydney', 'melbourne', 'brisbane', 'perth',
