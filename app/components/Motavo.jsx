@@ -19,7 +19,7 @@ const ModeToggle = ({ mode, onMode }) => {
   const base = {
     display: 'inline-flex', alignItems: 'center', gap: 10,
     padding: '14px 30px', fontSize: 16, fontWeight: 700,
-    borderRadius: 12, border: 'none', cursor: 'pointer',
+    borderRadius: 0, border: 'none', cursor: 'pointer',
     transition: 'all .15s ease', letterSpacing: '-0.01em',
   };
   const on = { ...base, background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 10px var(--accent-glow)' };
@@ -29,7 +29,7 @@ const ModeToggle = ({ mode, onMode }) => {
       <div
         role="tablist"
         aria-label="Choose Fuel or EV"
-        style={{ display: 'inline-flex', gap: 6, padding: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 16 }}
+        style={{ display: 'inline-flex', gap: 6, padding: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 0 }}
       >
         <button type="button" role="tab" aria-selected={mode === 'fuel'} style={mode === 'fuel' ? on : off} onClick={() => onMode('fuel')}>
           <Fuel size={20} /> Fuel
@@ -172,7 +172,7 @@ const GlobalStyles = () => (
         radial-gradient(ellipse 60% 40% at 80% 100%, rgba(22,160,133,0.06), transparent 70%);
     }
 
-    .surface-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .surface-card { background: var(--surface); border: 1px solid var(--border); border-radius:0; }
 
     @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 0 0 var(--success-glow); } 50% { box-shadow: 0 0 0 6px transparent; } }
     .pulse-glow { animation: pulse-glow 2.2s ease-in-out infinite; }
@@ -219,12 +219,12 @@ const GlobalStyles = () => (
 
     .scroller::-webkit-scrollbar { height: 4px; }
     .scroller::-webkit-scrollbar-track { background: transparent; }
-    .scroller::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+    .scroller::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius:0; }
 
     .text-micro { font-size: 10.5px; line-height: 1.4; }
     .text-tiny  { font-size: 11.5px; line-height: 1.4; }
     .lead-tight { line-height: 0.94; }
-    .track-wide { letter-spacing: 0.16em; }
+    .track-wide { letter-spacing: 0.16em; font-family: 'JetBrains Mono', ui-monospace, monospace; }
     .track-wider { letter-spacing: 0.22em; }
   `}</style>
 );
@@ -628,7 +628,7 @@ const BrandMark = ({ brand, size = 36 }) => {
       style={{
         width: size,
         height: size,
-        borderRadius: 8,
+        borderRadius: 0,
         background: showLogo && loaded ? '#ffffff' : color,
         border: showLogo && loaded ? '1px solid var(--border)' : 'none',
         boxShadow: showLogo && loaded ? '0 1px 2px rgba(15,23,42,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.18)',
@@ -688,7 +688,7 @@ const Pill = ({ children, tone = 'neutral', className = '' }) => {
   }[tone];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-tiny font-medium uppercase track-wide ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-tiny font-medium uppercase track-wide ${className}`}
       style={{ background: tones.bg, border: `1px solid ${tones.border}`, color: tones.color }}
     >{children}</span>
   );
@@ -801,7 +801,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 borderColor: active ? 'var(--accent)' : 'var(--border)',
                 background: active ? 'var(--accent)' : 'var(--surface)',
                 color: active ? '#ffffff' : 'var(--text-2)',
-                borderRadius: 999,
+                borderRadius: 0,
               }}
               aria-pressed={active}
             >{ft.short}</button>
@@ -818,7 +818,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
-        borderRadius: 14,
+        borderRadius: 0,
         boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
       }}
     >
@@ -851,7 +851,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                   ? 'var(--blue-soft)'
                   : 'var(--surface-2)',
                 color: active ? 'var(--accent)' : 'var(--text-2)',
-                borderRadius: 10,
+                borderRadius: 0,
                 letterSpacing: '-0.01em',
                 boxShadow: active
                   ? '0 0 0 3px rgba(14, 124, 107,0.12)'
@@ -866,7 +866,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 <span
                   style={{
                     position: 'absolute', top: 4, right: 4,
-                    width: 6, height: 6, borderRadius: 999,
+                    width: 6, height: 6, borderRadius: 0,
                     background: 'var(--accent)',
                   }}
                 />
@@ -880,7 +880,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
 };
 
 const Toggle = ({ value, onChange, options }) => (
-  <div className="inline-flex items-center p-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 999 }}>
+  <div className="inline-flex items-center p-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     {options.map(({ key, label, icon: Icon }) => {
       const active = value === key;
       return (
@@ -892,7 +892,7 @@ const Toggle = ({ value, onChange, options }) => (
           style={{
             background: active ? 'var(--surface-3)' : 'transparent',
             color: active ? 'var(--text)' : 'var(--text-3)',
-            borderRadius: 999,
+            borderRadius: 0,
           }}
         ><Icon size={13} /> {label}</button>
       );
@@ -926,7 +926,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
       style={{
         background: isCheapest ? 'linear-gradient(180deg, rgba(22,160,133,0.04), transparent)' : 'var(--surface)',
         border: `1px solid ${isCheapest ? 'rgba(22,160,133,0.40)' : 'var(--border)'}`,
-        borderRadius: 12,
+        borderRadius: 0,
       }}
     >
       {isCheapest && (
@@ -950,7 +950,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
                   {isUserSourced && (
                     <span
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 text-tiny font-medium"
-                      style={{ background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.25)', borderRadius: 4, color: 'var(--success)' }}
+                      style={{ background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.25)', borderRadius: 0, color: 'var(--success)' }}
                       title="Price verified by drivers"
                     >
                       <Users size={9} /> Driver-verified
@@ -980,7 +980,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
                 <span
                   style={{
                     display: 'inline-block',
-                    width: 7, height: 7, borderRadius: 999,
+                    width: 7, height: 7, borderRadius: 0,
                     background: freshness(station.updatedMinutesAgo).color,
                     boxShadow: `0 0 0 2px ${freshness(station.updatedMinutesAgo).color}22`,
                   }}
@@ -1033,7 +1033,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
           style={{
             background: 'var(--accent)',
             color: '#ffffff',
-            borderRadius: 9,
+            borderRadius: 0,
             textDecoration: 'none',
             border: '1px solid var(--accent-dark)',
             boxShadow: '0 1px 0 rgba(15,23,42,0.04)',
@@ -1052,7 +1052,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
               background: 'var(--surface-2)',
               color: 'var(--text-2)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text-2)'; }}
@@ -1139,7 +1139,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
           font-size:11px;
           font-weight:700;
           padding:3px 7px;
-          border-radius:20px;
+          border-radius:0;
           white-space:nowrap;
           box-shadow:0 2px 6px rgba(0,0,0,0.25);
           border:2px solid rgba(255,255,255,0.7);
@@ -1156,7 +1156,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
           <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago'}</div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
              target="_blank" rel="noopener noreferrer"
-             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none">
+             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
             ↗ Directions
           </a>
         </div>
@@ -1228,7 +1228,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
   }, [stations, fuelType, cheapestPrice]);
 
   return (
-    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+    <div style={{ position: 'relative', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
       {/* Map div is ALWAYS rendered so mapRef.current is non-null when useEffect fires.
           The empty-state overlay appears on top when there are no stations to show. */}
       <div ref={mapRef} style={{ height: mapHeight || '520px', width: '100%' }} />
@@ -1246,7 +1246,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
       <div style={{
         position: 'absolute', bottom: 24, left: 16, zIndex: 1000,
         background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
-        borderRadius: 10, padding: '8px 12px',
+        borderRadius: 0, padding: '8px 12px',
         border: '1px solid rgba(0,0,0,0.08)',
         boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
         display: 'flex', gap: 12, alignItems: 'center',
@@ -1510,9 +1510,9 @@ const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
 
   const { Icon } = verdict;
   return (
-    <div className="surface-card" style={{ padding: '14px 16px', borderRadius: 12, borderLeft: `3px solid ${verdict.color}` }}>
+    <div className="surface-card" style={{ padding: '14px 16px', borderRadius: 0, borderLeft: `3px solid ${verdict.color}` }}>
       <div className="flex items-start gap-3">
-        <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, borderRadius: 10, background: verdict.bg, color: verdict.color }}>
+        <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, borderRadius: 0, background: verdict.bg, color: verdict.color }}>
           <Icon size={18} />
         </div>
         <div className="flex-1 min-w-0">
@@ -1520,8 +1520,8 @@ const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)', lineHeight: 1.5 }}>{verdict.detail}</p>
           {hasSignal && (
             <div className="mt-2.5">
-              <div style={{ position: 'relative', height: 6, borderRadius: 999, background: 'linear-gradient(90deg, var(--success) 0%, var(--warn) 65%, var(--danger) 100%)', opacity: 0.85 }}>
-                <div style={{ position: 'absolute', top: '50%', left: `${position * 100}%`, transform: 'translate(-50%,-50%)', width: 12, height: 12, borderRadius: 999, background: '#fff', border: `2px solid ${verdict.color}`, boxShadow: '0 1px 3px rgba(15,23,42,0.25)' }} />
+              <div style={{ position: 'relative', height: 6, borderRadius: 0, background: 'linear-gradient(90deg, var(--success) 0%, var(--warn) 65%, var(--danger) 100%)', opacity: 0.85 }}>
+                <div style={{ position: 'absolute', top: '50%', left: `${position * 100}%`, transform: 'translate(-50%,-50%)', width: 12, height: 12, borderRadius: 0, background: '#fff', border: `2px solid ${verdict.color}`, boxShadow: '0 1px 3px rgba(15,23,42,0.25)' }} />
               </div>
               <div className="flex justify-between mt-1 text-tiny" style={{ color: 'var(--text-4)' }}>
                 <span>Cycle low</span><span>Cycle high</span>
@@ -1543,7 +1543,7 @@ const PriceStats = ({ stations, fuelType }) => {
   const range = highest - cheapest;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden" style={{ background: 'var(--border)', borderRadius: 12, border: '1px solid var(--border)' }}>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden" style={{ background: 'var(--border)', borderRadius: 0, border: '1px solid var(--border)' }}>
       {[
         { label: 'Cheapest', value: cheapest, tone: 'cheap', icon: TrendingDown },
         { label: 'Average',  value: avg,      tone: 'default', icon: null },
@@ -1590,12 +1590,12 @@ const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
       style={{
         background: 'var(--green-soft)',
         border: '1px solid var(--green-light)',
-        borderRadius: 12,
+        borderRadius: 0,
       }}
     >
       <div
         className="shrink-0 inline-flex items-center justify-center"
-        style={{ width: 36, height: 36, background: 'var(--success)', borderRadius: 10 }}
+        style={{ width: 36, height: 36, background: 'var(--success)', borderRadius: 0 }}
       >
         <TrendingDown size={17} color="#ffffff" strokeWidth={2.4} />
       </div>
@@ -1615,7 +1615,7 @@ const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
 };
 
 const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasError }) => (
-  <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16 }}>
+  <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
          style={{ background: 'radial-gradient(circle at 80% 0%, rgba(22,160,133,0.10), transparent 50%)' }} />
     <div className="p-6 md:p-7 relative">
@@ -1648,7 +1648,7 @@ const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasErr
         className="w-full px-5 py-3 font-semibold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
         style={{
           background: 'transparent', color: 'var(--text)', fontSize: 14,
-          border: '1px solid var(--border-strong)', borderRadius: 10,
+          border: '1px solid var(--border-strong)', borderRadius: 0,
         }}
       >
         {isLocating ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={15} />}
@@ -1661,7 +1661,7 @@ const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasErr
           style={{
             background: 'rgba(234,88,12,0.08)',
             border: '1px solid rgba(234,88,12,0.25)',
-            borderRadius: 8,
+            borderRadius: 0,
             color: 'var(--text-2)',
           }}
           role="alert"
@@ -1689,7 +1689,7 @@ const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasErr
           <button
             key={s.key} type="button" onClick={() => onSample(s.key, s.name)}
             className="hover-raise inline-flex items-center gap-2 px-3 py-1.5 text-sm transition-colors"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 999 }}
+            style={{ background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 0 }}
           >
             {s.name}
             <span className="font-mono text-tiny" style={{ color: 'var(--text-4)' }}>{s.state}</span>
@@ -1892,9 +1892,9 @@ const AddressSearch = ({
   };
 
   const sizes = {
-    default: { padX: 16, padY: 13, radius: 12, fontSize: 15, iconSize: 16, iconLeft: 16 },
-    large:   { padX: 20, padY: 18, radius: 14, fontSize: 17, iconSize: 18, iconLeft: 20 },
-    compact: { padX: 12, padY: 9,  radius: 10, fontSize: 14, iconSize: 14, iconLeft: 12 },
+    default: { padX: 16, padY: 13, radius: 0, fontSize: 15, iconSize: 16, iconLeft: 16 },
+    large:   { padX: 20, padY: 18, radius: 0, fontSize: 17, iconSize: 18, iconLeft: 20 },
+    compact: { padX: 12, padY: 9,  radius: 0, fontSize: 14, iconSize: 14, iconLeft: 12 },
   }[variant] || { padX: 16, padY: 13, radius: 12, fontSize: 15, iconSize: 16, iconLeft: 16 };
 
   // Group sorted results
@@ -1985,7 +1985,7 @@ const AddressSearch = ({
               transform: 'translateY(-50%)',
               color: 'var(--text-3)',
               padding: 4,
-              borderRadius: 6,
+              borderRadius: 0,
             }}
             aria-label="Clear"
           >
@@ -2001,7 +2001,7 @@ const AddressSearch = ({
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--border-strong)',
-            borderRadius: 12,
+            borderRadius: 0,
             boxShadow: '0 12px 32px -8px rgba(15,23,42,0.18), 0 4px 12px -4px rgba(15,23,42,0.10)',
             maxHeight: '60vh',
             overflowY: 'auto',
@@ -2062,7 +2062,7 @@ const AddressSearch = ({
                           width: 32,
                           height: 32,
                           background: isHighlight ? 'var(--bg-2)' : 'var(--surface-2)',
-                          borderRadius: 8,
+                          borderRadius: 0,
                           color: isHighlight ? 'var(--accent)' : 'var(--text-3)',
                           transition: 'all 150ms',
                         }}
@@ -2104,15 +2104,15 @@ const AddressSearch = ({
               style={{ borderTop: '1px solid var(--border)', color: 'var(--text-4)', background: 'var(--bg-2)' }}
             >
               <span className="inline-flex items-center gap-1.5">
-                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 4 }}>↑↓</kbd>
+                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 0 }}>↑↓</kbd>
                 navigate
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 4 }}>↵</kbd>
+                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 0 }}>↵</kbd>
                 select
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 4 }}>esc</kbd>
+                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 0 }}>esc</kbd>
                 close
               </span>
             </div>
@@ -2250,7 +2250,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--border-strong)',
-          borderRadius: window.innerWidth < 768 ? '16px 16px 0 0' : '16px',
+          borderRadius: 0,
           boxShadow: '0 24px 64px -16px rgba(15,23,42,0.22), 0 8px 24px -8px rgba(15,23,42,0.10)',
           maxHeight: '92vh',
           overflowY: 'auto',
@@ -2259,7 +2259,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
         {submitted ? (
           <div className="p-8 text-center">
             <div className="inline-flex items-center justify-center mb-4"
-                 style={{ width: 56, height: 56, background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.30)', borderRadius: 999 }}>
+                 style={{ width: 56, height: 56, background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.30)', borderRadius: 0 }}>
               <CheckCircle2 size={26} style={{ color: 'var(--success)' }} />
             </div>
             <h3 className="font-display font-semibold text-2xl mb-2">Thanks for the update.</h3>
@@ -2298,7 +2298,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                     type="button"
                     onClick={() => setPriceStr(p => Math.max(0, (parseFloat(p || '0') - 0.1)).toFixed(1))}
                     className="shrink-0 flex items-center justify-center"
-                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-2)' }}
+                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 0, color: 'var(--text-2)' }}
                     aria-label="Decrease"
                   >
                     <span style={{ fontSize: 20, fontWeight: 600 }}>−</span>
@@ -2320,7 +2320,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                         background: 'var(--bg-2)',
                         color: 'var(--text)',
                         border: `1px solid ${isUnusual ? 'var(--warn)' : 'var(--border)'}`,
-                        borderRadius: 10,
+                        borderRadius: 0,
                         outline: 'none',
                         transition: 'border-color 200ms',
                         letterSpacing: '-0.02em',
@@ -2336,7 +2336,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                     type="button"
                     onClick={() => setPriceStr(p => ((parseFloat(p || '0') + 0.1)).toFixed(1))}
                     className="shrink-0 flex items-center justify-center"
-                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-2)' }}
+                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 0, color: 'var(--text-2)' }}
                     aria-label="Increase"
                   >
                     <span style={{ fontSize: 20, fontWeight: 600 }}>+</span>
@@ -2356,7 +2356,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
 
                 {isRejected && (
                   <div className="mt-3 flex items-start gap-2 p-3 text-xs"
-                       style={{ background: 'rgba(255,69,105,0.08)', border: '1px solid rgba(255,69,105,0.25)', borderRadius: 8, color: 'var(--text-2)' }}>
+                       style={{ background: 'rgba(255,69,105,0.08)', border: '1px solid rgba(255,69,105,0.25)', borderRadius: 0, color: 'var(--text-2)' }}>
                     <AlertCircle size={13} style={{ color: 'var(--danger)' }} className="mt-0.5 shrink-0" />
                     <span>That's more than {REPORT_REJECT_THRESHOLD}¢ from the official price. Double-check the bowser before submitting.</span>
                   </div>
@@ -2364,7 +2364,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
 
                 {isUnusual && !isRejected && (
                   <div className="mt-3 flex items-start gap-2 p-3 text-xs"
-                       style={{ background: 'rgba(255,107,61,0.08)', border: '1px solid rgba(255,107,61,0.20)', borderRadius: 8, color: 'var(--text-2)' }}>
+                       style={{ background: 'rgba(255,107,61,0.08)', border: '1px solid rgba(255,107,61,0.20)', borderRadius: 0, color: 'var(--text-2)' }}>
                     <AlertCircle size={13} style={{ color: 'var(--warn)' }} className="mt-0.5 shrink-0" />
                     <span>That's a fair bit off the official price — sure you read the bowser correctly?</span>
                   </div>
@@ -2387,7 +2387,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                     background: 'var(--bg-2)',
                     color: 'var(--text)',
                     border: '1px solid var(--border)',
-                    borderRadius: 10,
+                    borderRadius: 0,
                     outline: 'none',
                   }}
                 />
@@ -2404,7 +2404,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                   background: 'var(--success)',
                   color: '#ffffff',
                   fontSize: 15,
-                  borderRadius: 10,
+                  borderRadius: 0,
                   boxShadow: canSubmit ? '0 0 0 1px rgba(22,160,133,0.30), 0 8px 24px -8px rgba(22,160,133,0.40)' : 'none',
                 }}
               >
@@ -2432,7 +2432,7 @@ const DriverReportRow = ({ report, fuelType, hasConfirmed, onConfirm }) => {
       style={{
         background: trusted ? 'rgba(22,160,133,0.04)' : 'var(--bg-2)',
         border: `1px solid ${trusted ? 'rgba(22,160,133,0.20)' : 'var(--border)'}`,
-        borderRadius: 8,
+        borderRadius: 0,
       }}
     >
       <Users size={11} style={{ color: trusted ? 'var(--success)' : 'var(--text-3)' }} className="shrink-0" />
@@ -2459,7 +2459,7 @@ const DriverReportRow = ({ report, fuelType, hasConfirmed, onConfirm }) => {
           background: hasConfirmed ? 'rgba(22,160,133,0.10)' : 'var(--surface-3)',
           color: hasConfirmed ? 'var(--success)' : 'var(--text-2)',
           border: `1px solid ${hasConfirmed ? 'rgba(22,160,133,0.30)' : 'var(--border-strong)'}`,
-          borderRadius: 6,
+          borderRadius: 0,
           cursor: hasConfirmed ? 'default' : 'pointer',
         }}
       >
@@ -2480,7 +2480,7 @@ const Toast = ({ message, visible }) => {
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--success)',
-        borderRadius: 10,
+        borderRadius: 0,
         boxShadow: '0 16px 40px -12px rgba(15,23,42,0.18), 0 0 0 3px rgba(22,160,133,0.10)',
         maxWidth: 'calc(100vw - 48px)',
         color: 'var(--text)',
@@ -2496,7 +2496,16 @@ const Toast = ({ message, visible }) => {
 const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, onToggleDark }) => {
   const [open, setOpen] = useState(false);
   const goto = (v) => { setOpen(false); onNav(v); };
-  const goHome = () => { setOpen(false); onHome ? onHome() : onNav({ name: 'home' }); };
+  const goHome = () => {
+    setOpen(false);
+    // On sub-routes (e.g. /fuel/[suburb], /status) a client view-switch leaves
+    // the URL unchanged, so navigate to the real homepage. On "/" just reset.
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.location.href = '/';
+      return;
+    }
+    onHome ? onHome() : onNav({ name: 'home' });
+  };
 
   return (
     <header className="sticky top-0 z-30 glass" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -2511,7 +2520,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             <button
               key={item.label} type="button" onClick={() => item.isHome ? goHome() : goto(item.view)}
               className="px-3 py-1.5 text-sm font-medium transition-colors"
-              style={{ color: 'var(--text-2)', borderRadius: 8 }}
+              style={{ color: 'var(--text-2)', borderRadius: 0 }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}
             >{item.label}</button>
@@ -2527,7 +2536,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               background: 'var(--surface)',
               color: 'var(--text-2)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
@@ -2544,7 +2553,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               background: 'var(--surface)',
               color: 'var(--text-3)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
               minWidth: 240,
             }}
           >
@@ -2555,7 +2564,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               style={{
                 background: 'var(--surface-2)',
                 color: 'var(--text-4)',
-                borderRadius: 4,
+                borderRadius: 0,
                 border: '1px solid var(--border)',
               }}
             >
@@ -2570,7 +2579,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               background: 'var(--surface)',
               color: 'var(--text-2)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
@@ -2586,7 +2595,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={goHome}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label="Home"
           >
             <Home size={19} />
@@ -2595,7 +2604,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={onOpenSearch}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label="Search"
           >
             <Search size={19} />
@@ -2604,7 +2613,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={onToggleDark}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {darkMode ? <Sun size={19} /> : <Moon size={19} />}
@@ -2613,7 +2622,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={() => setOpen(o => !o)}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label="Open menu"
           >
             {open ? <X size={20} /> : <Menu size={20} />}
@@ -2724,15 +2733,15 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
               {/* Left: headline + search */}
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-5"
-                     style={{ background: 'var(--green-soft)', color: 'var(--green-dark)', border: '1px solid var(--green-light)' }}>
-                  <span className="pulse-glow" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', display: 'inline-block', flexShrink: 0 }} />
+                <div className="inline-flex items-center gap-2.5 text-tiny font-medium uppercase track-wide mb-6"
+                     style={{ color: 'var(--text-3)' }}>
+                  <span className="pulse-glow" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
                   Live prices · 8 states · no paid listings
                 </div>
 
                 <h1 className="font-display font-semibold"
-                    style={{ fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', lineHeight: 1.06, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
-                  Stop overpaying<br/>for fuel.
+                    style={{ fontSize: 'clamp(2.6rem, 5.5vw, 4rem)', lineHeight: 0.98, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
+                  Stop overpaying<br/><span style={{ fontStyle: 'italic' }}>for fuel.</span>
                 </h1>
                 <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                   Real government data, ranked by price or distance. Free, independent, no sponsored results.
@@ -2766,7 +2775,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
                 <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
                         className="hover-raise inline-flex items-center gap-3 px-4 py-3 mt-6 transition-colors"
-                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
                   <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
                   <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
                   <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
@@ -2780,7 +2789,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   {CITIES.map(c => (
                     <button key={c.slug} type="button" onClick={() => onNav({ name: 'city', slug: c.slug })}
                             className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
-                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer' }}>
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
@@ -2859,7 +2868,7 @@ const CitiesIndexView = ({ onNav }) => (
         <button key={c.slug} type="button"
                 onClick={() => onNav({ name: 'city', slug: c.slug })}
                 className="hover-raise p-6 text-left transition"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="font-mono text-tiny font-medium track-wide mb-1.5" style={{ color: 'var(--accent)' }}>{c.state}</div>
@@ -3014,16 +3023,18 @@ const StaticPage = ({ icon: Icon, title, intro, body }) => (
 
 const AboutView = () => (
   <StaticPage icon={Info} title="About Motavo"
-    intro="Motavo is an independent fuel price comparison site for Australian drivers. We don't sell fuel, run stations, or take payments from retailers in exchange for placement."
+    intro="Motavo is an independent comparison tool for Australian drivers. Compare live fuel prices and find EV charging in one place. We don't sell fuel or electricity, run stations, or take payments from providers in exchange for placement."
     body={<>
       <h2 className="font-display font-semibold text-2xl mt-2" style={{ color: 'var(--text)' }}>What we do</h2>
-      <p>We pull live retail fuel prices from the state government schemes that publish them: FuelCheck NSW, FuelWatch WA, the QLD Fuel Price Reporting scheme, MyFuel NT and FuelCheck TAS. We rank those prices by location, fuel type and distance, and present them in a way that's actually fast on a phone.</p>
+      <p>For fuel, we pull live retail prices from the state government schemes that publish them — FuelCheck NSW, FuelWatch WA, the QLD Fuel Price Reporting scheme, MyFuel NT, FuelCheck TAS and the rest — and rank them by location, fuel type and distance. For EV, we show live public charger locations from Open Charge Map, with connector types, charging speed and indicative network pricing. Everything's built to be fast on a phone.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>What we don't do</h2>
-      <p>We don't have a native app. We don't make you create an account. We don't bury the cheapest result behind a paywall. We don't prioritise paid retailers — you see prices ranked by price, full stop.</p>
+      <p>We don't make you create an account. We don't bury the cheapest result behind a paywall. We don't prioritise paid retailers or networks — fuel is ranked by price, full stop, and chargers are shown by distance.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Coverage</h2>
-      <p>NSW, QLD, WA, NT, TAS and the ACT are live now. Victoria and South Australia don't have a comparable government scheme; we'll add them once we can do it properly rather than poorly.</p>
+      <p>Fuel prices are live across the states and territories that run a government price scheme. EV charging is available Australia-wide through Open Charge Map. A note on EV pricing: there's no live, per-charger price feed in Australia, so we show indicative network rates — always confirm the exact cost in the operator's app before you charge.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Where we're headed</h2>
+      <p>Motavo is growing from a fuel tool into a broader app for the cost of driving. Fuel and EV charging are live today; we're looking at parking and other driving costs next.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>How we make money</h2>
-      <p>We run display ads on the site (the boxed slots you see above and below the price lists) and earn a modest commission if you sign up to a fuel card or motoring membership through one of our partner links. Ads don't influence which stations appear, or in what order — that's locked to price.</p>
+      <p>We run display ads on the site and earn a modest commission if you sign up to a fuel card, EV charging plan or motoring membership through one of our partner links. Ads and partners never influence which results appear, or in what order — that's locked to price and distance.</p>
     </>} />
 );
 
@@ -3064,7 +3075,7 @@ const NotFound = ({ onNav }) => (
     <p className="mb-8" style={{ color: 'var(--text-3)' }}>That page doesn't exist — or hasn't been built yet.</p>
     <button type="button" onClick={() => onNav({ name: 'home' })}
             className="px-5 py-3 font-semibold inline-flex items-center gap-1.5"
-            style={{ background: 'var(--accent)', color: '#ffffff', borderRadius: 10 }}>
+            style={{ background: 'var(--accent)', color: '#ffffff', borderRadius: 0 }}>
       Back to home <ArrowRight size={16} />
     </button>
   </div>

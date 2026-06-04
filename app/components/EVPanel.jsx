@@ -7,6 +7,17 @@ import { SUBURBS } from '@/lib/suburbs';
 const INDICATIVE_NOTE =
   'Prices are indicative network rates, not live per-charger prices. Check the operator’s app for the exact cost before charging.';
 
+const EV_CITIES = [
+  { slug: 'sydney',    name: 'Sydney',    state: 'NSW', lat: -33.8688, lng: 151.2093 },
+  { slug: 'melbourne', name: 'Melbourne', state: 'VIC', lat: -37.8136, lng: 144.9631 },
+  { slug: 'brisbane',  name: 'Brisbane',  state: 'QLD', lat: -27.4698, lng: 153.0251 },
+  { slug: 'perth',     name: 'Perth',     state: 'WA',  lat: -31.9523, lng: 115.8613 },
+  { slug: 'adelaide',  name: 'Adelaide',  state: 'SA',  lat: -34.9285, lng: 138.6007 },
+  { slug: 'canberra',  name: 'Canberra',  state: 'ACT', lat: -35.2809, lng: 149.1300 },
+  { slug: 'hobart',    name: 'Hobart',    state: 'TAS', lat: -42.8821, lng: 147.3272 },
+  { slug: 'darwin',    name: 'Darwin',    state: 'NT',  lat: -12.4634, lng: 130.8456 },
+];
+
 function priceLabel(s) {
   if (s.tariff && (s.tariff.dcPerKwh != null || s.tariff.acPerKwh != null)) {
     const parts = [];
@@ -61,7 +72,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
       const label = s.maxPowerKw != null ? `${s.maxPowerKw}kW` : (s.level || '⚡');
       const icon = L.divIcon({
         className: '',
-        html: `<div style="background:${color};color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:3px 7px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);border:2px solid rgba(255,255,255,0.7)">${label}</div>`,
+        html: `<div style="background:${color};color:#fff;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:3px 7px;border-radius:0;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);border:2px solid rgba(255,255,255,0.7)">${label}</div>`,
         iconSize: [56, 24], iconAnchor: [28, 12],
       });
       const conns = s.connectors.map(c => c.type + (c.count > 1 ? ` ×${c.count}` : '')).join(' · ');
@@ -72,7 +83,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${color};margin-bottom:6px">${priceLabel(s)}</div>
           <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance != null ? s.distance + ' km · ' : ''}${conns}</div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener noreferrer"
-             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none">↗ Directions</a>
+             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">↗ Directions</a>
         </div>`);
       const marker = L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(popup);
       markersRef.current.push(marker);
@@ -108,7 +119,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
   useEffect(() => { if (mapObjRef.current) addMarkers(mapObjRef.current); /* eslint-disable-next-line */ }, [stations]);
 
   return (
-    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
+    <div style={{ position: 'relative', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
       <div ref={mapRef} style={{ height: mapHeight || '520px', width: '100%' }} />
     </div>
   );
@@ -176,25 +187,25 @@ export default function EVPanel() {
   return (
     <div className="ev-panel">
       <style>{`
-        .ev-panel .seg { display:inline-flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+        .ev-panel .seg { display:inline-flex; border:1px solid var(--border); border-radius:0; overflow:hidden; }
         .ev-panel .seg button { font:inherit; font-weight:600; font-size:14px; padding:9px 14px; border:0; background:var(--surface); color:var(--text-2); cursor:pointer; }
         .ev-panel .seg button.on { background:var(--accent); color:#fff; }
-        .ev-panel select { font:inherit; padding:9px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); }
-        .ev-panel .banner { display:flex; gap:10px; align-items:flex-start; background:var(--accent-glow); border:1px solid var(--border); border-radius:11px; padding:11px 14px; font-size:13.5px; color:var(--text-2); }
-        .ev-panel .card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:16px 18px; }
+        .ev-panel select { font:inherit; padding:9px 12px; border:1px solid var(--border); border-radius:0; background:var(--surface); color:var(--text); }
+        .ev-panel .banner { display:flex; gap:10px; align-items:flex-start; background:var(--accent-glow); border:1px solid var(--border); border-radius:0; padding:11px 14px; font-size:13.5px; color:var(--text-2); }
+        .ev-panel .card { border:1px solid var(--border); border-radius:0; background:var(--surface); padding:16px 18px; }
         .ev-panel .ctop { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
         .ev-panel .net { font-weight:600; font-size:16px; }
         .ev-panel .addr { color:var(--text-3); font-size:13.5px; margin-top:2px; }
         .ev-panel .price { font-family:'JetBrains Mono',monospace; font-weight:600; font-size:14px; color:var(--accent); white-space:nowrap; text-align:right; }
         .ev-panel .dist { color:var(--text-3); font-size:12.5px; font-weight:500; margin-top:2px; text-align:right; }
         .ev-panel .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
-        .ev-panel .chip { font-size:12px; font-weight:500; color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); border-radius:7px; padding:4px 9px; }
+        .ev-panel .chip { font-size:12px; font-weight:500; color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); border-radius:0; padding:4px 9px; }
         .ev-panel .chip.dc { color:var(--accent); }
         .ev-panel .crow { display:flex; align-items:center; gap:12px; margin-top:13px; }
         .ev-panel .dir { color:var(--accent); text-decoration:none; font-weight:600; font-size:13.5px; }
         .ev-panel .off { font-size:12px; font-weight:600; color:#c0392b; }
         .ev-panel .muted { color:var(--text-3); font-size:14px; padding:30px 0; text-align:center; }
-        .ev-panel .ev-search input { width:100%; padding:18px 18px 18px 48px; font-size:1.05rem; border:1px solid var(--border); border-radius:16px; background:var(--surface); color:var(--text); }
+        .ev-panel .ev-search input { width:100%; padding:18px 18px 18px 48px; font-size:1.05rem; border:1px solid var(--border); border-radius:0; background:var(--surface); color:var(--text); }
         .ev-panel .ev-search input::placeholder { color:var(--text-4); }
       `}</style>
 
@@ -203,15 +214,16 @@ export default function EVPanel() {
         <section className="hero-mesh">
           <div className="max-w-6xl mx-auto px-4 md:px-6"
                style={{ paddingTop: 'clamp(3rem, 8vw, 5.5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
-            <div style={{ maxWidth: 560 }}>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-5"
-                   style={{ background: 'var(--green-soft)', color: 'var(--green-dark)', border: '1px solid var(--green-light)' }}>
-                <span className="pulse-glow" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', display: 'inline-block', flexShrink: 0 }} />
+            <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
+              <div>
+              <div className="inline-flex items-center gap-2.5 text-tiny font-medium uppercase track-wide mb-6"
+                   style={{ color: 'var(--text-3)' }}>
+                <span className="pulse-glow" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
                 Live locations · Australia-wide · indicative pricing
               </div>
               <h1 className="font-display font-semibold"
-                  style={{ fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', lineHeight: 1.06, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
-                Stop guessing<br/>where to charge.
+                  style={{ fontSize: 'clamp(2.6rem, 5.5vw, 4rem)', lineHeight: 0.98, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
+                Stop guessing<br/><span style={{ fontStyle: 'italic' }}>where to charge.</span>
               </h1>
               <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                 Live charger locations from Open Charge Map, with indicative network pricing. Free, independent, no sponsored results.
@@ -240,6 +252,26 @@ export default function EVPanel() {
                     <div className="text-tiny mt-0.5" style={{ color: 'var(--text-4)' }}>{label}</div>
                   </div>
                 ))}
+              </div>
+              </div>
+
+              {/* Right: browse chargers by city */}
+              <div>
+                <div className="text-tiny font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Browse by city</div>
+                <div className="space-y-1.5">
+                  {EV_CITIES.map(c => (
+                    <button key={c.slug} type="button"
+                            onClick={() => { setCoords({ lat: c.lat, lng: c.lng }); setLocLabel(`${c.name}, ${c.state}`); setLocError(false); setQuery(''); }}
+                            className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
+                        <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
+                      </div>
+                      <span className="text-tiny" style={{ color: 'var(--text-4)' }}>Chargers →</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

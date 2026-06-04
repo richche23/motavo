@@ -5,15 +5,16 @@ const BASE = 'https://www.motavo.com.au';
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE),
-  title: 'Motavo — Cheapest fuel near you, Australia-wide',
+  title: 'Motavo — Drive smarter: fuel prices & EV charging',
   description:
-    'Real-time fuel prices for Australian drivers. Compare petrol, diesel and LPG across NSW, VIC, QLD, WA, SA, NT, TAS and ACT. Free, independent, government data.',
+    'Compare live fuel prices and find EV charging near you, anywhere in Australia. Petrol, diesel, LPG and public chargers — free, independent, no sponsored results.',
   keywords: [
     'fuel prices Australia',
     'cheap petrol',
-    'fuel comparison',
-    'petrol prices',
-    'diesel prices',
+    'EV charging Australia',
+    'EV charging stations',
+    'fuel and EV comparison',
+    'driving costs',
   ],
   alternates: { canonical: BASE },
   manifest: '/manifest.webmanifest',
@@ -25,9 +26,9 @@ export const metadata: Metadata = {
     apple: [{ url: '/apple-icon.png', sizes: '180x180' }],
   },
   openGraph: {
-    title: 'Motavo — Cheapest fuel near you, Australia-wide',
+    title: 'Motavo — Drive smarter: fuel prices & EV charging',
     description:
-      'Real-time fuel prices for Australian drivers. Free, independent, government data.',
+      'Compare live fuel prices and find EV charging across Australia. Free, independent, no sponsored results.',
     url: BASE,
     siteName: 'Motavo',
     locale: 'en_AU',
@@ -36,8 +37,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Motavo — Cheapest fuel near you',
-    description: 'Real-time Australian fuel prices. Free and independent.',
+    title: 'Motavo — Drive smarter',
+    description: 'Live fuel prices and EV charging across Australia. Free and independent.',
     images: ['/opengraph-image.png'],
   },
 };
