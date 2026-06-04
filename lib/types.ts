@@ -72,6 +72,7 @@ export type FetchResult = {
  * the right source based on the URL state param.
  */
 export type SourceFetcher = (opts: FetchOptions) => Promise<FetchResult>;
+
 /* ─────────────────────────────────────────────────────────────────────────
  * EV charging types.
  * Charger locations/connectors come live from Open Charge Map. Pricing is
@@ -90,17 +91,25 @@ export type EVConnector = {
 };
 
 export type EVTariff = {
+  /** Canonical network key (see NETWORK_TARIFFS) */
   network: string;
+  /** Indicative AC rate, cents per kWh. Null = unknown / not offered. */
   acPerKwh: number | null;
+  /** Indicative DC rate, cents per kWh. Null = unknown / not offered. */
   dcPerKwh: number | null;
+  /** Short note, e.g. peak/off-peak, session minimum, free tier. */
   notes?: string;
+  /** Where the rate was sourced from. */
   source: string;
+  /** ISO date the rate was last verified — these drift, review periodically. */
   lastChecked: string;
 };
 
 export type EVStation = {
+  /** Stable id — `ocm-{poiId}` */
   id: string;
   name: string;
+  /** Operator/network, normalized (see lib/ev-tariffs.ts) */
   network: string;
   address: string;
   suburb: string;
@@ -109,11 +118,17 @@ export type EVStation = {
   lat: number;
   lng: number;
   connectors: EVConnector[];
+  /** Highest connector power in kW across the site */
   maxPowerKw: number | null;
+  /** Dominant level at the site */
   level: ChargerLevel | null;
+  /** INDICATIVE network tariff (not a live per-charger price). May be null. */
   tariff: EVTariff | null;
+  /** Free-text cost string from Open Charge Map, if present (often empty). */
   usageCostRaw?: string | null;
+  /** OCM operational flag, when known */
   operational: boolean | null;
+  /** Distance from query point in km */
   distance?: number;
   source: string;
 };
@@ -121,10 +136,15 @@ export type EVStation = {
 export type EVFetchOptions = {
   lat: number;
   lng: number;
+  /** Search radius in km. Default 10. */
   radius?: number;
+  /** Optional connector filter */
   connector?: ConnectorType;
+  /** Optional AC/DC filter */
   level?: ChargerLevel;
+  /** Optional minimum power in kW */
   minPowerKw?: number;
+  /** Max stations after filtering. Default 40. */
   limit?: number;
 };
 
@@ -133,5 +153,6 @@ export type EVFetchResult = {
   source: string;
   cached: boolean;
   refreshedAt: number;
+  /** Always true for now — pricing is indicative network tariffs, not live. */
   pricingIndicative: boolean;
 };

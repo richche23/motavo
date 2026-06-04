@@ -174,4 +174,27 @@ export async function fetchStations(opts: EVFetchOptions): Promise<EVFetchResult
       .sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9));
 
     // Verification logging (mirrors the fuel sources — confirm live shape on Vercel)
-    const withTariff = stat
+    const withTariff = stations.filter(s => s.tariff).length;
+    console.log(
+      `[ev/opencharge] ${stations.length} chargers within ${radius}km of ` +
+      `(${lat.toFixed(3)},${lng.toFixed(3)}); ${withTariff} matched a known network tariff.`
+    );
+
+    cacheSet(cacheKey, stations, SNAPSHOT_TTL);
+  }
+
+  // apply filters (kept out of the cache key so one snapshot serves all filters)
+  let filtered = stations;
+  if (opts.level) filtered = filtered.filter(s => s.level === opts.level);
+  if (opts.connector) filtered = filtered.filter(s => s.connectors.some(c => c.type === opts.connector));
+  if (opts.minPowerKw) filtered = filtered.filter(s => (s.maxPowerKw ?? 0) >= opts.minPowerKw!);
+  filtered = filtered.slice(0, limit);
+
+  return {
+    stations: filtered,
+    source: 'opencharge',
+    cached: cacheHit,
+    refreshedAt: cacheWrittenAt(cacheKey, SNAPSHOT_TTL) || Date.now(),
+    pricingIndicative: true,
+  };
+}
