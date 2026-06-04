@@ -25,6 +25,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   };
 
+  const ev = {
+    url: `${BASE}/ev`,
+    lastModified: now,
+    changeFrequency: 'daily' as const,
+    priority: 0.8,
+  };
+
   const cities = CITIES.map((slug) => ({
     url: `${BASE}/${slug}`,
     lastModified: now,
@@ -39,5 +46,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [home, nearMe, ...cities, ...suburbs];
+  return [home, nearMe, ev, ...cities, ...suburbs];
 }

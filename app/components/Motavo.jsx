@@ -2508,6 +2508,22 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
           >
             <Home size={15} />
           </button>
+          <a
+            href="/ev"
+            className="inline-flex items-center px-3 py-1.5 text-sm font-semibold transition-colors hover-raise"
+            style={{
+              background: 'var(--surface)',
+              color: 'var(--text-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 9,
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
+            title="EV charging"
+          >
+            EV charging
+          </a>
           <button
             type="button"
             onClick={onOpenSearch}
