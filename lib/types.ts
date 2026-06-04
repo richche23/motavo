@@ -72,3 +72,66 @@ export type FetchResult = {
  * the right source based on the URL state param.
  */
 export type SourceFetcher = (opts: FetchOptions) => Promise<FetchResult>;
+/* ─────────────────────────────────────────────────────────────────────────
+ * EV charging types.
+ * Charger locations/connectors come live from Open Charge Map. Pricing is
+ * NOT live per-charger (no such feed exists in AU) — it's indicative network
+ * tariff data from lib/ev-tariffs.ts, matched by operator. Always labelled.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+export type ConnectorType = 'CCS2' | 'CHAdeMO' | 'Type2' | 'Type1' | 'Tesla' | 'Other';
+export type ChargerLevel = 'AC' | 'DC';
+
+export type EVConnector = {
+  type: ConnectorType;
+  powerKw: number | null;
+  level: ChargerLevel | null;
+  count: number;
+};
+
+export type EVTariff = {
+  network: string;
+  acPerKwh: number | null;
+  dcPerKwh: number | null;
+  notes?: string;
+  source: string;
+  lastChecked: string;
+};
+
+export type EVStation = {
+  id: string;
+  name: string;
+  network: string;
+  address: string;
+  suburb: string;
+  state?: StateCode;
+  postcode?: string;
+  lat: number;
+  lng: number;
+  connectors: EVConnector[];
+  maxPowerKw: number | null;
+  level: ChargerLevel | null;
+  tariff: EVTariff | null;
+  usageCostRaw?: string | null;
+  operational: boolean | null;
+  distance?: number;
+  source: string;
+};
+
+export type EVFetchOptions = {
+  lat: number;
+  lng: number;
+  radius?: number;
+  connector?: ConnectorType;
+  level?: ChargerLevel;
+  minPowerKw?: number;
+  limit?: number;
+};
+
+export type EVFetchResult = {
+  stations: EVStation[];
+  source: string;
+  cached: boolean;
+  refreshedAt: number;
+  pricingIndicative: boolean;
+};
