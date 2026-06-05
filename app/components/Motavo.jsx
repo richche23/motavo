@@ -533,6 +533,12 @@ function freshness(updatedMinutesAgo) {
   return { tone: 'old', color: '#dc2626', label: 'Old' };
 }
 
+// Sources that publish a once-daily snapshot rather than near-real-time prices.
+// For these, a relative "Xd ago" stamp is misleading — the data is meant to be
+// ~24h old — so we show "Updates daily" and suppress the "may be outdated" flag.
+const DAILY_FEEDS = new Set(['vic-servosaver']);
+const isDailyFeed = (station) => DAILY_FEEDS.has(station?.source);
+
 /**
  * Rough urban driving time from straight-line distance.
  * Australian urban average ~25 km/h once stops are factored in → 2.4 min/km.
@@ -1003,28 +1009,45 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
               <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
                 {estimateDriveMinutes(station.distance)} min drive
               </span>
-              <span
-                className="inline-flex items-center gap-1.5"
-                title={`${freshness(station.updatedMinutesAgo).label} · updated ${timeAgoLabel(station.updatedMinutesAgo)}`}
-              >
+              {isDailyFeed(station) ? (
                 <span
-                  style={{
-                    display: 'inline-block',
-                    width: 7, height: 7, borderRadius: 0,
-                    background: freshness(station.updatedMinutesAgo).color,
-                    boxShadow: `0 0 0 2px ${freshness(station.updatedMinutesAgo).color}22`,
-                  }}
-                />
-                {timeAgoLabel(station.updatedMinutesAgo)}
-              </span>
-              {station.updatedMinutesAgo >= 1440 && (
-                <span
-                  className="inline-flex items-center gap-1 text-tiny font-medium"
-                  style={{ color: 'var(--warn)' }}
-                  title="This price hasn't updated in over a day and may be out of date."
+                  className="inline-flex items-center gap-1.5"
+                  title="Victorian prices are published once daily by Service Victoria, so they can be up to 24 hours old."
                 >
-                  <AlertCircle size={11} /> may be outdated
+                  <span
+                    style={{
+                      display: 'inline-block', width: 7, height: 7, borderRadius: 0,
+                      background: 'var(--accent)', boxShadow: '0 0 0 2px var(--accent-glow)',
+                    }}
+                  />
+                  Updates daily
                 </span>
+              ) : (
+                <>
+                  <span
+                    className="inline-flex items-center gap-1.5"
+                    title={`${freshness(station.updatedMinutesAgo).label} · updated ${timeAgoLabel(station.updatedMinutesAgo)}`}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 7, height: 7, borderRadius: 0,
+                        background: freshness(station.updatedMinutesAgo).color,
+                        boxShadow: `0 0 0 2px ${freshness(station.updatedMinutesAgo).color}22`,
+                      }}
+                    />
+                    {timeAgoLabel(station.updatedMinutesAgo)}
+                  </span>
+                  {station.updatedMinutesAgo >= 1440 && (
+                    <span
+                      className="inline-flex items-center gap-1 text-tiny font-medium"
+                      style={{ color: 'var(--warn)' }}
+                      title="This price hasn't updated in over a day and may be out of date."
+                    >
+                      <AlertCircle size={11} /> may be outdated
+                    </span>
+                  )}
+                </>
               )}
               {diff != null && diff > 0 && (
                 <span className="inline-flex items-center gap-1 font-mono" style={{ color: 'var(--warn)' }}>+{diff.toFixed(1)}¢</span>
@@ -1183,7 +1206,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
           <div style="font-weight:700;font-size:15px;margin-bottom:2px">${s.brand}</div>
           <div style="color:#64748b;font-size:12px;margin-bottom:6px">${s.address}${s.suburb ? ', '+s.suburb : ''}${s.state ? ' '+s.state : ''}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${color};margin-bottom:8px">${label}<span style="font-size:13px;color:#94a3b8">¢/L</span></div>
-          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago'}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${isDailyFeed(s) ? 'updates daily' : (s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago')}</div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
              target="_blank" rel="noopener noreferrer"
              style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
@@ -1336,6 +1359,12 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
 
   const cardList = (
     <div className="space-y-2.5">
+      {sorted.some(isDailyFeed) && (
+        <div className="flex items-start gap-2 px-3 py-2.5 text-tiny" style={{ background: 'var(--accent-glow)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+          <Info size={13} style={{ marginTop: 1, flexShrink: 0 }} />
+          <span>Victorian prices are published once daily by Service Victoria, so they can be up to 24 hours old.</span>
+        </div>
+      )}
       {sorted.map((s, i) => (
         <div key={s.id} ref={el => { cardRefs.current[s.id] = el; }}
              className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
