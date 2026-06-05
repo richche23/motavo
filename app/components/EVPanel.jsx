@@ -29,6 +29,60 @@ function priceLabel(s) {
   return 'Price varies';
 }
 
+/* ─── Network brand badge (favicon logo, mirrors the fuel BrandMark) ─── */
+const EV_LOGO_SOURCES = [
+  (d) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
+  (d) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
+];
+// Matched against the operator name Open Charge Map returns.
+const EV_BRANDS = [
+  { test: s => s.includes('tesla'),                         color: '#e31937', short: 'TE', domain: 'tesla.com' },
+  { test: s => s.includes('chargefox'),                     color: '#17b3a3', short: 'CF', domain: 'chargefox.com' },
+  { test: s => s.includes('evie'),                          color: '#1e9e8a', short: 'EV', domain: 'evie.com.au' },
+  { test: s => s.includes('nrma'),                          color: '#003da5', short: 'NR', domain: 'mynrma.com.au' },
+  { test: s => s.includes('ampol') || s.includes('ampcharge'), color: '#0046be', short: 'AM', domain: 'ampol.com.au' },
+  { test: s => s.includes('bp'),                            color: '#0a8a3a', short: 'BP', domain: 'bp.com' },
+  { test: s => s.includes('raa'),                           color: '#e2231a', short: 'RA', domain: 'raa.com.au' },
+  { test: s => s.includes('jolt'),                          color: '#00c2a8', short: 'JO', domain: 'jolt.com.au' },
+  { test: s => s.includes('exploren'),                      color: '#5b3df5', short: 'EX', domain: 'exploren.com.au' },
+  { test: s => s.includes('agl'),                           color: '#0098db', short: 'AG', domain: 'agl.com.au' },
+  { test: s => s.includes('evup'),                          color: '#16a34a', short: 'EU', domain: 'evup.com.au' },
+  { test: s => s.includes('everty'),                        color: '#7c3aed', short: 'ET', domain: 'everty.com.au' },
+  { test: s => s.includes('jetcharge') || s.includes('jet charge'), color: '#111827', short: 'JC', domain: 'jetcharge.com.au' },
+  { test: s => s.includes('origin'),                        color: '#ec0000', short: 'OR', domain: 'originenergy.com.au' },
+  { test: s => s.includes('engie'),                         color: '#0aa0dc', short: 'EN', domain: 'engie.com.au' },
+];
+function evBrandMeta(network) {
+  const s = (network || '').toLowerCase();
+  return EV_BRANDS.find(b => b.test(s)) || null;
+}
+function EVBrandMark({ network, size = 34 }) {
+  const b = evBrandMeta(network);
+  const color = b?.color || '#64748b';
+  const short = b?.short || (() => {
+    if (!network) return '··';
+    const w = network.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/ +/);
+    if (w.length >= 2) return (w[0][0] + w[1][0]).toUpperCase();
+    return network.substring(0, 2).toUpperCase();
+  })();
+  const logos = b?.domain ? EV_LOGO_SOURCES.map(fn => fn(b.domain)) : [];
+  const [srcIdx, setSrcIdx] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { setSrcIdx(0); setLoaded(false); }, [network]);
+  const logoUrl = logos[srcIdx] ?? null;
+  return (
+    <div className="evmark" title={network} style={{ width: size, height: size, background: logoUrl && loaded ? '#fff' : color, border: logoUrl && loaded ? '1px solid var(--border)' : 'none' }}>
+      <span className="evmark-mono" style={{ opacity: logoUrl && loaded ? 0 : 1, fontSize: size * 0.34 }}>{short}</span>
+      {logoUrl && (
+        <img src={logoUrl} alt="" width={size} height={size}
+             style={{ position: 'absolute', inset: 0, objectFit: 'contain', padding: size * 0.18, opacity: loaded ? 1 : 0, transition: 'opacity .2s ease' }}
+             onLoad={() => setLoaded(true)}
+             onError={() => { if (srcIdx < logos.length - 1) setSrcIdx(srcIdx + 1); else setLoaded(false); }} />
+      )}
+    </div>
+  );
+}
+
 /* ─── Charger map (Leaflet via unpkg, mirrors the fuel StationMap) ─── */
 const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
   const mapRef = useRef(null);
@@ -195,6 +249,9 @@ export default function EVPanel() {
         .ev-panel .card { border:1px solid var(--border); border-radius:0; background:var(--surface); padding:16px 18px; }
         .ev-panel .ctop { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
         .ev-panel .net { font-weight:600; font-size:16px; }
+        .ev-panel .evmark { position:relative; overflow:hidden; flex-shrink:0; border-radius:0; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(15,23,42,0.05); }
+        .ev-panel .evmark-mono { font-family:'JetBrains Mono',monospace; font-weight:700; color:#fff; line-height:1; }
+        .ev-panel .who { display:flex; gap:12px; align-items:flex-start; }
         .ev-panel .addr { color:var(--text-3); font-size:13.5px; margin-top:2px; }
         .ev-panel .price { font-family:'JetBrains Mono',monospace; font-weight:600; font-size:14px; color:var(--accent); white-space:nowrap; text-align:right; }
         .ev-panel .dist { color:var(--text-3); font-size:12.5px; font-weight:500; margin-top:2px; text-align:right; }
@@ -333,9 +390,12 @@ export default function EVPanel() {
                 {!loading && stations.map(s => (
                   <div className="card" key={s.id}>
                     <div className="ctop">
-                      <div>
-                        <div className="net">{s.network}</div>
-                        {s.address && <div className="addr">{s.address}</div>}
+                      <div className="who">
+                        <EVBrandMark network={s.network} size={36} />
+                        <div>
+                          <div className="net">{s.network}</div>
+                          {s.address && <div className="addr">{s.address}</div>}
+                        </div>
                       </div>
                       <div>
                         <div className="price">{priceLabel(s)}</div>
