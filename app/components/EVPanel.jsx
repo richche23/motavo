@@ -75,6 +75,10 @@ function EVBrandMark({ network, size = 34 }) {
       <span className="evmark-mono" style={{ opacity: logoUrl && loaded ? 0 : 1, fontSize: size * 0.34 }}>{short}</span>
       {logoUrl && (
         <img src={logoUrl} alt="" width={size} height={size}
+             key={srcIdx}
+             loading="lazy"
+             decoding="async"
+             referrerPolicy="no-referrer"
              style={{ position: 'absolute', inset: 0, objectFit: 'contain', padding: size * 0.18, opacity: loaded ? 1 : 0, transition: 'opacity .2s ease' }}
              onLoad={() => setLoaded(true)}
              onError={() => { if (srcIdx < logos.length - 1) setSrcIdx(srcIdx + 1); else setLoaded(false); }} />
