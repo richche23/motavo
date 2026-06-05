@@ -434,6 +434,36 @@ const STATE_API_PATH = {
   SA:  'sa',  TAS: 'tas', NT:  'nt',  ACT: 'act',
 };
 
+// Approximate AU state from coordinates, for current-location lookups.
+// Boxes are ordered so border overlaps resolve sensibly; falls back to the
+// nearest capital so a result is always returned.
+const CAPITAL_STATES = [
+  { state: 'NSW', lat: -33.8688, lng: 151.2093 },
+  { state: 'VIC', lat: -37.8136, lng: 144.9631 },
+  { state: 'QLD', lat: -27.4698, lng: 153.0251 },
+  { state: 'WA',  lat: -31.9523, lng: 115.8613 },
+  { state: 'SA',  lat: -34.9285, lng: 138.6007 },
+  { state: 'TAS', lat: -42.8821, lng: 147.3272 },
+  { state: 'NT',  lat: -12.4634, lng: 130.8456 },
+  { state: 'ACT', lat: -35.2809, lng: 149.1300 },
+];
+function stateFromCoords(lat, lng) {
+  if (lat <= -35.1 && lat >= -35.95 && lng >= 148.75 && lng <= 149.45) return 'ACT';
+  if (lat <= -39.2 && lng >= 143.5 && lng <= 149.2) return 'TAS';
+  if (lat <= -33.9 && lat >= -39.3 && lng >= 140.8 && lng <= 150.2) return 'VIC';
+  if (lat <= -28.0 && lat >= -37.6 && lng >= 140.9 && lng <= 153.7) return 'NSW';
+  if (lat <= -9.5  && lat >= -29.2 && lng >= 137.9 && lng <= 153.6) return 'QLD';
+  if (lat <= -25.9 && lat >= -38.2 && lng >= 128.9 && lng <= 141.1) return 'SA';
+  if (lat <= -10.9 && lat >= -26.1 && lng >= 128.9 && lng <= 138.1) return 'NT';
+  if (lng <= 129.1) return 'WA';
+  let best = 'NSW', bestD = Infinity;
+  for (const c of CAPITAL_STATES) {
+    const d = (lat - c.lat) ** 2 + (lng - c.lng) ** 2;
+    if (d < bestD) { bestD = d; best = c.state; }
+  }
+  return best;
+}
+
 async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25, limit = 200, locationKey, count = 18 }) {
   const path = STATE_API_PATH[state];
   if (!path) {
@@ -3245,7 +3275,8 @@ export default function App({ initialView, initialLocation } = {}) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         clearTimeout(recoveryTimer);
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, key: 'geo', label: 'your current location', state: 'NSW' });
+        const gLat = pos.coords.latitude, gLng = pos.coords.longitude;
+        setLocation({ lat: gLat, lng: gLng, key: 'geo', label: 'your current location', state: stateFromCoords(gLat, gLng) });
         setLocating(false);
         setView({ name: 'home' });
         fmStorage.set(STORAGE_KEYS.geoConsent, 'granted');
