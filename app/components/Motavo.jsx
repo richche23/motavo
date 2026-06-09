@@ -49,7 +49,7 @@ const ModeToggle = ({ mode, onMode }) => {
 
 const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Anton&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
     /* Soft brand-coloured mesh behind the hero, fading to the page bg below.
        Pure CSS — no image, no load cost. Tuned for both light and dark mode
@@ -76,70 +76,71 @@ const GlobalStyles = () => (
     .hero-mesh > * { position: relative; z-index: 0; }
 
     :root {
-      --bg: #f6f5f1;
-      --bg-2: #eceae3;
-      --surface: #ffffff;
-      --surface-2: #f6f5f1;
-      --surface-3: #eceae3;
-      --border: #e0ddd3;
-      --border-strong: #cfcabd;
-      --text: #0e1116;
-      --text-2: #3a3f47;
-      --text-3: #6b7280;
-      --text-4: #9aa0a8;
+      --bg: #e7e4dd;
+      --bg-2: #ddd9cf;
+      --surface: #f2f0ea;
+      --surface-2: #e7e4dd;
+      --surface-3: #d9d5ca;
+      --border: #cbc6b9;
+      --border-strong: #15120e;
+      --text: #15120e;
+      --text-2: #4a453d;
+      --text-3: #6a655c;
+      --text-4: #938c81;
 
-      /* Motavo brand — monochrome ink/paper with a single teal accent */
-      --blue: #0e7c6b;
-      --blue-dark: #0b5c50;
-      --blue-light: #cdeae4;
-      --blue-soft: #e7f4f1;
-      --hero-a: rgba(14, 124, 107, 0.16);
-      --hero-b: rgba(14, 124, 107, 0.10);
-      --hero-c: rgba(14, 124, 107, 0.06);
-      --green: #14a38c;
-      --green-dark: #0e7c6b;
-      --green-light: #cdeae4;
-      --green-soft: #e7f4f1;
+      /* Motavo brand — concrete + ink + a single signal-orange accent */
+      --blue: #ff4a17;
+      --blue-dark: #d6390e;
+      --blue-light: #ffd8cb;
+      --blue-soft: #fbe7df;
+      --hero-a: transparent;
+      --hero-b: transparent;
+      --hero-c: transparent;
+      /* green kept ONLY as the functional "this price is cheap" signal */
+      --green: #2e7d4f;
+      --green-dark: #226039;
+      --green-light: #cfe6d8;
+      --green-soft: #e8f2ec;
 
       /* Functional aliases */
       --accent: var(--blue);
       --accent-dark: var(--blue-dark);
-      --accent-glow: rgba(14, 124, 107, 0.22);
+      --accent-glow: rgba(255, 74, 23, 0.20);
       --success: var(--green);
-      --success-glow: rgba(20, 163, 140, 0.20);
-      --warn: #ea580c;
-      --danger: #dc2626;
+      --success-glow: rgba(46, 125, 79, 0.18);
+      --warn: #b4530a;
+      --danger: #b91c1c;
     }
 
     .fm-app[data-theme="dark"] {
-      --bg: #0e1116;
-      --bg-2: #15191f;
-      --surface: #15191f;
-      --surface-2: #1b2027;
-      --surface-3: #262b33;
-      --border: #262b33;
-      --border-strong: #3a4150;
-      --text: #f6f5f1;
-      --text-2: #c8d0da;
-      --text-3: #9aa0a8;
-      --text-4: #6b7280;
+      --bg: #14110d;
+      --bg-2: #1b1813;
+      --surface: #1b1813;
+      --surface-2: #221e18;
+      --surface-3: #2c2820;
+      --border: #322d25;
+      --border-strong: #4a4338;
+      --text: #efe9df;
+      --text-2: #cfc7ba;
+      --text-3: #9a9183;
+      --text-4: #6f675b;
 
-      /* lifted teal for contrast on dark */
-      --blue: #2bb39b;
-      --blue-dark: #0e7c6b;
-      --blue-light: rgba(43, 179, 155, 0.20);
-      --blue-soft: rgba(43, 179, 155, 0.12);
-      --hero-a: rgba(43, 179, 155, 0.26);
-      --hero-b: rgba(43, 179, 155, 0.18);
-      --hero-c: rgba(43, 179, 155, 0.12);
-      --green: #2bb39b;
-      --green-light: rgba(43, 179, 155, 0.20);
-      --green-soft: rgba(43, 179, 155, 0.10);
-      --accent-glow: rgba(43, 179, 155, 0.30);
-      --success-glow: rgba(43, 179, 155, 0.25);
+      /* signal orange lifts cleanly on charcoal */
+      --blue: #ff5e30;
+      --blue-dark: #d6390e;
+      --blue-light: rgba(255, 94, 48, 0.20);
+      --blue-soft: rgba(255, 94, 48, 0.12);
+      --hero-a: transparent;
+      --hero-b: transparent;
+      --hero-c: transparent;
+      --green: #4caf7a;
+      --green-light: rgba(76, 175, 122, 0.20);
+      --green-soft: rgba(76, 175, 122, 0.10);
+      --accent-glow: rgba(255, 94, 48, 0.28);
+      --success-glow: rgba(76, 175, 122, 0.22);
     }
 
-    .font-display { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.01em; }
+    .font-display { font-family: 'Anton', 'Hanken Grotesk', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.004em; font-weight: 400 !important; }
     .font-body { font-family: 'Hanken Grotesk', system-ui, sans-serif; letter-spacing: -0.006em; }
     .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'tnum' on, 'ss01' on; letter-spacing: -0.01em; }
 
@@ -168,8 +169,7 @@ const GlobalStyles = () => (
 
     .spotlight {
       background:
-        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(14, 124, 107,0.08), transparent 70%),
-        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(22,160,133,0.06), transparent 70%);
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,74,23,0.06), transparent 70%);
     }
 
     .surface-card { background: var(--surface); border: 1px solid var(--border); border-radius:0; }
@@ -183,25 +183,25 @@ const GlobalStyles = () => (
     @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .fade-up { animation: fadeUp 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-    /* Brand gradient — blue → green, mirroring the wordmark */
+    /* Headline accent — flat signal orange (no gradient) */
     .brand-gradient {
-      background: linear-gradient(95deg, var(--blue) 0%, var(--blue) 38%, var(--green) 70%, var(--green) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      background: none;
+      -webkit-background-clip: border-box;
+      background-clip: border-box;
+      color: var(--accent);
     }
 
     .hover-raise { transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms, background 200ms, box-shadow 200ms; }
     .hover-raise:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: 0 6px 20px -8px rgba(15,23,42,0.10); }
 
     .glass {
-      background: rgba(255,255,255,0.78);
-      backdrop-filter: saturate(160%) blur(14px);
-      -webkit-backdrop-filter: saturate(160%) blur(14px);
+      background: rgba(231,228,221,0.82);
+      backdrop-filter: saturate(140%) blur(12px);
+      -webkit-backdrop-filter: saturate(140%) blur(12px);
     }
 
     .fm-app[data-theme="dark"] .glass {
-      background: rgba(15, 17, 23, 0.85);
+      background: rgba(20, 17, 13, 0.86);
     }
 
     .fm-app input:focus, .fm-app button:focus-visible, .fm-app a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -215,7 +215,7 @@ const GlobalStyles = () => (
     }
     .ulink:hover::after { transform: scaleX(0); transform-origin: right; }
 
-    .fm-app ::selection { background: var(--blue); color: #ffffff; }
+    .fm-app ::selection { background: var(--accent); color: #ffffff; }
 
     .scroller::-webkit-scrollbar { height: 4px; }
     .scroller::-webkit-scrollbar-track { background: transparent; }
@@ -528,9 +528,9 @@ function timeAgoFromTimestamp(ts) {
  * Drives the coloured dot next to each station's "X min ago" label.
  */
 function freshness(updatedMinutesAgo) {
-  if (updatedMinutesAgo < 30)  return { tone: 'fresh', color: '#0e7c6b', label: 'Fresh' };
-  if (updatedMinutesAgo < 240) return { tone: 'stale', color: '#ea580c', label: 'Stale' };
-  return { tone: 'old', color: '#dc2626', label: 'Old' };
+  if (updatedMinutesAgo < 30)  return { tone: 'fresh', color: '#2e7d4f', label: 'Fresh' };
+  if (updatedMinutesAgo < 240) return { tone: 'stale', color: '#b4530a', label: 'Stale' };
+  return { tone: 'old', color: '#b91c1c', label: 'Old' };
 }
 
 // Sources that publish a once-daily snapshot rather than near-real-time prices.
@@ -603,24 +603,24 @@ const MotavoMark = ({ size = 32 }) => (
       d="M37 86 L37 43 L64 72.5 L91 43 L91 86"
       fill="none"
       stroke="currentColor"
-      strokeWidth="10.5"
+      strokeWidth="11.5"
       strokeLinejoin="round"
       strokeLinecap="round"
     />
   </svg>
 );
 
-const MotavoWordmark = ({ size = 28 }) => (
-  <span
-    className="font-body"
-    style={{ fontSize: size, lineHeight: 1, fontWeight: 600, letterSpacing: '-0.012em', color: 'currentColor' }}
-  >
-    motavo
-  </span>
+const MotavoWordmark = ({ size = 22 }) => (
+  // Locked vector outline of "motavo" (Space Grotesk SemiBold, baked to paths).
+  // Font-independent: never reflows when the site fonts change. `size` = cap height in px.
+  <svg viewBox="0 0 3499 667" height={size} width={size * 5.246} fill="currentColor"
+       aria-hidden="true" style={{ display: 'block' }}>
+    <g transform="translate(-73,653) scale(1,-1)"><path d="M73.0 0V494H186.0V439H203.0Q216.0 464 246.5 483.5Q277.0 503 328.0 503Q382.0 503 415.0 481.0Q448.0 459 465.0 425H481.0Q498.0 459 530.0 481.0Q562.0 503 621.0 503Q667.0 503 704.5 483.0Q742.0 463 764.5 424.0Q787.0 385 787.0 327V0H672.0V319Q672.0 362 649.0 384.5Q626.0 407 585.0 407Q540.0 407 513.5 377.5Q487.0 348 487.0 293V0H373.0V319Q373.0 362 350.0 384.5Q327.0 407 286.0 407Q240.0 407 214.0 377.5Q188.0 348 188.0 293V0Z M1154.0 -14Q1080.0 -14 1021.5 16.5Q963.0 47 929.5 103.5Q896.0 160 896.0 239V255Q896.0 334 929.5 391.0Q963.0 448 1021.5 478.0Q1080.0 508 1154.0 508Q1228.0 508 1286.0 478.0Q1344.0 448 1377.5 391.0Q1411.0 334 1411.0 255V239Q1411.0 160 1377.5 103.5Q1344.0 47 1286.0 16.5Q1228.0 -14 1154.0 -14ZM1154.0 88Q1217.0 88 1257.0 128.5Q1297.0 169 1297.0 242V252Q1297.0 325 1257.0 365.5Q1217.0 406 1154.0 406Q1091.0 406 1051.0 365.5Q1011.0 325 1011.0 252V242Q1011.0 169 1051.0 128.5Q1091.0 88 1154.0 88Z M1713.0 0Q1665.0 0 1636.5 28.5Q1608.0 57 1608.0 106V399H1479.0V494H1608.0V653H1723.0V494H1865.0V399H1723.0V125Q1723.0 95 1751.0 95H1850.0V0Z M2127.0 -14Q2075.0 -14 2033.0 4.5Q1991.0 23 1966.5 58.0Q1942.0 93 1942.0 144Q1942.0 194 1966.5 228.0Q1991.0 262 2034.0 279.5Q2077.0 297 2132.0 297H2275.0V327Q2275.0 366 2251.0 390.5Q2227.0 415 2176.0 415Q2126.0 415 2100.5 391.5Q2075.0 368 2067.0 331L1961.0 366Q1973.0 405 1999.5 437.0Q2026.0 469 2070.0 488.5Q2114.0 508 2178.0 508Q2275.0 508 2330.5 459.5Q2386.0 411 2386.0 319V125Q2386.0 95 2414.0 95H2456.0V0H2375.0Q2339.0 0 2316.0 18.0Q2293.0 36 2293.0 67V69H2276.0Q2270.0 55 2255.0 35.0Q2240.0 15 2209.5 0.5Q2179.0 -14 2127.0 -14ZM2146.0 80Q2203.0 80 2239.0 112.5Q2275.0 145 2275.0 200V210H2139.0Q2102.0 210 2079.0 194.0Q2056.0 178 2056.0 147Q2056.0 117 2080.0 98.5Q2104.0 80 2146.0 80Z M2652.0 0 2490.0 494H2612.0L2734.0 84H2751.0L2874.0 494H2996.0L2834.0 0Z M3315.0 -14Q3241.0 -14 3182.5 16.5Q3124.0 47 3090.5 103.5Q3057.0 160 3057.0 239V255Q3057.0 334 3090.5 391.0Q3124.0 448 3182.5 478.0Q3241.0 508 3315.0 508Q3389.0 508 3447.0 478.0Q3505.0 448 3538.5 391.0Q3572.0 334 3572.0 255V239Q3572.0 160 3538.5 103.5Q3505.0 47 3447.0 16.5Q3389.0 -14 3315.0 -14ZM3315.0 88Q3378.0 88 3418.0 128.5Q3458.0 169 3458.0 242V252Q3458.0 325 3418.0 365.5Q3378.0 406 3315.0 406Q3252.0 406 3212.0 365.5Q3172.0 325 3172.0 252V242Q3172.0 169 3212.0 128.5Q3252.0 88 3315.0 88Z"/></g>
+  </svg>
 );
 
-const MotavoLogo = ({ markSize = 32, wordSize = 22 }) => (
-  <span className="inline-flex items-center gap-2" style={{ color: 'var(--text)' }}>
+const MotavoLogo = ({ markSize = 27, wordSize = 21 }) => (
+  <span className="inline-flex items-center gap-2.5" style={{ color: 'var(--text)' }}>
     <MotavoMark size={markSize} />
     <MotavoWordmark size={wordSize} />
   </span>
@@ -717,9 +717,9 @@ const BrandMark = ({ brand, size = 36 }) => {
 const Pill = ({ children, tone = 'neutral', className = '' }) => {
   const tones = {
     neutral: { bg: 'transparent', border: 'var(--border-strong)', color: 'var(--text-3)' },
-    accent:  { bg: 'rgba(22,160,133,0.10)', border: 'rgba(22,160,133,0.30)', color: 'var(--success)' },
-    brand:   { bg: 'rgba(14, 124, 107,0.10)', border: 'rgba(14, 124, 107,0.30)', color: 'var(--blue)' },
-    warn:    { bg: 'rgba(234,88,12,0.10)', border: 'rgba(234,88,12,0.30)', color: 'var(--warn)' },
+    accent:  { bg: 'rgba(46,125,79,0.10)', border: 'rgba(46,125,79,0.30)', color: 'var(--success)' },
+    brand:   { bg: 'rgba(255, 74, 23,0.10)', border: 'rgba(255, 74, 23,0.30)', color: 'var(--blue)' },
+    warn:    { bg: 'rgba(180,83,10,0.12)', border: 'rgba(180,83,10,0.32)', color: 'var(--warn)' },
     soft:    { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--text-2)' },
   }[tone];
   return (
@@ -880,7 +880,6 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 padding: '9px 16px',
                 fontSize: 14,
                 fontWeight: active ? 600 : 500,
-                fontFamily: 'Fraunces, system-ui',
                 border: '1.5px solid',
                 borderColor: active ? 'var(--accent)' : 'var(--border)',
                 background: active
@@ -890,7 +889,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 borderRadius: 0,
                 letterSpacing: '-0.01em',
                 boxShadow: active
-                  ? '0 0 0 3px rgba(14, 124, 107,0.12)'
+                  ? '0 0 0 3px rgba(255, 74, 23,0.12)'
                   : 'none',
                 transition: 'all 150ms ease',
               }}
@@ -960,8 +959,8 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
     <div
       className="hover-raise w-full p-4 md:p-5 transition-all relative"
       style={{
-        background: isCheapest ? 'linear-gradient(180deg, rgba(22,160,133,0.04), transparent)' : 'var(--surface)',
-        border: `1px solid ${isCheapest ? 'rgba(22,160,133,0.40)' : 'var(--border)'}`,
+        background: isCheapest ? 'linear-gradient(180deg, rgba(46,125,79,0.04), transparent)' : 'var(--surface)',
+        border: `1px solid ${isCheapest ? 'rgba(46,125,79,0.40)' : 'var(--border)'}`,
         borderRadius: 0,
       }}
     >
@@ -986,7 +985,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
                   {isUserSourced && (
                     <span
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 text-tiny font-medium"
-                      style={{ background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.25)', borderRadius: 0, color: 'var(--success)' }}
+                      style={{ background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.25)', borderRadius: 0, color: 'var(--success)' }}
                       title="Price verified by drivers"
                     >
                       <Users size={9} /> Driver-verified
@@ -1134,11 +1133,11 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     if (!price || visible.length === 0) return '#64748b';
     const prices = visible.map(s => priceFor(s)).filter(Boolean).sort((a,b) => a-b);
     const lo = prices[0], hi = prices[prices.length-1], spread = hi - lo;
-    if (spread < 1) return '#0e7c6b';
+    if (spread < 1) return '#2e7d4f';
     const pct = (price - lo) / spread;
-    if (pct < 0.33) return '#0e7c6b';
-    if (pct < 0.66) return '#ea580c';
-    return '#dc2626';
+    if (pct < 0.33) return '#2e7d4f';
+    if (pct < 0.66) return '#b4530a';
+    return '#b91c1c';
   };
 
   const initMap = () => {
@@ -1160,7 +1159,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     if (userLat && userLng) {
       const userIcon = L.divIcon({
         className: '',
-        html: `<div style="width:16px;height:16px;background:#0e7c6b;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(14, 124, 107,0.25)"></div>`,
+        html: `<div style="width:16px;height:16px;background:#ff4a17;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(255, 74, 23,0.25)"></div>`,
         iconSize: [16,16], iconAnchor: [8,8],
       });
       L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
@@ -1209,7 +1208,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
           <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${isDailyFeed(s) ? 'updates daily' : (s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago')}</div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
              target="_blank" rel="noopener noreferrer"
-             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
+             style="display:block;text-align:center;padding:7px 12px;background:#ff4a17;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
             ↗ Directions
           </a>
         </div>
@@ -1305,7 +1304,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
         display: 'flex', gap: 12, alignItems: 'center',
         fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 11,
       }}>
-        {[['#0e7c6b','Cheapest'],['#ea580c','Mid'],['#dc2626','Expensive']].map(([c,l]) => (
+        {[['#2e7d4f','Cheapest'],['#b4530a','Mid'],['#b91c1c','Expensive']].map(([c,l]) => (
           <span key={l} style={{ display:'flex', alignItems:'center', gap:5 }}>
             <span style={{ display:'inline-block', width:10, height:10, borderRadius:'50%', background:c }} />
             {l}
@@ -1676,14 +1675,14 @@ const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
 const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasError }) => (
   <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
-         style={{ background: 'radial-gradient(circle at 80% 0%, rgba(22,160,133,0.10), transparent 50%)' }} />
+         style={{ background: 'radial-gradient(circle at 80% 0%, rgba(255,74,23,0.08), transparent 50%)' }} />
     <div className="p-6 md:p-7 relative">
       <div className="flex items-center gap-2 mb-5">
-        <div className="rounded-full p-2" style={{ background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.25)' }}>
-          <Target size={16} style={{ color: 'var(--success)' }} />
+        <div className="p-2" style={{ background: 'rgba(255,74,23,0.10)', border: '1px solid rgba(255,74,23,0.25)' }}>
+          <Target size={16} style={{ color: 'var(--accent)' }} />
         </div>
-        <Pill tone="accent">
-          <span className="w-1.5 h-1.5 rounded-full pulse-glow" style={{ background: 'var(--success)' }} /> Live data
+        <Pill tone="brand">
+          <span style={{ width: 6, height: 6, background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} /> Live data
         </Pill>
       </div>
 
@@ -2013,7 +2012,7 @@ const AddressSearch = ({
             borderRadius: sizes.radius,
             outline: 'none',
             transition: 'border-color 200ms, box-shadow 200ms',
-            boxShadow: focused ? '0 0 0 3px rgba(14, 124, 107,0.12)' : 'none',
+            boxShadow: focused ? '0 0 0 3px rgba(255, 74, 23,0.12)' : 'none',
           }}
           aria-label="Search location"
           aria-expanded={showDropdown}
@@ -2318,7 +2317,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
         {submitted ? (
           <div className="p-8 text-center">
             <div className="inline-flex items-center justify-center mb-4"
-                 style={{ width: 56, height: 56, background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.30)', borderRadius: 0 }}>
+                 style={{ width: 56, height: 56, background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.30)', borderRadius: 0 }}>
               <CheckCircle2 size={26} style={{ color: 'var(--success)' }} />
             </div>
             <h3 className="font-display font-semibold text-2xl mb-2">Thanks for the update.</h3>
@@ -2464,7 +2463,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                   color: '#ffffff',
                   fontSize: 15,
                   borderRadius: 0,
-                  boxShadow: canSubmit ? '0 0 0 1px rgba(22,160,133,0.30), 0 8px 24px -8px rgba(22,160,133,0.40)' : 'none',
+                  boxShadow: canSubmit ? '0 0 0 1px rgba(46,125,79,0.30), 0 8px 24px -8px rgba(46,125,79,0.40)' : 'none',
                 }}
               >
                 <CheckCircle2 size={16} /> Submit price update
@@ -2489,8 +2488,8 @@ const DriverReportRow = ({ report, fuelType, hasConfirmed, onConfirm }) => {
     <div
       className="mt-2 flex items-center gap-2 px-2.5 py-2 fade-up"
       style={{
-        background: trusted ? 'rgba(22,160,133,0.04)' : 'var(--bg-2)',
-        border: `1px solid ${trusted ? 'rgba(22,160,133,0.20)' : 'var(--border)'}`,
+        background: trusted ? 'rgba(46,125,79,0.04)' : 'var(--bg-2)',
+        border: `1px solid ${trusted ? 'rgba(46,125,79,0.20)' : 'var(--border)'}`,
         borderRadius: 0,
       }}
     >
@@ -2515,9 +2514,9 @@ const DriverReportRow = ({ report, fuelType, hasConfirmed, onConfirm }) => {
         disabled={hasConfirmed}
         className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-tiny font-medium transition-colors"
         style={{
-          background: hasConfirmed ? 'rgba(22,160,133,0.10)' : 'var(--surface-3)',
+          background: hasConfirmed ? 'rgba(46,125,79,0.10)' : 'var(--surface-3)',
           color: hasConfirmed ? 'var(--success)' : 'var(--text-2)',
-          border: `1px solid ${hasConfirmed ? 'rgba(22,160,133,0.30)' : 'var(--border-strong)'}`,
+          border: `1px solid ${hasConfirmed ? 'rgba(46,125,79,0.30)' : 'var(--border-strong)'}`,
           borderRadius: 0,
           cursor: hasConfirmed ? 'default' : 'pointer',
         }}
@@ -2540,7 +2539,7 @@ const Toast = ({ message, visible }) => {
         background: 'var(--surface)',
         border: '1px solid var(--success)',
         borderRadius: 0,
-        boxShadow: '0 16px 40px -12px rgba(15,23,42,0.18), 0 0 0 3px rgba(22,160,133,0.10)',
+        boxShadow: '0 16px 40px -12px rgba(15,23,42,0.18), 0 0 0 3px rgba(46,125,79,0.10)',
         maxWidth: 'calc(100vw - 48px)',
         color: 'var(--text)',
       }}
@@ -2792,15 +2791,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
               {/* Left: headline + search */}
               <div>
-                <div className="inline-flex items-center gap-2.5 text-tiny font-medium uppercase track-wide mb-6"
-                     style={{ color: 'var(--text-3)' }}>
-                  <span className="pulse-glow" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
-                  Live prices · 8 states · no paid listings
-                </div>
-
-                <h1 className="font-display font-semibold"
-                    style={{ fontSize: 'clamp(2.6rem, 5.5vw, 4rem)', lineHeight: 0.98, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
-                  Stop overpaying<br/><span style={{ fontStyle: 'italic' }}>for fuel.</span>
+                <h1 className="font-display"
+                    style={{ fontSize: 'clamp(3rem, 7vw, 5.2rem)', lineHeight: 0.84, letterSpacing: '0.005em', marginBottom: '1.1rem' }}>
+                  Stop overpaying<br/><span style={{ color: 'var(--accent)' }}>for fuel.</span>
                 </h1>
                 <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                   Real government data, ranked by price or distance. Free, independent, no sponsored results.
@@ -3025,7 +3018,7 @@ const EditorialView = ({ slug, onNav }) => {
   if (slug !== 'cycles') return null;
   return (
     <article className="max-w-3xl mx-auto px-4 md:px-6 py-12 md:py-16">
-      <Pill tone="accent" className="mb-4">Explainer · 6 min read</Pill>
+      <Pill tone="brand" className="mb-4">Explainer · 6 min read</Pill>
       <h1 className="font-display font-semibold text-4xl md:text-6xl lead-tight mb-5">
         How Australian fuel <span className="brand-gradient">price cycles</span> actually work
       </h1>
