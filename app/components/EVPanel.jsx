@@ -29,11 +29,14 @@ function priceLabel(s) {
   return 'Price varies';
 }
 
-/* ─── Network brand badge (favicon logo, mirrors the fuel BrandMark) ─── */
-const EV_LOGO_SOURCES = [
-  (d) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
-  (d) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
-];
+/* ─── Network brand badge (Brandfetch + self-host override, mirrors fuel BrandMark) ─── */
+const EV_BRANDFETCH_ID = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID) || '';
+const evLogoUrls = (domain, short) => {
+  const urls = [];
+  if (short)  urls.push(`/brands/ev-${short.toLowerCase()}.svg`);
+  if (domain && EV_BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/logo?c=${EV_BRANDFETCH_ID}`);
+  return urls;
+};
 // Matched against the operator name Open Charge Map returns.
 const EV_BRANDS = [
   { test: s => s.includes('tesla'),                         color: '#e31937', short: 'TE', domain: 'tesla.com' },
@@ -56,23 +59,37 @@ function evBrandMeta(network) {
   const s = (network || '').toLowerCase();
   return EV_BRANDS.find(b => b.test(s)) || null;
 }
+function isUnknownNetwork(network) {
+  const n = (network || '').trim();
+  return !n || /unknown|^\(.*\)$|^n\/?a$/i.test(n);
+}
+// Clean public label so the list never reads "Unknown network" / "(Unknown Operator)".
+function networkLabel(network) {
+  return isUnknownNetwork(network) ? 'Public charging point' : network;
+}
 function EVBrandMark({ network, size = 34 }) {
+  const unknown = isUnknownNetwork(network);
   const b = evBrandMeta(network);
-  const color = b?.color || '#64748b';
+  const color = b?.color || (unknown ? '#3f4651' : '#5b6473');
   const short = b?.short || (() => {
-    if (!network) return '··';
-    const w = network.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/ +/);
+    const w = (network || '').replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/ +/).filter(Boolean);
     if (w.length >= 2) return (w[0][0] + w[1][0]).toUpperCase();
-    return network.substring(0, 2).toUpperCase();
+    return (network || '').substring(0, 2).toUpperCase();
   })();
-  const logos = b?.domain ? EV_LOGO_SOURCES.map(fn => fn(b.domain)) : [];
+  const logos = unknown ? [] : evLogoUrls(b?.domain || null, b?.short || null);
   const [srcIdx, setSrcIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => { setSrcIdx(0); setLoaded(false); }, [network]);
   const logoUrl = logos[srcIdx] ?? null;
   return (
-    <div className="evmark" title={network} style={{ width: size, height: size, background: logoUrl && loaded ? '#fff' : color, border: logoUrl && loaded ? '1px solid var(--border)' : 'none' }}>
-      <span className="evmark-mono" style={{ opacity: logoUrl && loaded ? 0 : 1, fontSize: size * 0.34 }}>{short}</span>
+    <div className="evmark" title={networkLabel(network)} style={{ width: size, height: size, background: logoUrl && loaded ? '#fff' : color, border: logoUrl && loaded ? '1px solid var(--border)' : 'none' }}>
+      {unknown ? (
+        <svg viewBox="0 0 24 24" width={size * 0.5} height={size * 0.5} fill="#fff" aria-hidden="true">
+          <path d="M13 2L4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5z" />
+        </svg>
+      ) : (
+        <span className="evmark-mono" style={{ opacity: logoUrl && loaded ? 0 : 1, fontSize: size * 0.4 }}>{short}</span>
+      )}
       {logoUrl && (
         <img src={logoUrl} alt="" width={size} height={size}
              key={srcIdx}
@@ -136,7 +153,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
       const conns = s.connectors.map(c => c.type + (c.count > 1 ? ` ×${c.count}` : '')).join(' · ');
       const popup = L.popup({ maxWidth: 280, className: 'fm-popup' }).setContent(`
         <div style="font-family:'Hanken Grotesk',sans-serif;padding:2px 0">
-          <div style="font-weight:700;font-size:15px;margin-bottom:2px">${s.network}</div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:2px">${networkLabel(s.network)}</div>
           <div style="color:#64748b;font-size:12px;margin-bottom:6px">${s.address || ''}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${color};margin-bottom:6px">${priceLabel(s)}</div>
           <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance != null ? s.distance + ' km · ' : ''}${conns}</div>
@@ -392,7 +409,7 @@ export default function EVPanel() {
                       <div className="who">
                         <EVBrandMark network={s.network} size={36} />
                         <div>
-                          <div className="net">{s.network}</div>
+                          <div className="net">{networkLabel(s.network)}</div>
                           {s.address && <div className="addr">{s.address}</div>}
                         </div>
                       </div>
