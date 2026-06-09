@@ -283,14 +283,20 @@ const BRAND_NAMES = Object.keys(BRANDS);
 //
 // Production note: for higher-fidelity logos, swap this for a paid service
 // like logo.dev (requires API key and a backend proxy to keep the key server-side).
-// Try sources in order; BrandMark cycles on error
-const LOGO_SOURCES = [
-  (d) => `https://www.google.com/s2/favicons?domain=${d}&sz=128`,
-  (d) => `https://icons.duckduckgo.com/ip3/${d}.ico`,
-];
-function brandLogoUrls(domain) {
-  if (!domain) return [];
-  return LOGO_SOURCES.map(fn => fn(domain));
+// Brandfetch Logo Link is the professional source for official, full-colour brand
+// logos resolved by domain (favicon scraping returns generic globes, so it's gone).
+// Set NEXT_PUBLIC_BRANDFETCH_CLIENT_ID (free key) to enable real logos. A self-hosted
+// file at /public/brands/<slug>.svg overrides any brand and wins over everything.
+// When nothing resolves, BrandMark shows a branded monogram — never a broken globe.
+const BRANDFETCH_ID = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID) || '';
+function brandLogoUrls(domain, slug) {
+  const urls = [];
+  if (slug)   urls.push(`/brands/${slug}.svg`);
+  if (domain && BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/logo?c=${BRANDFETCH_ID}`);
+  return urls;
+}
+function brandSlug(name) {
+  return name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null;
 }
 
 const CITIES = [
@@ -651,7 +657,7 @@ const BrandMark = ({ brand, size = 36 }) => {
     if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
     return brand.substring(0, 2).toUpperCase();
   })();
-  const logos = brandLogoUrls(b?.domain || null);
+  const logos = brandLogoUrls(b?.domain || null, b?.slug || brandSlug(brand));
   const [srcIdx, setSrcIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => { setSrcIdx(0); setLoaded(false); }, [brand]);
@@ -675,9 +681,10 @@ const BrandMark = ({ brand, size = 36 }) => {
     >
       {/* Monogram fallback */}
       <div
-        className="absolute inset-0 flex items-center justify-center font-mono font-bold text-white"
+        className="absolute inset-0 flex items-center justify-center font-display text-white"
         style={{
-          fontSize: size * 0.34,
+          fontSize: size * 0.4,
+          letterSpacing: '0.02em',
           opacity: showLogo && loaded ? 0 : 1,
           transition: 'opacity 200ms ease',
         }}
@@ -959,15 +966,11 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
     <div
       className="hover-raise w-full p-4 md:p-5 transition-all relative"
       style={{
-        background: isCheapest ? 'linear-gradient(180deg, rgba(46,125,79,0.04), transparent)' : 'var(--surface)',
-        border: `1px solid ${isCheapest ? 'rgba(46,125,79,0.40)' : 'var(--border)'}`,
+        background: 'var(--surface)',
+        border: isCheapest ? '2px solid var(--text)' : '1px solid var(--border)',
         borderRadius: 0,
       }}
     >
-      {isCheapest && (
-        <div aria-hidden="true" className="absolute -top-px left-4 right-4"
-             style={{ height: 1, background: 'linear-gradient(90deg, transparent, var(--accent), transparent)' }} />
-      )}
       <button
         type="button"
         onClick={() => onSelect && onSelect(station)}
@@ -981,7 +984,11 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-display font-semibold text-base leading-tight truncate" style={{ color: 'var(--text)' }}>{station.brand}</h3>
-                  {isCheapest && <Pill tone="accent"><Zap size={10} /> Cheapest</Pill>}
+                  {isCheapest && (
+                    <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '3px 8px' }}>
+                      <Zap size={10} /> Cheapest
+                    </span>
+                  )}
                   {isUserSourced && (
                     <span
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 text-tiny font-medium"
@@ -1074,45 +1081,28 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
         </div>
       )}
 
-      {/* Primary actions: Directions (filled blue) + Report price (outline) */}
-      <div className="mt-4 flex items-stretch gap-2 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+      {/* Actions — slim, editorial; the whole card is clickable for detail */}
+      <div className="mt-4 flex items-center gap-5 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         <a
           href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold transition-all hover-raise"
-          style={{
-            background: 'var(--accent)',
-            color: '#ffffff',
-            borderRadius: 0,
-            textDecoration: 'none',
-            border: '1px solid var(--accent-dark)',
-            boxShadow: '0 1px 0 rgba(15,23,42,0.04)',
-          }}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold"
+          style={{ color: 'var(--accent)', textDecoration: 'none' }}
           aria-label={`Get directions to ${station.brand} on ${station.address}`}
         >
-          <Navigation size={14} strokeWidth={2.4} />
-          Directions
+          <Navigation size={14} strokeWidth={2.4} /> Directions
         </a>
         {onOpenReportModal && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onOpenReportModal(station); }}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-sm font-medium transition-colors"
-            style={{
-              background: 'var(--surface-2)',
-              color: 'var(--text-2)',
-              border: '1px solid var(--border)',
-              borderRadius: 0,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text-2)'; }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}
             aria-label="Report a different price for this station"
           >
-            <Edit3 size={13} />
-            <span className="hidden sm:inline">Report price</span>
-            <span className="sm:hidden">Report</span>
+            <Edit3 size={13} /> Report price
           </button>
         )}
       </div>
@@ -3386,7 +3376,7 @@ export default function App({ initialView, initialLocation } = {}) {
       <GlobalStyles />
       <Header
         onNav={setView}
-        onHome={() => { setLocation(null); setView({ name: 'home' }); }}
+        onHome={() => { setLocation(null); setMode('fuel'); setView({ name: 'home' }); }}
         fuelType={fuelType}
         onFuelType={setFuelType}
         onOpenSearch={() => setSearchOpen(true)}
