@@ -34,7 +34,11 @@ const EV_BRANDFETCH_ID = (typeof process !== 'undefined' && process.env && proce
 const evLogoUrls = (domain, short) => {
   const urls = [];
   if (short)  urls.push(`/brands/ev-${short.toLowerCase()}.svg`);
-  if (domain && EV_BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/logo?c=${EV_BRANDFETCH_ID}`);
+  if (domain && EV_BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/logo?c=${EV_BRANDFETCH_ID}&fallback=404`);
+  if (domain) {
+    urls.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+    urls.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+  }
   return urls;
 };
 // Matched against the operator name Open Charge Map returns.
