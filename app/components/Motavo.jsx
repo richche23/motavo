@@ -292,7 +292,7 @@ const BRANDFETCH_ID = (typeof process !== 'undefined' && process.env && process.
 function brandLogoUrls(domain, slug) {
   const urls = [];
   if (slug)   urls.push(`/brands/${slug}.svg`);
-  if (domain && BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/logo?c=${BRANDFETCH_ID}&fallback=404`);
+  if (domain && BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/fallback/404/type/icon?c=${BRANDFETCH_ID}`);
   if (domain) {
     urls.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
     urls.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
