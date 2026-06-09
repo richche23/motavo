@@ -94,7 +94,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
   const markersRef = useRef([]);
   const visible = stations.filter(s => s.lat && s.lng);
 
-  const colorFor = (s) => (s.level === 'DC' ? '#0e7c6b' : s.level === 'AC' ? '#64748b' : '#94a3b8');
+  const colorFor = (s) => (s.level === 'DC' ? '#ff4a17' : s.level === 'AC' ? '#64748b' : '#94a3b8');
 
   const initMap = () => {
     const L = window.L;
@@ -111,7 +111,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
     if (userLat && userLng) {
       const userIcon = L.divIcon({
         className: '',
-        html: `<div style="width:16px;height:16px;background:#0e7c6b;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(14,124,107,0.25)"></div>`,
+        html: `<div style="width:16px;height:16px;background:#ff4a17;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(255,74,23,0.25)"></div>`,
         iconSize: [16, 16], iconAnchor: [8, 8],
       });
       L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 }).addTo(map).bindPopup('<strong style="font-family:sans-serif">Your location</strong>');
@@ -141,7 +141,7 @@ const EVMap = ({ stations, userLat, userLng, mapHeight }) => {
           <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:${color};margin-bottom:6px">${priceLabel(s)}</div>
           <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance != null ? s.distance + ' km · ' : ''}${conns}</div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener noreferrer"
-             style="display:block;text-align:center;padding:7px 12px;background:#0e7c6b;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">↗ Directions</a>
+             style="display:block;text-align:center;padding:7px 12px;background:#ff4a17;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">↗ Directions</a>
         </div>`);
       const marker = L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(popup);
       markersRef.current.push(marker);
@@ -277,14 +277,9 @@ export default function EVPanel() {
                style={{ paddingTop: 'clamp(3rem, 8vw, 5.5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
             <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
               <div>
-              <div className="inline-flex items-center gap-2.5 text-tiny font-medium uppercase track-wide mb-6"
-                   style={{ color: 'var(--text-3)' }}>
-                <span className="pulse-glow" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
-                Live locations · Australia-wide · indicative pricing
-              </div>
-              <h1 className="font-display font-semibold"
-                  style={{ fontSize: 'clamp(2.6rem, 5.5vw, 4rem)', lineHeight: 0.98, letterSpacing: '-0.03em', marginBottom: '1rem' }}>
-                Stop guessing<br/><span style={{ fontStyle: 'italic' }}>where to charge.</span>
+              <h1 className="font-display"
+                  style={{ fontSize: 'clamp(3rem, 7vw, 5.2rem)', lineHeight: 0.84, letterSpacing: '0.005em', marginBottom: '1.1rem' }}>
+                Stop guessing<br/><span style={{ color: 'var(--accent)' }}>where to charge.</span>
               </h1>
               <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                 Live charger locations from Open Charge Map, with indicative network pricing. Free, independent, no sponsored results.
