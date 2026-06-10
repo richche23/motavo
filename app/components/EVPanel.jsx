@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Search, Navigation, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
+import { DirectionsMenu } from '@/lib/directions';
 import { SUBURBS } from '@/lib/suburbs';
 
 const INDICATIVE_NOTE =
@@ -430,7 +431,7 @@ export default function EVPanel() {
                       ))}
                     </div>
                     <div className="crow">
-                      <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
+                      <DirectionsMenu lat={s.lat} lng={s.lng} label={s.name} />
                       {s.operational === false && <span className="off">May be offline</span>}
                     </div>
                   </div>
