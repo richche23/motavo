@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import Motavo from '../../components/Motavo';
 import { SUBURBS, suburbBySlug } from '../../../lib/suburbs';
 
-const BASE = 'https://www.motavo.com.au';
+const BASE = 'https://motavo.au';
 
 // Local fuel-cycle context per state (mirrors the city data)
 const STATE_CYCLE: Record<string, string> = {
@@ -56,24 +56,64 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
 
   const cycle = STATE_CYCLE[s.state] || 'a local price cycle';
   const source = STATE_SOURCE[s.state] || 'official government data';
+  const url = `${BASE}/fuel/${s.slug}`;
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'WebPage',
-    name: `Cheapest Fuel in ${s.name}, ${s.state}`,
-    description: `Live petrol, diesel and LPG prices around ${s.name} ${s.postcode}, ${s.state}.`,
-    url: `${BASE}/fuel/${s.slug}`,
-    isPartOf: { '@type': 'WebSite', name: 'Motavo', url: BASE },
-    about: {
-      '@type': 'Service',
-      name: `Fuel price comparison in ${s.name}`,
-      areaServed: {
-        '@type': 'Place',
-        name: `${s.name}, ${s.state} ${s.postcode}`,
-        geo: { '@type': 'GeoCoordinates', latitude: s.lat, longitude: s.lng },
+  // Per-suburb FAQ — genuine long-tail content, varies by suburb + state.
+  const faqs = [
+    {
+      q: `Where is the cheapest fuel in ${s.name}?`,
+      a: `Motavo lists live prices for service stations around ${s.name} (${s.postcode}) and highlights the cheapest for your chosen fuel type. Prices come from ${source} and update through the day, so the list above shows today's lowest near ${s.name}.`,
+    },
+    {
+      q: `When is the best time to buy petrol in ${s.name}?`,
+      a: `${s.name} follows ${cycle}. Filling up near the bottom of that cycle can save around $10–$20 a tank versus a bad day. The cycle indicator above shows where ${s.state} prices currently sit.`,
+    },
+    {
+      q: `What fuel types can I compare in ${s.name}?`,
+      a: `Unleaded 91, E10, premium 95 and 98, diesel and LPG — wherever stations near ${s.name} report them. Switch fuel type using the controls above.`,
+    },
+    {
+      q: `Is Motavo free to use?`,
+      a: `Yes. Motavo is free and independent, with no login, no app to download and no sponsored listings — just live ${s.state} fuel data.`,
+    },
+  ];
+
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: `Cheapest Fuel in ${s.name}, ${s.state}`,
+      description: `Live petrol, diesel and LPG prices around ${s.name} ${s.postcode}, ${s.state}.`,
+      url,
+      isPartOf: { '@type': 'WebSite', name: 'Motavo', url: BASE },
+      about: {
+        '@type': 'Service',
+        name: `Fuel price comparison in ${s.name}`,
+        areaServed: {
+          '@type': 'Place',
+          name: `${s.name}, ${s.state} ${s.postcode}`,
+          geo: { '@type': 'GeoCoordinates', latitude: s.lat, longitude: s.lng },
+        },
       },
     },
-  };
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Motavo', item: BASE },
+        { '@type': 'ListItem', position: 2, name: `Fuel prices in ${s.name}`, item: url },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faqs.map((f) => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ];
 
   return (
     <>
@@ -117,10 +157,22 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
           The cycle indicator above tells you whether prices near {s.name} are currently
           near their low or just after a hike.
         </p>
-        <p>
+        <p style={{ marginBottom: 28 }}>
           Use the search to check a different suburb or postcode, switch fuel types, or
           sort by cheapest or closest station to {s.name}.
         </p>
+
+        <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, color: 'var(--text, #1a2233)' }}>
+          {s.name} fuel price FAQs
+        </h2>
+        <dl style={{ margin: 0 }}>
+          {faqs.map((f) => (
+            <div key={f.q} style={{ marginBottom: 16 }}>
+              <dt style={{ fontWeight: 600, color: 'var(--text, #1a2233)', marginBottom: 4 }}>{f.q}</dt>
+              <dd style={{ margin: 0 }}>{f.a}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
     </>
   );
