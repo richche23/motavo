@@ -1535,6 +1535,18 @@ const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
   const hasSignal = daysTracked >= 4 && span >= 3;
   const position = hasSignal ? Math.max(0, Math.min(1, (cheapest - low) / span)) : null;
 
+  // Short-term outlook from the recent trend — heuristic, honestly framed.
+  let outlook = null;
+  if (hasSignal && points.length >= 3) {
+    const recent = points.slice(-Math.min(7, points.length));
+    const slope = (recent[recent.length - 1] - recent[0]) / (recent.length - 1); // c/L per day
+    if (position <= 0.25) outlook = 'Outlook: near the bottom of the cycle — prices usually climb within a few days, so filling up now is the smart move.';
+    else if (position >= 0.78) outlook = 'Outlook: around the peak — prices typically ease over the coming week.';
+    else if (slope > 0.8) outlook = 'Outlook: trending up day-on-day — fill up sooner rather than later.';
+    else if (slope < -0.8) outlook = 'Outlook: still easing — you may save by waiting a day or two if your tank allows.';
+    else outlook = 'Outlook: holding fairly steady over recent days.';
+  }
+
   let verdict;
   if (hasSignal) {
     if (position <= 0.20) {
@@ -1574,6 +1586,9 @@ const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
         <div className="flex-1 min-w-0">
           <div className="font-display font-semibold" style={{ color: verdict.color, fontSize: '0.98rem' }}>{verdict.title}</div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)', lineHeight: 1.5 }}>{verdict.detail}</p>
+          {outlook && (
+            <p className="text-sm mt-1.5" style={{ color: verdict.color, fontWeight: 600, lineHeight: 1.45 }}>{outlook}</p>
+          )}
           {hasSignal && (
             <div className="mt-2.5">
               <div style={{ position: 'relative', height: 6, borderRadius: 0, background: 'linear-gradient(90deg, var(--success) 0%, var(--warn) 65%, var(--danger) 100%)', opacity: 0.85 }}>
