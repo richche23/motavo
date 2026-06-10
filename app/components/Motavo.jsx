@@ -946,7 +946,7 @@ const Toggle = ({ value, onChange, options }) => (
   </div>
 );
 
-const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports = [], confirmedSet, onConfirmReport, onOpenReportModal }) => {
+const StationCard = ({ station, fuelType, rank, cheapestPrice, isClosest, onSelect, reports = [], confirmedSet, onConfirmReport, onOpenReportModal }) => {
   const officialPrice = station.prices[fuelType];
 
   // Find most-trusted recent report for this fuel type
@@ -963,7 +963,8 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
   const displayPrice = topReportTrusted ? topReport.price : officialPrice;
   const isUserSourced = topReportTrusted && topReport.price !== officialPrice;
 
-  const isCheapest = rank === 0;
+  // Tag the genuinely lowest-priced station, regardless of how the list is sorted.
+  const isCheapest = displayPrice != null && cheapestPrice != null && displayPrice <= cheapestPrice + 0.001;
   const diff = displayPrice != null && cheapestPrice != null ? +(displayPrice - cheapestPrice).toFixed(1) : null;
 
   return (
@@ -991,6 +992,11 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
                   {isCheapest && (
                     <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '3px 8px' }}>
                       <Zap size={10} /> Cheapest
+                    </span>
+                  )}
+                  {isClosest && !isCheapest && (
+                    <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1.5px solid var(--text)', color: 'var(--text)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '2px 7px' }}>
+                      <Navigation size={10} /> Closest
                     </span>
                   )}
                   {isUserSourced && (
@@ -1348,7 +1354,12 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stations, fuelType, sort, reportsByStation, confirmedSet]);
 
-  const cheapestPrice = sorted[0] ? effectivePriceFor(sorted[0]) : null;
+  // True minimum across all stations — independent of sort order, so "Closest"
+  // sort can never mislabel the nearest station as the cheapest.
+  const cheapestPrice = (() => {
+    const ps = stations.map(effectivePriceFor).filter((p) => p != null);
+    return ps.length ? Math.min(...ps) : null;
+  })();
 
   const cardList = (
     <div className="space-y-2.5">
@@ -1366,6 +1377,7 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
             fuelType={fuelType}
             rank={i}
             cheapestPrice={cheapestPrice}
+            isClosest={sort === 'distance' && i === 0}
             onSelect={(st) => { setSelectedId(st.id); onSelectStation && onSelectStation(st); }}
             reports={reportsByStation[s.id] || []}
             confirmedSet={confirmedSet}
@@ -1440,7 +1452,8 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
                     station={s}
                     fuelType={fuelType}
                     rank={i}
-                    cheapestPrice={sorted[0] ? effectivePriceFor(sorted[0]) : null}
+                    cheapestPrice={cheapestPrice}
+                    isClosest={sort === 'distance' && i === 0}
                     onSelect={(st) => { setSelectedId(st.id); onSelectStation && onSelectStation(st); }}
                     reports={reportsByStation[s.id] || []}
                     confirmedSet={confirmedSet}
@@ -1536,19 +1549,19 @@ const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
     if (position <= 0.20) {
       verdict = { Icon: TrendingDown, color: 'var(--success)', bg: 'var(--green-soft)',
         title: 'Great time to fill up',
-        detail: `Cheapest nearby is near its ${daysTracked}-day low (${low.toFixed(1)}–${high.toFixed(1)}¢ range).` };
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby is near the bottom of its recent ${daysTracked}-day range (${low.toFixed(1)}–${high.toFixed(1)}¢).` };
     } else if (position <= 0.55) {
       verdict = { Icon: TrendingDown, color: 'var(--success)', bg: 'var(--green-soft)',
         title: 'Decent time to fill up',
-        detail: `Prices are in the lower half of their recent ${low.toFixed(1)}–${high.toFixed(1)}¢ range.` };
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby sits in the lower half of its recent ${daysTracked}-day range (${low.toFixed(1)}–${high.toFixed(1)}¢).` };
     } else if (position <= 0.80) {
       verdict = { Icon: AlertCircle, color: 'var(--warn)', bg: 'rgba(234,88,12,0.08)',
         title: 'Prices still on the high side',
-        detail: 'Above the middle of the recent range — wait a few days if your tank allows.' };
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby is above the middle of its recent ${daysTracked}-day range (${low.toFixed(1)}–${high.toFixed(1)}¢) — wait a few days if your tank allows.` };
     } else {
       verdict = { Icon: TrendingUp, color: 'var(--danger)', bg: 'rgba(220,38,38,0.08)',
         title: 'Prices recently spiked',
-        detail: `Near the ${daysTracked}-day high — hold off filling up if you can.` };
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby is near its ${daysTracked}-day high (${low.toFixed(1)}–${high.toFixed(1)}¢) — hold off filling up if you can.` };
     }
   } else {
     // Honest first-visit fallback — no false precision without history.
