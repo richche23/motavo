@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import Assistant from './components/Assistant';
 
 const BASE = 'https://motavo.au';
 
@@ -98,7 +99,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
-      <body>{children}</body>
+      <body>{children}<Assistant /></body>
     </html>
   );
 }
