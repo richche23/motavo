@@ -1,50 +1,47 @@
 import type { MetadataRoute } from 'next';
-import { SUBURBS } from '../lib/suburbs';
+import { SITE_URL } from '@/lib/seo';
 
-const BASE = 'https://www.motavo.com.au';
-
-const CITIES = [
-  'sydney', 'melbourne', 'brisbane', 'perth',
-  'adelaide', 'canberra', 'hobart', 'darwin',
-];
+// ⬇️ REPLACE these imports with your real data modules.
+// import { CITIES, SUBURBS, FUEL_TYPES, EV_CITIES } from '@/lib/data';
+//
+// Each helper below shows the shape it expects. Delete the placeholder
+// const declarations once you've wired the real imports.
+const CITIES: { slug: string }[] = [];
+const SUBURBS: { slug: string; citySlug: string }[] = [];
+const EV_CITIES: { slug: string }[] = [];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
-  const home = {
-    url: BASE,
-    lastModified: now,
-    changeFrequency: 'daily' as const,
-    priority: 1,
-  };
+  const staticPages: MetadataRoute.Sitemap = [
+    { url: `${SITE_URL}/`, lastModified: now, changeFrequency: 'daily', priority: 1 },
+    { url: `${SITE_URL}/ev`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
+    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${SITE_URL}/methodology`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${SITE_URL}/guides/fuel-price-cycles`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+  ];
 
-  const nearMe = {
-    url: `${BASE}/near-me`,
+  // Prices change daily, so lastModified = now gives Google a genuine freshness signal.
+  const cityPages: MetadataRoute.Sitemap = CITIES.map((c) => ({
+    url: `${SITE_URL}/fuel/${c.slug}`,
     lastModified: now,
-    changeFrequency: 'daily' as const,
+    changeFrequency: 'daily',
+    priority: 0.8,
+  }));
+
+  const suburbPages: MetadataRoute.Sitemap = SUBURBS.map((s) => ({
+    url: `${SITE_URL}/fuel/${s.citySlug}/${s.slug}`,
+    lastModified: now,
+    changeFrequency: 'daily',
     priority: 0.7,
-  };
-
-  const ev = {
-    url: `${BASE}/ev`,
-    lastModified: now,
-    changeFrequency: 'daily' as const,
-    priority: 0.8,
-  };
-
-  const cities = CITIES.map((slug) => ({
-    url: `${BASE}/${slug}`,
-    lastModified: now,
-    changeFrequency: 'daily' as const,
-    priority: 0.8,
   }));
 
-  const suburbs = SUBURBS.map((s) => ({
-    url: `${BASE}/fuel/${s.slug}`,
+  const evPages: MetadataRoute.Sitemap = EV_CITIES.map((c) => ({
+    url: `${SITE_URL}/ev/${c.slug}`,
     lastModified: now,
-    changeFrequency: 'daily' as const,
-    priority: 0.6,
+    changeFrequency: 'daily',
+    priority: 0.7,
   }));
 
-  return [home, nearMe, ev, ...cities, ...suburbs];
+  return [...staticPages, ...cityPages, ...suburbPages, ...evPages];
 }
