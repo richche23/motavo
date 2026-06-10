@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
-const BASE = 'https://www.motavo.com.au';
+const BASE = 'https://motavo.au';
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE),
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0e7c6b',
+  themeColor: '#ff4a17',
   width: 'device-width',
   initialScale: 1,
 };
@@ -102,7 +102,3 @@ export default function RootLayout({
     </html>
   );
 }
-export const metadata = {
-  metadataBase: new URL('https://motavo.au'),
-  // ...your existing fields
-};
