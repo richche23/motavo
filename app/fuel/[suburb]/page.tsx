@@ -2,10 +2,29 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Motavo from '../../components/Motavo';
 import { SUBURBS, suburbBySlug } from '../../../lib/suburbs';
+// State source fetchers — exact paths from app/api/fuel/[state]/route.ts
+import { fetchStations as fetchNSW } from '@/lib/sources/nsw-fuelcheck';
+import { fetchStations as fetchVIC } from '@/lib/sources/vic-servosaver';
+import { fetchStations as fetchQLD } from '@/lib/sources/qld-fuelprices';
+import { fetchStations as fetchWA }  from '@/lib/sources/wa-fuelwatch';
+import { fetchStations as fetchSA }  from '@/lib/sources/sa-informedsources';
+import { fetchStations as fetchNT }  from '@/lib/sources/nt-myfuelnt';
+import type { SourceFetcher, StateCode, FuelType } from '@/lib/types';
 
 const BASE = 'https://motavo.au';
 
-// Local fuel-cycle context per state (mirrors the city data)
+// Re-render with fresh prices ~every 10 min (matches the API's s-maxage=600).
+export const revalidate = 600;
+
+// State -> fetcher. TAS and ACT ride on NSW FuelCheck, same as the API route.
+const FETCHER: Record<StateCode, SourceFetcher> = {
+  NSW: fetchNSW, TAS: fetchNSW, ACT: fetchNSW,
+  VIC: fetchVIC, QLD: fetchQLD, WA: fetchWA, SA: fetchSA, NT: fetchNT,
+};
+
+// The fuel type used for the server-rendered summary.
+const SUMMARY_FUEL: FuelType = 'U91';
+
 const STATE_CYCLE: Record<string, string> = {
   NSW: 'roughly a 6-week price cycle',
   VIC: 'roughly a 5–6 week price cycle',
@@ -22,6 +41,48 @@ const STATE_SOURCE: Record<string, string> = {
   WA: 'WA FuelWatch', SA: 'the SA Fuel Pricing Information Scheme',
   ACT: 'NSW FuelCheck', TAS: 'NSW FuelCheck', NT: 'MyFuel NT',
 };
+
+const cents = (c: number) => `${c.toFixed(1)}c/L`;
+
+// Pull live prices for this suburb and build indexable summary + stats.
+// Returns null on any failure so the page falls back to the static copy.
+async function getPriceSummary(state: StateCode, lat: number, lng: number, area: string) {
+  try {
+    const fetcher = FETCHER[state];
+    if (!fetcher) return null;
+    const result = await fetcher({ lat, lng, radius: 5, limit: 30, state, fuelType: SUMMARY_FUEL });
+    const priced = (result?.stations ?? [])
+      .map((st) => ({ brand: st.brand, price: st.prices?.[SUMMARY_FUEL] }))
+      .filter((x): x is { brand: string; price: number } => typeof x.price === 'number' && x.price > 0)
+      .sort((a, b) => a.price - b.price);
+
+    if (priced.length === 0) return null;
+
+    const cheapest = priced[0];
+    const dearest = priced[priced.length - 1];
+    const avg = priced.reduce((t, p) => t + p.price, 0) / priced.length;
+    const spread = dearest.price - cheapest.price;
+
+    const summary =
+      `The cheapest unleaded 91 around ${area} right now is ${cents(cheapest.price)} at ${cheapest.brand}, ` +
+      `across ${priced.length} station${priced.length === 1 ? '' : 's'} nearby. ` +
+      `The average is ${cents(avg)} and prices reach ${cents(dearest.price)} — a spread of ${cents(spread)}, ` +
+      `so it pays to compare before you fill up.`;
+
+    return {
+      cheapest,
+      summary,
+      stats: [
+        { label: 'Cheapest now', value: cents(cheapest.price) },
+        { label: 'Average', value: cents(avg) },
+        { label: 'Stations', value: String(priced.length) },
+        { label: 'Price spread', value: cents(spread) },
+      ],
+    };
+  } catch {
+    return null;
+  }
+}
 
 export function generateStaticParams() {
   return SUBURBS.map((s) => ({ suburb: s.slug }));
@@ -50,7 +111,7 @@ export function generateMetadata({
   };
 }
 
-export default function SuburbPage({ params }: { params: { suburb: string } }) {
+export default async function SuburbPage({ params }: { params: { suburb: string } }) {
   const s = suburbBySlug(params.suburb);
   if (!s) notFound();
 
@@ -58,11 +119,15 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
   const source = STATE_SOURCE[s.state] || 'official government data';
   const url = `${BASE}/fuel/${s.slug}`;
 
-  // Per-suburb FAQ — genuine long-tail content, varies by suburb + state.
+  // Live, server-rendered price data — indexable, refreshes via ISR.
+  const live = await getPriceSummary(s.state as StateCode, s.lat, s.lng, s.name);
+
   const faqs = [
     {
       q: `Where is the cheapest fuel in ${s.name}?`,
-      a: `Motavo lists live prices for service stations around ${s.name} (${s.postcode}) and highlights the cheapest for your chosen fuel type. Prices come from ${source} and update through the day, so the list above shows today's lowest near ${s.name}.`,
+      a: live
+        ? `Right now the cheapest unleaded 91 around ${s.name} (${s.postcode}) is ${cents(live.cheapest.price)} at ${live.cheapest.brand}. Prices come from ${source} and update through the day — see the live list above for every fuel type.`
+        : `Motavo lists live prices for service stations around ${s.name} (${s.postcode}) and highlights the cheapest for your chosen fuel type. Prices come from ${source} and update through the day.`,
     },
     {
       q: `When is the best time to buy petrol in ${s.name}?`,
@@ -145,6 +210,37 @@ export default function SuburbPage({ params }: { params: { suburb: string } }) {
         <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, color: 'var(--text, #1a2233)' }}>
           Finding cheap fuel in {s.name}, {s.state}
         </h2>
+
+        {live && (
+          <>
+            <p style={{ marginBottom: 16, color: 'var(--text, #1a2233)' }}>{live.summary}</p>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                border: '1px solid var(--border, #cbc6b9)',
+                marginBottom: 24,
+              }}
+            >
+              {live.stats.map((st, i) => (
+                <div
+                  key={st.label}
+                  style={{
+                    flex: '1 1 120px',
+                    padding: '14px 18px',
+                    borderLeft: i === 0 ? 'none' : '1px solid var(--border, #cbc6b9)',
+                  }}
+                >
+                  <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text, #1a2233)' }}>{st.value}</div>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>
+                    {st.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         <p style={{ marginBottom: 12 }}>
           Motavo shows live petrol, diesel, E10, 95, 98 and LPG prices for service
           stations around {s.name} ({s.postcode}) and the surrounding {s.state} area.
