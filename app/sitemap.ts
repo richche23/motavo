@@ -1,14 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { SITE_URL } from '@/lib/seo';
-
-// ⬇️ REPLACE these imports with your real data modules.
-// import { CITIES, SUBURBS, FUEL_TYPES, EV_CITIES } from '@/lib/data';
-//
-// Each helper below shows the shape it expects. Delete the placeholder
-// const declarations once you've wired the real imports.
-const CITIES: { slug: string }[] = [];
-const SUBURBS: { slug: string; citySlug: string }[] = [];
-const EV_CITIES: { slug: string }[] = [];
+import { SUBURBS } from '@/lib/suburbs'; // ⬅️ adjust path to wherever suburbs.ts actually lives
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
@@ -21,27 +13,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/guides/fuel-price-cycles`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
   ];
 
-  // Prices change daily, so lastModified = now gives Google a genuine freshness signal.
-  const cityPages: MetadataRoute.Sitemap = CITIES.map((c) => ({
-    url: `${SITE_URL}/fuel/${c.slug}`,
-    lastModified: now,
-    changeFrequency: 'daily',
-    priority: 0.8,
-  }));
-
+  // One entry per suburb. Prices change daily, so lastModified = now is a genuine
+  // freshness signal (not a fake one) — these pages really do update every day.
   const suburbPages: MetadataRoute.Sitemap = SUBURBS.map((s) => ({
-    url: `${SITE_URL}/fuel/${s.citySlug}/${s.slug}`,
+    url: `${SITE_URL}/fuel/${s.slug}`,
     lastModified: now,
     changeFrequency: 'daily',
     priority: 0.7,
   }));
 
-  const evPages: MetadataRoute.Sitemap = EV_CITIES.map((c) => ({
-    url: `${SITE_URL}/ev/${c.slug}`,
-    lastModified: now,
-    changeFrequency: 'daily',
-    priority: 0.7,
-  }));
-
-  return [...staticPages, ...cityPages, ...suburbPages, ...evPages];
+  return [...staticPages, ...suburbPages];
 }
