@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { DirectionsMenu } from '@/lib/directions';
 import {
   Menu, X, ArrowRight, ArrowUpRight, Navigation,
   ChevronRight, TrendingDown, TrendingUp, AlertCircle,
@@ -1093,17 +1094,7 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, isClosest, onSele
 
       {/* Actions — slim, editorial; the whole card is clickable for detail */}
       <div className="mt-4 flex items-center gap-5 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <a
-          href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold"
-          style={{ color: 'var(--accent)', textDecoration: 'none' }}
-          aria-label={`Get directions to ${station.brand} on ${station.address}`}
-        >
-          <Navigation size={14} strokeWidth={2.4} /> Directions
-        </a>
+        <DirectionsMenu lat={station.lat} lng={station.lng} label={station.brand} />
         {onOpenReportModal && (
           <button
             type="button"
