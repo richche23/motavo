@@ -102,3 +102,7 @@ export default function RootLayout({
     </html>
   );
 }
+export const metadata = {
+  metadataBase: new URL('https://motavo.au'),
+  // ...your existing fields
+};
