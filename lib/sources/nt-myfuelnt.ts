@@ -76,31 +76,87 @@ function applyNtPrice(
 }
 
 // ── Raw types from serverJson ─────────────────────────────────────────────────
+// MyFuel NT restructured this payload (observed June 2026): the prices array
+// is now `AvailableFuels` (was `AllFuels`), entry availability is lowercase
+// `isAvailable`, outlet id is `FuelOutletId`, name is `OutletName`, brand is
+// `OutletBrandIdentifier`. We read new names first and fall back to old ones.
 
 interface NTFuelEntry {
-  FuelCode:  string;
-  Price:     string;  // decimal cents, e.g. "235.9"
-  IsAvailable: boolean;
+  FuelCode:     string;
+  Price:        number | string;   // decimal cents, e.g. 198 or "235.9"
+  isAvailable?: boolean;           // current shape (lowercase i)
+  IsAvailable?: boolean;           // legacy shape
 }
 
 interface NTOutlet {
-  OutletId:    number;
-  Name:        string;
-  FullAddress: string;
-  Address:     string;
-  Suburb:      string;
-  Postcode:    string;
-  Latitude:    number;
-  Longitude:   number;
-  BrandId:     string;
-  FuelCode:    string;
-  FuelPrice:   string;
-  IsActive:    boolean;
-  AllFuels:    NTFuelEntry[];
+  FuelOutletId?: number;           // current
+  OutletId?:     number;           // legacy
+  OutletName?:   string;           // current
+  Name?:         string;           // legacy
+  FullAddress?:  string;
+  Address?:      string;
+  Suburb:        string;
+  Postcode:      string;
+  Latitude:      number;
+  Longitude:     number;
+  OutletBrandIdentifier?: string;  // current
+  FuelBrandIdentifier?:   string;  // current (per-fuel brand)
+  BrandId?:      string;           // legacy
+  FuelCode?:     string | null;
+  FuelPrice?:    number | string;            // legacy top-level price
+  FuelPriceForSelectedCode?: number | string;// current top-level price
+  IsActive?:     boolean;
+  AvailableFuels?: NTFuelEntry[];  // current
+  AllFuels?:       NTFuelEntry[];  // legacy
 }
 
 interface NTServerJson {
   FuelOutlet: NTOutlet[];
+}
+
+/**
+ * Map raw NT outlets → canonical Stations. Exported for unit testing against
+ * captured payloads.
+ */
+export function parseNtOutlets(outlets: NTOutlet[], refreshedAt: number): Station[] {
+  return outlets
+    .filter(o => o.IsActive !== false && o.Latitude && o.Longitude)
+    .map(o => {
+      const prices: Record<FuelType, number | null> = {
+        U91: null, P95: null, P98: null,
+        E10: null, DSL: null, PRDSL: null, LPG: null,
+      };
+
+      const fuelEntries = o.AvailableFuels ?? o.AllFuels ?? [];
+      for (const f of fuelEntries) {
+        applyNtPrice(prices, f.FuelCode, f.Price, f.isAvailable ?? f.IsAvailable);
+      }
+
+      // Fallback: the searched fuel's price also appears top-level.
+      if (Object.values(prices).every(p => p === null)) {
+        applyNtPrice(prices, o.FuelCode, o.FuelPriceForSelectedCode ?? o.FuelPrice, undefined);
+      }
+
+      const id    = o.FuelOutletId ?? o.OutletId;
+      const name  = o.OutletName ?? o.Name ?? 'Unknown';
+      const brand = o.OutletBrandIdentifier || o.FuelBrandIdentifier || o.BrandId || name;
+
+      return {
+        id:               `nt-${id}`,
+        brand:            normalizeBrand(brand),
+        name,
+        address:          o.FullAddress || [o.Address, o.Suburb, 'NT', o.Postcode].filter(Boolean).join(', '),
+        suburb:           (o.Suburb || '').trim(),
+        state:            'NT' as const,
+        postcode:         o.Postcode,
+        lat:              o.Latitude,
+        lng:              o.Longitude,
+        prices,
+        updatedAt:        refreshedAt,
+        updatedMinutesAgo: 0,
+        source:           'nt-myfuelnt',
+      } satisfies Station;
+    });
 }
 
 // ── Snapshot ──────────────────────────────────────────────────────────────────
@@ -173,40 +229,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const outlets  = server.FuelOutlet ?? [];
 
   const refreshedAt = Date.now();
-  const stations    = outlets
-    .filter(o => o.IsActive !== false && o.Latitude && o.Longitude)
-    .map(o => {
-      const prices: Record<FuelType, number | null> = {
-        U91: null, P95: null, P98: null,
-        E10: null, DSL: null, PRDSL: null, LPG: null,
-      };
-
-      for (const f of (o.AllFuels ?? [])) {
-        applyNtPrice(prices, f.FuelCode, f.Price, f.IsAvailable);
-      }
-
-      // Fallback: if AllFuels was empty/renamed, the searched fuel's price is
-      // also present as top-level FuelCode/FuelPrice on each outlet.
-      if (Object.values(prices).every(p => p === null)) {
-        applyNtPrice(prices, o.FuelCode, o.FuelPrice, undefined);
-      }
-
-      return {
-        id:               `nt-${o.OutletId}`,
-        brand:            normalizeBrand(o.BrandId || o.Name),
-        name:             o.Name,
-        address:          o.FullAddress || `${o.Address}, ${o.Suburb}, NT ${o.Postcode}`,
-        suburb:           o.Suburb,
-        state:            'NT' as const,
-        postcode:         o.Postcode,
-        lat:              o.Latitude,
-        lng:              o.Longitude,
-        prices,
-        updatedAt:        refreshedAt,
-        updatedMinutesAgo: 0,
-        source:           'nt-myfuelnt',
-      } satisfies Station;
-    });
+  const stations    = parseNtOutlets(outlets, refreshedAt);
 
   // Self-diagnosing log: stations without prices is exactly the failure mode
   // that hides behind a green status page. If it happens, say so loudly and
