@@ -81,7 +81,7 @@ async function fetchOsrmRoute(
       `${fromLng},${fromLat};${toLng},${toLat}` +
       `?overview=full&geometries=geojson&alternatives=false&steps=false`;
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Motavo/1.0 (fuel price comparison; motavo.com.au)' },
+      headers: { 'User-Agent': 'Motavo/1.0 (fuel price comparison; motavo.au)' },
       signal: AbortSignal.timeout(7000),
     });
     if (!res.ok) return null;
