@@ -2673,6 +2673,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
 
         <nav className="hidden md:flex items-center gap-0.5 ml-4 flex-1">
           {[
+            { label: 'Route planner', view: { name: 'route' } },
           ].map(item => (
             <button
               key={item.label} type="button" onClick={() => item.isHome ? goHome() : goto(item.view)}
@@ -2791,6 +2792,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
         <div className="md:hidden fade-up" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
           <div className="max-w-6xl mx-auto px-4 py-4">
             {[
+              { label: 'Route planner', view: { name: 'route' } },
               { label: 'About', view: { name: 'about' } },
             ].map(item => (
               <button key={item.label} type="button" onClick={() => goto(item.view)}
@@ -2926,13 +2928,22 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   ))}
                 </div>
 
-                <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
-                        className="hover-raise inline-flex items-center gap-3 px-4 py-3 mt-6 transition-colors"
-                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
-                  <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
-                  <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
-                  <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
-                </button>
+                <div className="flex flex-wrap gap-3 mt-6">
+                  <button type="button" onClick={() => onNav({ name: 'route' })}
+                          className="hover-raise inline-flex items-center gap-3 px-4 py-3 transition-colors"
+                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
+                    <Navigation size={16} style={{ color: 'var(--accent)' }} />
+                    <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>Cheapest fuel along a route</span>
+                    <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+                  </button>
+                  <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
+                          className="hover-raise inline-flex items-center gap-3 px-4 py-3 transition-colors"
+                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
+                    <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
+                    <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
+                    <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+                  </button>
+                </div>
               </div>
 
               {/* Right: quick city list */}
@@ -3005,6 +3016,189 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
             script in app/layout.tsx. */}
 
       </div>
+    </div>
+  );
+};
+
+/* ===== ROUTE PLANNER VIEW =====
+   "Cheapest fuel along my route." Origin + destination via the existing
+   AddressSearch, then /api/route does the heavy lifting server-side
+   (OSRM geometry → sampled station fetches → detour ranking). */
+
+const RouteEndpointPicker = ({ label, value, onPick, onClear }) => (
+  <div>
+    <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>{label}</div>
+    {value ? (
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5"
+           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+          <MapPin size={13} style={{ display: 'inline', marginRight: 6, color: 'var(--accent)' }} />
+          {value.label}
+        </span>
+        <button type="button" onClick={onClear} aria-label={`Clear ${label}`}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-4)', padding: 2 }}>
+          <X size={14} />
+        </button>
+      </div>
+    ) : (
+      <AddressSearch onSelect={onPick} variant="compact" placeholder="Search suburb, postcode or address…" />
+    )}
+  </div>
+);
+
+const RouteStationRow = ({ station, fuelType, rank, cheapestPrice }) => {
+  const price = station.prices?.[fuelType];
+  const isCheapest = rank === 1;
+  return (
+    <div className="flex items-center gap-3 px-3.5 py-3"
+         style={{
+           background: 'var(--surface)',
+           border: `1px solid ${isCheapest ? 'var(--success)' : 'var(--border)'}`,
+           borderLeft: `3px solid ${isCheapest ? 'var(--success)' : 'var(--border)'}`,
+         }}>
+      <span className="font-mono text-tiny font-bold shrink-0" style={{ color: isCheapest ? 'var(--success)' : 'var(--text-4)', minWidth: 22 }}>
+        #{rank}
+      </span>
+      <BrandMark brand={station.brand} size={32} />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm truncate" style={{ color: 'var(--text)' }}>
+          {station.brand}{station.suburb ? ` · ${station.suburb}` : ''}
+        </div>
+        <div className="text-tiny mt-0.5" style={{ color: 'var(--text-3)' }}>
+          {station.alongKm} km along · {station.detourKm <= 0.3 ? 'on route' : `${station.detourKm} km off route`}
+          {isCheapest && cheapestPrice != null && <span className="font-semibold" style={{ color: 'var(--success)' }}> · Best stop</span>}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <PriceTag cents={price} tone={isCheapest ? 'cheap' : 'default'} />
+      </div>
+      <div className="shrink-0">
+        <DirectionsMenu lat={station.lat} lng={station.lng} label={station.name || station.brand} />
+      </div>
+    </div>
+  );
+};
+
+const RouteView = ({ fuelType, onFuelType }) => {
+  const [from, setFrom] = useState(null);
+  const [to, setTo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [sort, setSort] = useState('price'); // 'price' | 'along'
+
+  const search = async (f = from, t = to, fuel = fuelType) => {
+    if (!f || !t) return;
+    setLoading(true); setError(null); setResult(null);
+    try {
+      const params = new URLSearchParams({
+        fromLat: String(f.lat), fromLng: String(f.lng),
+        toLat: String(t.lat), toLng: String(t.lng), fuel,
+      });
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 25000);
+      const res = await fetch(`/api/route?${params}`, { signal: ctrl.signal });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Route search failed (${res.status})`);
+      setResult(data);
+    } catch (e) {
+      setError(e?.message === 'The user aborted a request.' ? 'Route search timed out — try again.' : (e?.message || 'Route search failed.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const swap = () => { const f = from; setFrom(to); setTo(f); setResult(null); };
+
+  const handleFuelChange = (fuel) => {
+    onFuelType(fuel);
+    if (from && to) search(from, to, fuel);
+  };
+
+  const stations = result?.stations
+    ? [...result.stations].sort((a, b) =>
+        sort === 'along' ? a.alongKm - b.alongKm : (a.prices[result.fuel] ?? 999) - (b.prices[result.fuel] ?? 999))
+    : [];
+  const cheapestPrice = result?.stations?.[0]?.prices?.[result?.fuel] ?? null;
+  const priceRank = new Map((result?.stations || []).map((s, i) => [s.id, i + 1]));
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-10 md:py-14">
+      <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Route planner</div>
+      <h1 className="font-display font-semibold text-4xl md:text-5xl lead-tight mb-3">
+        Cheapest fuel <span style={{ color: 'var(--accent)' }}>along your route</span>
+      </h1>
+      <p className="text-base mb-8 max-w-xl" style={{ color: 'var(--text-3)' }}>
+        Heading somewhere? Don't pay city-exit prices. Enter your trip and we'll rank every station within 5 km of the way there.
+      </p>
+
+      <div className="space-y-3 mb-4">
+        <RouteEndpointPicker label="From" value={from} onPick={(r) => { setFrom(r); setResult(null); }} onClear={() => { setFrom(null); setResult(null); }} />
+        <div className="flex justify-center">
+          <button type="button" onClick={swap} aria-label="Swap origin and destination"
+                  className="p-1.5 transition-colors"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-3)' }}>
+            <ArrowRight size={13} style={{ transform: 'rotate(90deg)' }} />
+          </button>
+        </div>
+        <RouteEndpointPicker label="To" value={to} onPick={(r) => { setTo(r); setResult(null); }} onClear={() => { setTo(null); setResult(null); }} />
+      </div>
+
+      <FuelTypePicker value={fuelType} onChange={handleFuelChange} compact />
+
+      <button type="button" disabled={!from || !to || loading} onClick={() => search()}
+              className="w-full mt-4 inline-flex items-center justify-center gap-2 px-5 py-3.5 font-semibold text-sm transition-opacity disabled:opacity-40"
+              style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', borderRadius: 0, cursor: (!from || !to || loading) ? 'default' : 'pointer' }}>
+        {loading ? <Loader2 size={15} className="animate-spin" /> : <Navigation size={15} />}
+        {loading ? 'Checking prices along the way…' : 'Find fuel along this route'}
+      </button>
+
+      {error && (
+        <p className="text-sm mt-4" style={{ color: 'var(--warn)' }}>
+          <AlertCircle size={13} style={{ display: 'inline', marginRight: 5 }} />{error}
+        </p>
+      )}
+
+      {result && (
+        <div className="mt-8 fade-up">
+          <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
+            <div>
+              <div className="font-display font-semibold text-2xl">
+                {result.route.distanceKm} km
+                {result.route.durationMin > 0 && <span style={{ color: 'var(--text-3)' }}> · ~{Math.floor(result.route.durationMin / 60) > 0 ? `${Math.floor(result.route.durationMin / 60)}h ` : ''}{result.route.durationMin % 60}m</span>}
+              </div>
+              <div className="text-tiny mt-1" style={{ color: 'var(--text-4)' }}>
+                {stations.length} station{stations.length === 1 ? '' : 's'} within 5 km of your route
+                {result.route.source === 'straight-line' && ' · approximate path (routing unavailable)'}
+              </div>
+            </div>
+            {stations.length > 1 && (
+              <Toggle value={sort} onChange={setSort} options={[
+                { key: 'price', label: 'Cheapest first', icon: TrendingDown },
+                { key: 'along', label: 'In trip order', icon: MoveRight },
+              ]} />
+            )}
+          </div>
+
+          {stations.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}>
+              No stations with {result.fuel} prices found within 5 km of this route. Try a different fuel type.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {stations.map((st) => (
+                <RouteStationRow key={st.id} station={st} fuelType={result.fuel}
+                                 rank={priceRank.get(st.id)} cheapestPrice={cheapestPrice} />
+              ))}
+            </div>
+          )}
+
+          <p className="text-tiny mt-5" style={{ color: 'var(--text-4)' }}>
+            Routing © <a className="ulink" href="http://project-osrm.org" target="_blank" rel="noopener noreferrer">OSRM</a> contributors · Prices from official government feeds · Always confirm at the bowser.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
@@ -3511,6 +3705,8 @@ export default function App({ initialView, initialLocation } = {}) {
         );
       case 'cities':
         return <CitiesIndexView onNav={setView} />;
+      case 'route':
+        return <RouteView fuelType={fuelType} onFuelType={setFuelType} />;
       case 'city': {
         const c = CITIES.find(x => x.slug === view.slug) || CITIES[0];
         return <CityView key={view.slug} city={c} fuelType={fuelType} onFuelType={setFuelType}
