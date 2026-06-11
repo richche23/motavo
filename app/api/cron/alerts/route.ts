@@ -32,8 +32,22 @@ async function getRedis(key: string): Promise<any> {
   if (!res.ok) return null;
   const data = await res.json();
   try {
-    return data.result ? JSON.parse(data.result) : null;
-  } catch {
+    // Upstash returns {result: value} where value might be string or object
+    let result = data.result;
+    if (!result) return null;
+    
+    // If result is a string (JSON), parse it
+    if (typeof result === 'string') {
+      return JSON.parse(result);
+    }
+    
+    // If result is an object with a 'value' field (Upstash wrapped format), extract and parse
+    if (typeof result === 'object' && result.value) {
+      return JSON.parse(result.value);
+    }
+    
+    return result;
+  } catch (e) {
     return null;
   }
 }
@@ -54,8 +68,8 @@ async function getCycleSignals(): Promise<Record<string, string>> {
     if (!res.ok) return {};
     const data = await res.json();
     const signals: Record<string, string> = {};
-    for (const [state, signal] of Object.entries(data.signals || {})) {
-      signals[state] = (signal as any)?.signal || 'unknown';
+    for (const [state, verdict] of Object.entries(data.signals || {})) {
+      signals[state] = (verdict as any)?.tone || 'unknown';
     }
     return signals;
   } catch {
