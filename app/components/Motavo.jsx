@@ -11,7 +11,7 @@ import {
   ThumbsUp, CheckCircle2, Users, Edit3, Check,
   Sun, Moon, Gauge, Fuel
 } from 'lucide-react';
-import EVPanel from './EVPanel';
+import { AlertSignup } from './AlertSignup';
 
 /* =====================================================================
    Large, prominent Fuel / EV mode toggle (home view)
@@ -2998,6 +2998,8 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   </span>
                   <ChevronRight size={17} className="shrink-0" style={{ color: 'var(--accent)' }} />
                 </button>
+
+                <AlertSignup />
 
                 <div className="hidden sm:block mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
