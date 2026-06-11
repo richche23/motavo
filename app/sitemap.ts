@@ -8,9 +8,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified: now, changeFrequency: 'daily', priority: 1 },
     { url: `${SITE_URL}/ev`, lastModified: now, changeFrequency: 'daily', priority: 0.9 },
-    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
-    { url: `${SITE_URL}/methodology`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
-    { url: `${SITE_URL}/guides/fuel-price-cycles`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
+    // NOTE: /about, /methodology and /guides/* are client-side views inside the
+    // SPA, not real routes — listing them here made Google crawl 404s. If we
+    // ever promote them to real pages (app/about/page.tsx etc.), re-add them.
   ];
 
   // One entry per suburb. Prices change daily, so lastModified = now is a genuine
