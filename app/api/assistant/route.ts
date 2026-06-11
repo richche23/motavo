@@ -1,150 +1,167 @@
-'use client';
+import { NextRequest, NextResponse } from 'next/server';
+import { SUBURBS } from '@/lib/suburbs';
+import { fetchStations as fetchNSW } from '@/lib/sources/nsw-fuelcheck';
+import { fetchStations as fetchVIC } from '@/lib/sources/vic-servosaver';
+import { fetchStations as fetchQLD } from '@/lib/sources/qld-fuelprices';
+import { fetchStations as fetchWA } from '@/lib/sources/wa-fuelwatch';
+import { fetchStations as fetchSA } from '@/lib/sources/sa-informedsources';
+import { fetchStations as fetchNT } from '@/lib/sources/nt-myfuelnt';
+import type { StateCode, FuelType, SourceFetcher } from '@/lib/types';
 
-import { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, ArrowUp, Loader2 } from 'lucide-react';
+export const runtime = 'nodejs';
+export const maxDuration = 30;
 
-type Msg = { role: 'user' | 'assistant'; content: string };
-
-const GREETING: Msg = {
-  role: 'assistant',
-  content: "Hi — I'm the Motavo assistant. Ask me where the cheapest fuel is or whether now's a good time to fill up. Try: \"cheapest 95 in Frankston\".",
+const FETCHER: Record<StateCode, SourceFetcher> = {
+  NSW: fetchNSW, TAS: fetchNSW, ACT: fetchNSW,
+  VIC: fetchVIC, QLD: fetchQLD, WA: fetchWA, SA: fetchSA, NT: fetchNT,
 };
 
-export default function Assistant() {
-  const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<Msg[]>([GREETING]);
-  const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, open]);
-  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+// ── Rate limit (Upstash REST — reuses your existing Redis, no SDK) ──────────
+// Fails OPEN: if Upstash isn't configured or errors, the request is allowed.
+// Auto-detects both common naming styles (native Upstash and Vercel KV/Marketplace).
+const RL_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
+const RL_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || '';
+const RL_LIMIT = 20;          // requests
+const RL_WINDOW = 3600;       // per hour, per IP
 
-  async function send() {
-    const text = input.trim();
-    if (!text || busy) return;
-    const next: Msg[] = [...msgs, { role: 'user', content: text }];
-    setMsgs(next);
-    setInput('');
-    setBusy(true);
-    try {
-      const r = await fetch('/api/assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: next }),
+async function underRateLimit(ip: string): Promise<boolean> {
+  if (!RL_URL || !RL_TOKEN) return true; // not configured → allow
+  try {
+    const bucket = Math.floor(Date.now() / 1000 / RL_WINDOW);
+    const key = `rl:asst:${ip}:${bucket}`;
+    const r = await fetch(`${RL_URL}/incr/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${RL_TOKEN}` },
+      cache: 'no-store',
+    });
+    const data = await r.json();
+    const count = Number(data?.result ?? 0);
+    if (count === 1) {
+      await fetch(`${RL_URL}/expire/${encodeURIComponent(key)}/${RL_WINDOW}`, {
+        headers: { Authorization: `Bearer ${RL_TOKEN}` },
+        cache: 'no-store',
       });
-      const data = await r.json();
-      setMsgs((m) => [...m, { role: 'assistant', content: data?.reply || 'Sorry, something went wrong.' }]);
-    } catch {
-      setMsgs((m) => [...m, { role: 'assistant', content: 'Network error — please try again.' }]);
-    } finally {
-      setBusy(false);
     }
+    return count <= RL_LIMIT;
+  } catch {
+    return true; // on any Redis error, don't block the user
+  }
+}
+
+// ── Parse suburb + fuel type from the message (deterministic, free) ─────────
+const SUBURBS_BY_LEN = [...SUBURBS].sort((a, b) => b.name.length - a.name.length);
+
+function detectSuburb(text: string) {
+  const t = text.toLowerCase();
+  return SUBURBS_BY_LEN.find((s) => t.includes(s.name.toLowerCase())) || null;
+}
+
+function detectFuel(text: string): FuelType {
+  const t = text.toLowerCase();
+  if (/premium diesel|prdsl/.test(t)) return 'PRDSL';
+  if (/diesel|dsl/.test(t)) return 'DSL';
+  if (/\b98\b|p98/.test(t)) return 'P98';
+  if (/\b95\b|p95|premium/.test(t)) return 'P95';
+  if (/e10/.test(t)) return 'E10';
+  if (/lpg|autogas|\bgas\b/.test(t)) return 'LPG';
+  return 'U91';
+}
+
+const FUEL_LABEL: Record<FuelType, string> = {
+  U91: 'unleaded 91', P95: 'premium 95', P98: 'premium 98', E10: 'E10',
+  DSL: 'diesel', PRDSL: 'premium diesel', LPG: 'LPG',
+};
+
+async function liveDataBlock(text: string): Promise<string> {
+  const sub = detectSuburb(text);
+  if (!sub) {
+    return '[LIVE_DATA: none. If the user wants a price, ask them to name a supported suburb (e.g. Frankston, Bondi, Geelong, Glenelg). You may still give general fuel-cycle guidance.]';
+  }
+  const fuelType = detectFuel(text);
+  const fetcher = FETCHER[sub.state as StateCode];
+  try {
+    const res = await fetcher({ lat: sub.lat, lng: sub.lng, radius: 5, limit: 8, state: sub.state as StateCode, fuelType });
+    const priced = (res?.stations ?? [])
+      .map((st: any) => ({ brand: st.brand, price: st.prices?.[fuelType], address: st.address }))
+      .filter((s: any) => typeof s.price === 'number' && s.price > 0)
+      .sort((a: any, b: any) => a.price - b.price);
+    if (!priced.length) {
+      return `[LIVE_DATA: no live ${FUEL_LABEL[fuelType]} prices for ${sub.name}, ${sub.state} right now. Tell the user that and suggest checking back shortly. Do not invent prices.]`;
+    }
+    const avg = priced.reduce((t: number, s: any) => t + s.price, 0) / priced.length;
+    const list = priced.slice(0, 5).map((s: any) => `${s.brand} ${s.price.toFixed(1)}c/L (${s.address})`).join('; ');
+    return `[LIVE_DATA — use ONLY this for any price you state; never invent a price. Suburb: ${sub.name}, ${sub.state}. Fuel: ${FUEL_LABEL[fuelType]}. Cheapest: ${priced[0].price.toFixed(1)}c/L at ${priced[0].brand}. Average: ${avg.toFixed(1)}c/L across ${priced.length} stations. Top stations: ${list}.]`;
+  } catch {
+    return `[LIVE_DATA: lookup for ${sub.name} failed. Apologise briefly and ask them to try again. Do not invent prices.]`;
+  }
+}
+
+const SYSTEM = `You are Motavo's assistant, helping Australian drivers find cheap fuel and decide when to fill up.
+Rules:
+- Any price you state MUST come from the [LIVE_DATA] block in the latest message. NEVER invent, estimate, or recall a price.
+- Prices are cents per litre (c/L). Be concise and practical, in Australian English.
+- If LIVE_DATA has no prices, say so and (if useful) ask for a supported suburb. Do not make up numbers.
+- You may give general guidance on fuel price cycles (e.g. Perth is weekly, cheapest Tuesdays; Sydney/Brisbane run ~3–6 week cycles) but never claim a specific current cycle position you weren't given.
+- Politely steer off-topic questions back to fuel and EV charging.`;
+
+export async function POST(req: NextRequest) {
+  if (!GEMINI_KEY) {
+    return NextResponse.json({ reply: "The assistant isn't configured yet. Add GEMINI_API_KEY to your environment." });
   }
 
-  return (
-    <>
-      {!open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open the Motavo assistant"
-          style={{
-            position: 'fixed', right: 18, bottom: 18, zIndex: 900,
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'var(--accent, #ff4a17)', color: '#fff',
-            border: 'none', cursor: 'pointer', padding: '12px 16px',
-            fontWeight: 700, fontSize: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.22)',
-          }}
-        >
-          <MessageCircle size={18} /> Ask Motavo
-        </button>
-      )}
+  const ip = (req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()) || req.headers.get('x-real-ip') || 'unknown';
+  if (!(await underRateLimit(ip))) {
+    return NextResponse.json({ reply: "You've reached the message limit for now — please try again in a little while." }, { status: 429 });
+  }
 
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Motavo assistant"
-          style={{
-            position: 'fixed', zIndex: 900, right: 16, bottom: 16,
-            width: 'min(380px, calc(100vw - 32px))', height: 'min(560px, calc(100vh - 32px))',
-            display: 'flex', flexDirection: 'column',
-            background: 'var(--surface, #f2f0ea)', color: 'var(--text, #15120e)',
-            border: '2px solid var(--text, #15120e)', boxShadow: '0 10px 40px rgba(0,0,0,0.28)',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderBottom: '1px solid var(--border, #cbc6b9)',
-            }}
-          >
-            <span className="font-display" style={{ fontSize: 15, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-              Motavo assistant
-            </span>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3, #6a655c)', padding: 4 }}>
-              <X size={18} />
-            </button>
-          </div>
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ reply: 'Bad request.' }, { status: 400 }); }
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {msgs.map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%',
-                  background: m.role === 'user' ? 'var(--accent, #ff4a17)' : 'var(--surface-2, #e7e4dd)',
-                  color: m.role === 'user' ? '#fff' : 'var(--text, #15120e)',
-                  border: m.role === 'user' ? 'none' : '1px solid var(--border, #cbc6b9)',
-                  padding: '9px 12px', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap',
-                }}
-              >
-                {m.content}
-              </div>
-            ))}
-            {busy && (
-              <div style={{ alignSelf: 'flex-start', color: 'var(--text-3, #6a655c)', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                <Loader2 size={14} className="animate-spin" /> Checking live prices…
-              </div>
-            )}
-            <div ref={endRef} />
-          </div>
+  const incoming = Array.isArray(body?.messages) ? body.messages : [];
+  const msgs = incoming
+    .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
+    .slice(-12);
+  const lastUser = [...msgs].reverse().find((m: any) => m.role === 'user');
+  if (!lastUser) return NextResponse.json({ reply: 'Ask me about fuel prices near you.' });
 
-          <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid var(--border, #cbc6b9)' }}>
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-              placeholder="Ask about fuel near you…"
-              aria-label="Message the assistant"
-              style={{
-                // 16px minimum: iOS Safari auto-zooms the page when focusing
-                // any input below 16px, leaving the user stuck zoomed in.
-                flex: 1, padding: '10px 12px', fontSize: 16,
-                background: 'var(--bg, #e7e4dd)', color: 'var(--text, #15120e)',
-                border: '1px solid var(--text, #15120e)', outline: 'none',
-              }}
-            />
-            <button
-              type="button"
-              onClick={send}
-              disabled={busy || !input.trim()}
-              aria-label="Send"
-              style={{
-                background: 'var(--accent, #ff4a17)', color: '#fff', border: 'none',
-                padding: '0 14px', cursor: busy || !input.trim() ? 'default' : 'pointer',
-                opacity: busy || !input.trim() ? 0.6 : 1,
-              }}
-            >
-              <ArrowUp size={18} />
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
+  // Build Gemini contents (roles: user/model). Drop history up to first user turn.
+  const history = msgs.slice(0, msgs.lastIndexOf(lastUser));
+  const contents: any[] = [];
+  for (const m of history) {
+    if (contents.length === 0 && m.role !== 'user') continue; // first turn must be user
+    contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+  }
+  const dataBlock = await liveDataBlock(lastUser.content);
+  contents.push({ role: 'user', parts: [{ text: `${lastUser.content}\n\n${dataBlock}` }] });
+
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM }] },
+          contents,
+          generationConfig: { maxOutputTokens: 600, temperature: 0.3 },
+        }),
+      }
+    );
+    const data = await r.json();
+    if (!r.ok) {
+      console.error('[assistant] gemini error:', data?.error?.message ?? r.status);
+      return NextResponse.json({ reply: 'The assistant hit an error. Please try again shortly.' });
+    }
+    const reply = (data?.candidates?.[0]?.content?.parts ?? [])
+      .map((p: any) => p?.text || '')
+      .join('')
+      .trim();
+    return NextResponse.json({ reply: reply || "Sorry, I couldn't work that out — try naming a suburb." });
+  } catch (err: any) {
+    console.error('[assistant] error:', err?.message ?? err);
+    return NextResponse.json({ reply: 'The assistant hit an error. Please try again shortly.' });
+  }
 }
