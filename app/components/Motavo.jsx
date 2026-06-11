@@ -578,7 +578,9 @@ async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25
   } catch {
     // Genuine fetch failure (offline, or the artifact-preview iframe where
     // /api isn't reachable). Mock data only here so the preview still demos.
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('motavo.com.au')) {
+    const PROD_DOMAINS = ['motavo.au', 'motavo.com.au', 'fuelmate.au'];
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (PROD_DOMAINS.some(d => host === d || host.endsWith('.' + d))) {
       return []; // production: never show fabricated data
     }
     return generateStations(lat, lng, locationKey, state, count);
@@ -3498,7 +3500,7 @@ const PrivacyView = () => (
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>What we don't collect</h2>
       <p>We don't ask for your name, email, payment details or any other personal information to use the site. We don't sell or rent any data to third parties.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Your rights</h2>
-      <p>Under the Australian Privacy Principles, you can request a copy of any personal information we hold about you, ask for it to be corrected, or ask for it to be deleted. Email <a className="font-medium ulink" style={{ color: 'var(--accent)' }} href="mailto:privacy@motavo.com.au">privacy@motavo.com.au</a>.</p>
+      <p>Under the Australian Privacy Principles, you can request a copy of any personal information we hold about you, ask for it to be corrected, or ask for it to be deleted. Email <a className="font-medium ulink" style={{ color: 'var(--accent)' }} href="mailto:privacy@motavo.au">privacy@motavo.au</a>.</p>
       <p className="text-sm" style={{ color: 'var(--text-4)' }}>Last updated: {new Date().toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}.</p>
     </>} />
 );
