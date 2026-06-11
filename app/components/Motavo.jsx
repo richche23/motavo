@@ -2977,13 +2977,16 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   </p>
                 )}
 
-                <div className="hidden sm:flex items-center gap-6 mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
-                  {[['8', 'States covered'], ['0', 'Paid listings'], ['Free', 'Always']].map(([val, label]) => (
-                    <div key={label}>
-                      <div className="font-display font-bold" style={{ fontSize: '1.4rem', lineHeight: 1, letterSpacing: '-0.02em' }}>{val}</div>
-                      <div className="text-tiny mt-0.5" style={{ color: 'var(--text-4)' }}>{label}</div>
-                    </div>
-                  ))}
+                <div className="hidden sm:block mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                    Every state and territory, straight from government price feeds.
+                    No station can pay to rank higher — and it's free, always.{' '}
+                    <button type="button" onClick={() => onNav({ name: 'methodology' })}
+                            className="ulink font-medium"
+                            style={{ color: 'var(--text-2)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>
+                      How our data works →
+                    </button>
+                  </p>
                 </div>
 
                 <button type="button" onClick={() => onNav({ name: 'route' })}
