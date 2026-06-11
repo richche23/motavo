@@ -30,10 +30,10 @@ type Subscription = {
 };
 
 async function setRedis(key: string, value: Subscription, ttlSeconds = 365 * 24 * 60 * 60) {
-  const res = await fetch(`${UPSTASH_URL}/set/${key}`, {
+  const res = await fetch(`${UPSTASH_URL}/set/${key}?EX=${ttlSeconds}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ value: JSON.stringify(value), ex: ttlSeconds }),
+    body: JSON.stringify(value),
   });
   if (!res.ok) throw new Error(`Redis set failed: ${res.status}`);
   return res.json();
