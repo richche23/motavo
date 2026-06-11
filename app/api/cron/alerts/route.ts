@@ -1,11 +1,3 @@
-/**
- * GET /api/cron/alerts — daily alert dispatcher.
- *
- * 1. Fetches all subscriptions from Redis (using KEYS subscription:*:*:*)
- * 2. For each suburb subscription, checks if its state's price cycle is "peak" or "high"
- * 3. If yes AND no alert sent today (lastAlertAt check), sends email
- * 4. Records lastAlertAt in Redis to throttle alerts to once per 24 hours per suburb
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
@@ -47,7 +39,8 @@ async function getRedis(key: string): Promise<Subscription | null> {
   const data = await res.json();
   try {
     return data.result ? JSON.parse(data.result) : null;
-  } catch {
+  } catch (e) {
+    console.error(`[alerts] parse failed for key ${key}:`, e);
     return null;
   }
 }
@@ -82,7 +75,7 @@ async function getCycleSignals(): Promise<Record<string, SignalState>> {
 export async function GET(req: NextRequest) {
   if (!UPSTASH_URL || !UPSTASH_TOKEN || !RESEND_API_KEY) {
     return NextResponse.json(
-      { error: 'Missing environment variables (Upstash or Resend config)' },
+      { error: 'Missing environment variables' },
       { status: 500 }
     );
   }
@@ -99,30 +92,41 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
-    // Fetch all subscription keys using KEYS command
+    // Fetch all subscription keys
     const keys = await getKeysRedis('subscription:*:*:*');
-    console.log(`[alerts] found ${keys.length} subscriptions`);
+    console.log(`[alerts] found ${keys.length} subscription keys`);
 
-    // Load each subscription
+    // Load each subscription and filter out malformed ones
     const subscriptions = await Promise.all(
       keys.map(async k => {
         const sub = await getRedis(k);
-        return sub ? { key: k, ...sub } : null;
+        if (!sub) {
+          console.warn(`[alerts] loaded null subscription from key ${k}`);
+          return null;
+        }
+        // Validate that suburb exists (new schema requirement)
+        if (!sub.suburb) {
+          console.warn(`[alerts] subscription from key ${k} missing suburb field:`, sub);
+          return null;
+        }
+        return { key: k, ...sub };
       })
     );
     const validSubs = subscriptions.filter(Boolean) as (Subscription & { key: string })[];
+    console.log(`[alerts] loaded ${validSubs.length} valid subscriptions`);
 
-    // Get state-level cycle signals
+    // Get cycle signals
     const cycleSignals = await getCycleSignals();
 
-    // Extract state from suburb slug (e.g., "melbourne-vic-3000" → "VIC")
+    // Helper to extract state from suburb slug
     const getStateFromSuburb = (suburb: string): string => {
+      if (!suburb) return 'unknown';
       const parts = suburb.split('-');
       return parts[1]?.toUpperCase() || 'unknown';
     };
 
-    // Group by email to batch emails
-    const byEmail = new Map<string, (Subscription & { key: string; shouldAlert: boolean; suburb: string })[]>();
+    // Group by email
+    const byEmail = new Map<string, (Subscription & { key: string; shouldAlert: boolean })[]>();
     for (const sub of validSubs) {
       const state = getStateFromSuburb(sub.suburb);
       const signal = cycleSignals[state] || 'unknown';
@@ -130,18 +134,17 @@ export async function GET(req: NextRequest) {
         (signal === 'peak' || signal === 'high') &&
         (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo);
 
-      const entry = { ...sub, shouldAlert, suburb: sub.suburb };
       if (!byEmail.has(sub.email)) byEmail.set(sub.email, []);
-      byEmail.get(sub.email)!.push(entry);
+      byEmail.get(sub.email)!.push({ ...sub, shouldAlert });
     }
 
     // Send emails
     const emailsSent: string[] = [];
     for (const [email, subs] of byEmail) {
-      const alertSuburbs = subs.filter(s => s.shouldAlert);
-      if (alertSuburbs.length === 0) continue;
+      const alertSubs = subs.filter(s => s.shouldAlert);
+      if (alertSubs.length === 0) continue;
 
-      const suburbList = alertSuburbs
+      const suburbList = alertSubs
         .map(s => `${s.suburb.split('-')[0]} (${s.fuelType})`)
         .join(', ');
 
@@ -151,9 +154,9 @@ export async function GET(req: NextRequest) {
         subject: `⛽ Time to fill up — ${suburbList} prices are up`,
         html: `
 <p>Hi,</p>
-<p>Prices are <strong>good right now</strong> in ${alertSuburbs.length === 1 ? 'your area' : 'your areas'}:</p>
+<p>Prices are <strong>good right now</strong> in ${alertSubs.length === 1 ? 'your area' : 'your areas'}:</p>
 <ul>
-${alertSuburbs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fuelType})</li>`).join('\n')}
+${alertSubs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fuelType})</li>`).join('\n')}
 </ul>
 <p><a href="https://motavo.au">Check live prices</a> and fill up before they climb again.</p>
 <p>— Motavo</p>
@@ -164,9 +167,8 @@ ${alertSuburbs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fue
         console.error(`[alerts] failed to send to ${email}:`, result.error);
       } else {
         emailsSent.push(email);
-        // Update lastAlertAt for each suburb
         await Promise.all(
-          alertSuburbs.map(s =>
+          alertSubs.map(s =>
             setRedis(`subscription:${s.email}:${s.suburb}:${s.fuelType}`, {
               ...s,
               lastAlertAt: now,
@@ -179,12 +181,13 @@ ${alertSuburbs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fue
     return NextResponse.json({
       ok: true,
       timestamp: new Date().toISOString(),
-      subscriptions: validSubs.length,
+      totalKeys: keys.length,
+      validSubscriptions: validSubs.length,
       emailsSent: emailsSent.length,
       recipients: emailsSent,
     });
   } catch (e: any) {
-    console.error('[alerts] error:', e);
+    console.error('[alerts] error:', e?.message, e?.stack);
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }
