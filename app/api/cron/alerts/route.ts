@@ -5,9 +5,6 @@
  * 2. For each suburb subscription, checks if its state's price cycle is "peak" or "high"
  * 3. If yes AND no alert sent today (lastAlertAt check), sends email
  * 4. Records lastAlertAt in Redis to throttle alerts to once per 24 hours per suburb
- *
- * Suburb-level alerts check state-level cycle signals. When NSW says "buy now",
- * all NSW suburb subscribers get alerted (once per day max).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
@@ -30,17 +27,25 @@ type Subscription = {
 type SignalState = 'low' | 'mid' | 'high' | 'peak' | 'unknown' | 'stable';
 
 async function scanRedis(pattern: string, cursor = '0', results: string[] = []): Promise<string[]> {
-  const res = await fetch(`${UPSTASH_URL}/scan/${cursor}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ match: pattern, count: 100 }),
+  const params = new URLSearchParams({
+    cursor,
+    match: pattern,
+    count: '100',
   });
-  if (!res.ok) throw new Error(`Redis scan failed: ${res.status}`);
+  const res = await fetch(`${UPSTASH_URL}/scan?${params}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+  });
+  if (!res.ok) {
+    console.error(`[alerts] scan failed: ${res.status}`, await res.text());
+    throw new Error(`Redis scan failed: ${res.status}`);
+  }
   const data = await res.json();
   const keys = (data.result?.[1] || []) as string[];
   results.push(...keys);
-  if (data.result?.[0] !== '0') {
-    return scanRedis(pattern, data.result?.[0] || '0', results);
+  const nextCursor = data.result?.[0];
+  if (nextCursor && nextCursor !== '0') {
+    return scanRedis(pattern, nextCursor, results);
   }
   return results;
 }
