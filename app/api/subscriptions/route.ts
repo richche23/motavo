@@ -1,13 +1,10 @@
 /**
- * POST /api/subscriptions — add or update an email subscription.
+ * POST /api/subscriptions — add or update email subscriptions.
  *
- * Body: { email, cities: ['NSW', 'VIC', ...], fuelType: 'U91' }
+ * Body: { email, suburbs: ['melbourne-vic-3000', ...], fuelType: 'U91' }
  *
  * Stores in Redis as:
- *   subscription:{email}:{city}:{fuelType} → JSON { email, city, fuelType, subscribedAt, lastAlertAt }
- *
- * lastAlertAt is updated by the daily cron when an alert is sent, so the same
- * city won't spam you with "buy now" alerts repeatedly within a 24-hour window.
+ *   subscription:{email}:{suburbuslug}:{fuelType} → JSON { email, suburb, fuelType, subscribedAt, lastAlertAt }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -18,19 +15,15 @@ export const maxDuration = 10;
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-  throw new Error('Upstash Redis env vars missing');
-}
-
 const SubscribeSchema = z.object({
   email: z.string().email().toLowerCase(),
-  cities: z.array(z.enum(['NSW', 'VIC', 'QLD', 'WA', 'SA', 'ACT', 'TAS', 'NT'])).min(1),
+  suburbs: z.array(z.string()).min(1),
   fuelType: z.enum(['U91', 'P95', 'P98', 'E10', 'DSL', 'PRDSL', 'LPG']).default('U91'),
 });
 
 type Subscription = {
   email: string;
-  city: string;
+  suburb: string;
   fuelType: string;
   subscribedAt: number;
   lastAlertAt: number | null;
@@ -47,17 +40,22 @@ async function setRedis(key: string, value: Subscription, ttlSeconds = 365 * 24 
 }
 
 export async function POST(req: NextRequest) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) {
+    return NextResponse.json(
+      { ok: false, error: 'Missing Upstash Redis configuration' },
+      { status: 500 }
+    );
+  }
+
   try {
     const body = await req.json();
-    const { email, cities, fuelType } = SubscribeSchema.parse(body);
+    const { email, suburbs, fuelType } = SubscribeSchema.parse(body);
 
-    // Store one entry per (email, city, fuelType) combo. If they resubscribe,
-    // subscribedAt stays the same but lastAlertAt resets so they get alerts again.
     const now = Date.now();
-    const tasks = cities.map(city =>
-      setRedis(`subscription:${email}:${city}:${fuelType}`, {
+    const tasks = suburbs.map(suburb =>
+      setRedis(`subscription:${email}:${suburb}:${fuelType}`, {
         email,
-        city,
+        suburb,
         fuelType,
         subscribedAt: now,
         lastAlertAt: null,
@@ -68,12 +66,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      message: `Subscribed to ${cities.length} city alerts`,
+      message: `Subscribed to ${suburbs.length} suburb alerts`,
       email,
-      cities,
+      suburbs,
       fuelType,
     });
-  } catch (e: any) {
+  } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json(
         { ok: false, error: 'Invalid input', details: e.errors },
