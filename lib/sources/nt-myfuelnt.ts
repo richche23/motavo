@@ -30,15 +30,50 @@ const SEARCH_FUEL_CODE = 'ALLU';
 
 // NT site fuel codes → canonical FuelType.
 const NT_CODE_MAP: Record<string, FuelType> = {
-  U91: 'U91',
-  LAF: 'U91',   // Low Aromatic Fuel — NT-mandated U91 substitute
-  P95: 'P95',
-  P98: 'P98',
-  E10: 'E10',
-  DL:  'DSL',
-  PD:  'PRDSL',
-  LPG: 'LPG',
+  U91:  'U91',
+  LAF:  'U91',   // Low Aromatic Fuel — NT-mandated U91 substitute
+  ALLU: 'U91',   // "Equivalent Unleaded" — appears as a top-level code in search results
+  P95:  'P95',
+  P98:  'P98',
+  E10:  'E10',
+  DL:   'DSL',
+  DSL:  'DSL',
+  PD:   'PRDSL',
+  PRDSL:'PRDSL',
+  LPG:  'LPG',
 };
+
+/**
+ * Parse one NT price entry into the prices record. Deliberately tolerant:
+ * the NT site has no versioned API (we scrape), so field drift must degrade
+ * gracefully, not silently null every price.
+ *  - IsAvailable: only an explicit `false` excludes — a missing/renamed
+ *    field must not zero out the whole territory.
+ *  - FuelCode: trimmed + uppercased before mapping.
+ *  - Price: accepts number or string.
+ */
+function applyNtPrice(
+  prices: Record<FuelType, number | null>,
+  rawCode: unknown,
+  rawPrice: unknown,
+  isAvailable: unknown
+) {
+  if (isAvailable === false) return;
+  const code = String(rawCode ?? '').trim().toUpperCase();
+  const ft = NT_CODE_MAP[code];
+  if (!ft) return;
+  const p = parseFloat(String(rawPrice));
+  if (isNaN(p) || p <= 0) return;
+  // NT site prices are decimal cents per litre (e.g. "235.9"), which is
+  // already the app's canonical format — QLD/SA receive tenths from their
+  // APIs and divide by 10 to reach this same format. (A stale comment here
+  // previously claimed the canonical format was tenths, and NT multiplied
+  // by 10 — making it the only source storing 2359 for 235.9¢/L.)
+  const val = Math.round(p * 10) / 10;
+  const existing = prices[ft];
+  // Keep the lower price if multiple NT codes map to the same FuelType (e.g. U91 + LAF).
+  if (existing === null || val < existing) prices[ft] = val;
+}
 
 // ── Raw types from serverJson ─────────────────────────────────────────────────
 
@@ -139,7 +174,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
 
   const refreshedAt = Date.now();
   const stations    = outlets
-    .filter(o => o.IsActive && o.Latitude && o.Longitude)
+    .filter(o => o.IsActive !== false && o.Latitude && o.Longitude)
     .map(o => {
       const prices: Record<FuelType, number | null> = {
         U91: null, P95: null, P98: null,
@@ -147,18 +182,13 @@ async function fetchSnapshot(): Promise<Snapshot> {
       };
 
       for (const f of (o.AllFuels ?? [])) {
-        const ft = NT_CODE_MAP[f.FuelCode];
-        if (!ft || !f.IsAvailable) continue;
-        const p = parseFloat(f.Price);
-        if (isNaN(p) || p <= 0) continue;
-        // NT prices are decimal cents (e.g. 235.9 c/L).
-        // Store as integer tenths-of-a-cent to match SA/QLD format (e.g. 2359).
-        const existing = prices[ft];
-        const val      = Math.round(p * 10);
-        // Keep the lower price if multiple NT codes map to the same FuelType (e.g. U91 + LAF).
-        if (existing === null || val < existing) {
-          prices[ft] = val;
-        }
+        applyNtPrice(prices, f.FuelCode, f.Price, f.IsAvailable);
+      }
+
+      // Fallback: if AllFuels was empty/renamed, the searched fuel's price is
+      // also present as top-level FuelCode/FuelPrice on each outlet.
+      if (Object.values(prices).every(p => p === null)) {
+        applyNtPrice(prices, o.FuelCode, o.FuelPrice, undefined);
       }
 
       return {
@@ -177,6 +207,19 @@ async function fetchSnapshot(): Promise<Snapshot> {
         source:           'nt-myfuelnt',
       } satisfies Station;
     });
+
+  // Self-diagnosing log: stations without prices is exactly the failure mode
+  // that hides behind a green status page. If it happens, say so loudly and
+  // include a payload sample so the fix is obvious from Vercel logs alone.
+  const priced = stations.filter(s => Object.values(s.prices).some(p => p !== null)).length;
+  if (stations.length > 0 && priced === 0) {
+    const sample = outlets[0] ?? {};
+    console.error(
+      `[NT] DEGRADED: ${stations.length} stations parsed but 0 have prices — ` +
+      `payload shape likely changed. Outlet keys: [${Object.keys(sample).join(', ')}]. ` +
+      `AllFuels sample: ${JSON.stringify((sample as any).AllFuels?.slice?.(0, 2) ?? null)}`
+    );
+  }
 
   const snapshot: Snapshot = { stations, refreshedAt };
   cacheSet(SNAPSHOT_KEY, snapshot, SNAPSHOT_TTL);
