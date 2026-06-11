@@ -325,10 +325,10 @@ const cityForState = (state) => CITIES.find(c => c.state === state) || null;
    logged enough history for that state (>= 4 days, >= 3c/L spread) — no
    false precision while it's still learning. */
 const SIGNAL_TONES = {
-  low:  { label: 'Buy now',   color: 'var(--success)' },
-  mid:  { label: 'Mid-cycle', color: 'var(--text-3)'  },
-  high: { label: 'Wait',      color: 'var(--warn)'    },
-  peak: { label: 'Peak',      color: 'var(--danger)'  },
+  low:  { label: 'Fill up now',    sub: 'Near cycle bottom',  dot: '🟢', color: 'var(--success)', bg: 'var(--green-soft)',  border: 'var(--green-light)' },
+  mid:  { label: 'Mid-cycle',      sub: 'Prices are average', dot: '🟡', color: 'var(--text-2)',  bg: 'var(--surface-2)',  border: 'var(--border)'      },
+  high: { label: 'Hold off',       sub: 'Prices climbing',    dot: '🟠', color: 'var(--warn)',    bg: '#fdf0e6',           border: '#f0c090'             },
+  peak: { label: 'Avoid if you can', sub: 'Near cycle peak',  dot: '🔴', color: 'var(--danger)',  bg: '#fdeaea',           border: '#f0b0b0'             },
 };
 
 function useCycleSignals(fuelType = 'U91') {
@@ -344,14 +344,31 @@ function useCycleSignals(fuelType = 'U91') {
   return signals;
 }
 
+/* Full badge — used in the CitiesIndexView grid cards */
+const SignalBadge = ({ signal }) => {
+  const tone = signal && SIGNAL_TONES[signal.tone];
+  if (!tone) return null;
+  return (
+    <span className="inline-flex items-center gap-2 px-2.5 py-1.5"
+          style={{ background: tone.bg, border: `1px solid ${tone.border}`, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, lineHeight: 1 }}>{tone.dot}</span>
+      <span>
+        <span className="block font-mono text-xs font-bold uppercase track-wide" style={{ color: tone.color, lineHeight: 1.2 }}>{tone.label}</span>
+        <span className="block font-mono text-micro" style={{ color: 'var(--text-3)', lineHeight: 1.3 }}>{tone.sub}</span>
+      </span>
+    </span>
+  );
+};
+
+/* Compact inline chip — used in the HomeView city list */
 const SignalChip = ({ signal }) => {
   const tone = signal && SIGNAL_TONES[signal.tone];
   if (!tone) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-micro font-semibold uppercase track-wide px-1.5 py-0.5"
-          style={{ color: tone.color, border: `1px solid ${tone.color}`, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
-      <span style={{ width: 5, height: 5, background: tone.color, display: 'inline-block', flexShrink: 0 }} />
-      {tone.label}
+    <span className="inline-flex items-center gap-1.5 px-2 py-1"
+          style={{ background: tone.bg, border: `1px solid ${tone.border}`, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 10, lineHeight: 1 }}>{tone.dot}</span>
+      <span className="font-mono text-micro font-bold uppercase track-wide" style={{ color: tone.color }}>{tone.label}</span>
     </span>
   );
 };
@@ -2898,9 +2915,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                         <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
                       </div>
-                      <span className="inline-flex items-center gap-2">
+                      <span className="inline-flex flex-col items-end gap-1">
                         <SignalChip signal={signals[c.state]} />
-                        <span className="text-tiny" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
+                        <span className="text-micro font-mono" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
                       </span>
                     </button>
                   ))}
@@ -2991,11 +3008,11 @@ const CitiesIndexView = ({ onNav }) => {
               <div className="font-medium font-mono">{c.pop}</div>
             </div>
             <div>
-              <div className="text-micro uppercase track-wide font-medium mb-1" style={{ color: 'var(--text-4)' }}>Cycle</div>
-              <div className="font-medium flex items-center gap-2 flex-wrap">
-                <span>{c.cycle}</span>
-                <SignalChip signal={signals[c.state]} />
-              </div>
+              <div className="text-micro uppercase track-wide font-medium mb-1" style={{ color: 'var(--text-4)' }}>Right now</div>
+              <SignalBadge signal={signals[c.state]} />
+              {!signals[c.state] && (
+                <div className="font-medium text-sm" style={{ color: 'var(--text-3)' }}>{c.cycle}</div>
+              )}
             </div>
           </div>
         </button>
