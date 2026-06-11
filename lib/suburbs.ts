@@ -21,6 +21,15 @@ export type Suburb = {
 };
 
 export const SUBURBS: Suburb[] = [
+  // ── Capital city CBDs (head terms — "cheapest petrol in Sydney" etc.) ─
+  { slug: 'sydney-nsw-2000',      name: 'Sydney',      state: 'NSW', postcode: '2000', lat: -33.8708, lng: 151.2073 },
+  { slug: 'melbourne-vic-3000',   name: 'Melbourne',   state: 'VIC', postcode: '3000', lat: -37.8136, lng: 144.9631 },
+  { slug: 'brisbane-qld-4000',    name: 'Brisbane',    state: 'QLD', postcode: '4000', lat: -27.4698, lng: 153.0251 },
+  { slug: 'perth-wa-6000',        name: 'Perth',       state: 'WA',  postcode: '6000', lat: -31.9523, lng: 115.8613 },
+  { slug: 'adelaide-sa-5000',     name: 'Adelaide',    state: 'SA',  postcode: '5000', lat: -34.9285, lng: 138.6007 },
+  { slug: 'canberra-act-2601',    name: 'Canberra',    state: 'ACT', postcode: '2601', lat: -35.2809, lng: 149.1300 },
+  { slug: 'hobart-tas-7000',      name: 'Hobart',      state: 'TAS', postcode: '7000', lat: -42.8821, lng: 147.3272 },
+  { slug: 'darwin-nt-0800',       name: 'Darwin',      state: 'NT',  postcode: '0800', lat: -12.4634, lng: 130.8456 },
   // ── NSW (Sydney metro) ──────────────────────────────────────────────
   { slug: 'parramatta-nsw-2150',  name: 'Parramatta',  state: 'NSW', postcode: '2150', lat: -33.8150, lng: 151.0011 },
   { slug: 'liverpool-nsw-2170',   name: 'Liverpool',   state: 'NSW', postcode: '2170', lat: -33.9203, lng: 150.9237 },
