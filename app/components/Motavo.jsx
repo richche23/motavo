@@ -1694,10 +1694,26 @@ const PriceStats = ({ stations, fuelType }) => {
 /**
  * SavingsBanner — converts cents-per-litre price differences into dollars
  * saved per tank, which is how drivers actually think about decisions.
- * Hidden if the savings are under $1 (not worth driving for) or there's
- * no meaningful spread.
+ * Interactive: tap your tank size once and it's remembered (localStorage)
+ * so every future visit speaks in your car's numbers. Hidden if the savings
+ * are under $1 (not worth driving for) or there's no meaningful spread.
  */
-const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
+const TANK_SIZES = [40, 50, 60, 80];
+const TANK_KEY = 'fm:tankSize';
+
+const SavingsBanner = ({ stations, fuelType }) => {
+  const [tankSize, setTankSize] = useState(50);
+  useEffect(() => {
+    try {
+      const saved = parseInt(localStorage.getItem(TANK_KEY) || '', 10);
+      if (TANK_SIZES.includes(saved)) setTankSize(saved);
+    } catch {}
+  }, []);
+  const pickTank = (size) => {
+    setTankSize(size);
+    try { localStorage.setItem(TANK_KEY, String(size)); } catch {}
+  };
+
   const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
   if (prices.length < 3) return null;
 
@@ -1728,12 +1744,27 @@ const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
       <div className="flex-1 min-w-0">
         <div className="text-sm md:text-base leading-snug">
           <span className="font-semibold" style={{ color: 'var(--green-dark)' }}>
-            Save ~${dollarsSaved.toFixed(0)} per tank
+            Save ~${dollarsSaved.toFixed(2)} per tank
           </span>
           <span style={{ color: 'var(--text-2)' }}> at the cheapest vs. nearby average</span>
         </div>
         <div className="text-tiny mt-0.5" style={{ color: 'var(--text-3)' }}>
-          That's ~${yearly.toFixed(0)} a year if you fill weekly · based on a {tankSize}L tank
+          That's ~${yearly.toFixed(0)} a year if you fill weekly
+        </div>
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <span className="font-mono text-micro uppercase track-wide" style={{ color: 'var(--text-4)' }}>My tank:</span>
+          {TANK_SIZES.map(size => (
+            <button key={size} type="button" onClick={() => pickTank(size)}
+                    className="font-mono text-tiny font-semibold px-2 py-0.5 transition-colors"
+                    style={{
+                      background: size === tankSize ? 'var(--success)' : 'transparent',
+                      color: size === tankSize ? '#ffffff' : 'var(--text-3)',
+                      border: `1px solid ${size === tankSize ? 'var(--success)' : 'var(--border)'}`,
+                      borderRadius: 0, cursor: 'pointer',
+                    }}>
+            {size}L
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -2805,6 +2836,7 @@ const Footer = ({ onNav }) => (
           <ul className="space-y-2 text-sm">
             {[
               { label: 'About Motavo', view: { name: 'about' } },
+              { label: 'Our data & methodology', view: { name: 'methodology' } },
               { label: 'How fuel cycles work', view: { name: 'editorial', slug: 'cycles' } },
               { label: 'Privacy policy', view: { name: 'privacy' } },
               { label: 'Terms of service', view: { name: 'terms' } },
@@ -2818,7 +2850,7 @@ const Footer = ({ onNav }) => (
       </div>
       <div className="pt-6 text-xs flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
            style={{ borderTop: '1px solid var(--border)', color: 'var(--text-4)' }}>
-        <div>© {new Date().getFullYear()} Motavo · Independent fuel price comparison.</div>
+        <div>© {new Date().getFullYear()} Motavo · <button type="button" onClick={() => onNav({ name: 'methodology' })} className="ulink" style={{ color: 'inherit', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>Independent fuel price comparison</button>.</div>
         <div className="font-mono text-tiny track-wide uppercase">FuelCheck NSW · FuelWatch WA · QLD · NT · TAS</div>
       </div>
     </div>
@@ -3198,6 +3230,40 @@ const TermsView = () => (
     </>} />
 );
 
+const MethodologyView = () => (
+  <StaticPage icon={Gauge} title="Our data & methodology"
+    intro="Every price on Motavo comes from an official government feed or an open dataset — never from retailers paying for placement. Here's exactly where the data comes from, how often it updates, and how we rank results."
+    body={<>
+      <h2 className="font-display font-semibold text-2xl mt-2" style={{ color: 'var(--text)' }}>Fuel price sources</h2>
+      <p>Each state and territory runs its own mandatory price reporting scheme. We pull directly from each one:</p>
+      <ul className="space-y-2.5 text-base" style={{ listStyle: 'none', padding: 0 }}>
+        {[
+          ['NSW', 'FuelCheck NSW', 'Stations must report price changes as they happen — typically live within minutes.'],
+          ['VIC', 'Servo Saver Victoria', 'Published daily by the Victorian government.'],
+          ['QLD', 'QLD Fuel Price Reporting', 'Stations must report changes within 30 minutes.'],
+          ['WA', 'FuelWatch WA', "Prices are locked for 24 hours — tomorrow's prices publish at 2:30pm today, which is why Perth's cycle is so predictable."],
+          ['SA', 'SA Fuel Pricing Scheme', 'Stations must report changes within 30 minutes.'],
+          ['NT', 'MyFuel NT', 'Stations must report price changes within 30 minutes.'],
+          ['TAS & ACT', 'FuelCheck', 'Covered under the same scheme as NSW.'],
+        ].map(([state, scheme, note]) => (
+          <li key={state} className="flex gap-3 items-baseline">
+            <span className="font-mono text-tiny font-semibold shrink-0 uppercase track-wide" style={{ color: 'var(--accent)', minWidth: 70 }}>{state}</span>
+            <span><span className="font-semibold" style={{ color: 'var(--text)' }}>{scheme}</span> — {note}</span>
+          </li>
+        ))}
+      </ul>
+      <p>Every result shows how long ago its price was last updated. If a feed is having issues, we say so rather than showing stale numbers as fresh.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>EV charging data</h2>
+      <p>Charger locations, connector types and speeds come from <a className="font-medium ulink" style={{ color: 'var(--accent)' }} href="https://openchargemap.org" target="_blank" rel="noopener noreferrer">Open Charge Map</a>, an open global registry. Australia has no live per-charger price feed, so charging costs shown are indicative network rates we verify manually and date-stamp — always confirm in the operator's app before charging.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>The cycle signal</h2>
+      <p>Our "fill up now / hold off" verdicts compare today's cheapest price against the recent low–high range we log daily for your city. We deliberately show nothing until we have at least four days of history and a meaningful price spread — no fake confidence.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>How results are ranked</h2>
+      <p>Fuel is ranked by price or distance — your choice, nothing else. No station, brand or network can pay to appear higher. Display ads and affiliate links on the site are clearly separate from results and never influence rankings.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Limitations, honestly</h2>
+      <p>Prices can change between a station reporting and you arriving — always confirm at the bowser. Community price reports are flagged as unverified until confirmed by others. WA prices are technically "today's locked prices" rather than live. We'd rather you know the edges of the data than trust it blindly.</p>
+    </>} />
+);
+
 const NotFound = ({ onNav }) => (
   <div className="max-w-xl mx-auto px-4 py-24 text-center">
     <Pill tone="neutral" className="mb-3">404</Pill>
@@ -3453,6 +3519,7 @@ export default function App({ initialView, initialLocation } = {}) {
       }
       case 'editorial': return <EditorialView slug={view.slug} onNav={setView} />;
       case 'about':   return <AboutView />;
+      case 'methodology': return <MethodologyView />;
       case 'privacy': return <PrivacyView />;
       case 'terms':   return <TermsView />;
       default:        return <NotFound onNav={setView} />;
