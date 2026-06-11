@@ -1,305 +1,236 @@
 /**
- * NT MyFuel NT — Northern Territory fuel pricing scheme.
+ * GET /api/route?fromLat=..&fromLng=..&toLat=..&toLng=..&fuel=U91
  *
- * NO official API. Scrapes myfuelnt.nt.gov.au.
+ * "Cheapest fuel along my route." Fetches driving geometry from the public
+ * OSRM server (free, no key — fine at our traffic level), samples points
+ * along the route, pulls stations near each sample from the existing state
+ * source modules, dedupes, computes each station's detour from the route,
+ * and returns them ranked by price.
  *
- * Flow per snapshot refresh:
- *   1. GET homepage → extract __RequestVerificationToken + session cookie
- *   2. GET /Home/Results (Darwin City, FuelCode=ALLU) → parse #serverJson
- *      hidden input from HTML → JSON.parse → n.FuelOutlet array
- *   3. Each station has real lat/lng and an AllFuels array with all prices
+ * Falls back to straight-line interpolation between the endpoints if OSRM
+ * is unavailable — degraded but still useful for metro trips.
  *
- * One request returns all fuel types via each station's AllFuels array.
- * Lat/lng is available so proper radius filtering works.
+ * Response: {
+ *   route: { distanceKm, durationMin, source: 'osrm'|'straight-line',
+ *            points: [[lat,lng],...] },   // downsampled, for map display
+ *   stations: [{ ...Station, detourKm, alongKm }],
+ * }
  */
+import { NextRequest, NextResponse } from 'next/server';
+import { FuelType, StateCode, Station } from '@/lib/types';
+import { cacheGet, cacheSet } from '@/lib/cache';
 
-import { cacheGet, cacheSet } from '../cache';
-import { distanceKm, normalizeBrand } from '../normalizers';
-import { FetchOptions, FetchResult, FuelType, Station } from '../types';
+import { fetchStations as fetchNSW } from '@/lib/sources/nsw-fuelcheck';
+import { fetchStations as fetchVIC } from '@/lib/sources/vic-servosaver';
+import { fetchStations as fetchQLD } from '@/lib/sources/qld-fuelprices';
+import { fetchStations as fetchWA  } from '@/lib/sources/wa-fuelwatch';
+import { fetchStations as fetchSA  } from '@/lib/sources/sa-informedsources';
+import { fetchStations as fetchNT  } from '@/lib/sources/nt-myfuelnt';
 
-const BASE_URL     = 'https://myfuelnt.nt.gov.au';
-const SNAPSHOT_KEY = 'nt:snapshot';
-const SNAPSHOT_TTL = 10 * 60 * 1000; // 10 minutes
+export const dynamic = 'force-dynamic';
+export const maxDuration = 30;
 
-const DARWIN_SUBURB    = 'DARWIN CITY (0800)';
-const DARWIN_SUBURB_ID = '1';
-
-// Confirmed fuel codes from the NT site dropdown.
-// ALLU = "Equivalent Unleaded" — returns all stations + their AllFuels pricing.
-const SEARCH_FUEL_CODE = 'ALLU';
-
-// NT site fuel codes → canonical FuelType.
-const NT_CODE_MAP: Record<string, FuelType> = {
-  U91:  'U91',
-  LAF:  'U91',   // Low Aromatic Fuel — NT-mandated U91 substitute
-  ALLU: 'U91',   // "Equivalent Unleaded" — appears as a top-level code in search results
-  P95:  'P95',
-  P98:  'P98',
-  E10:  'E10',
-  DL:   'DSL',
-  DSL:  'DSL',
-  PD:   'PRDSL',
-  PRDSL:'PRDSL',
-  LPG:  'LPG',
+const FETCHER: Record<StateCode, (opts: any) => Promise<{ stations: Station[] }>> = {
+  NSW: fetchNSW, TAS: fetchNSW, ACT: fetchNSW,
+  VIC: fetchVIC, QLD: fetchQLD, WA: fetchWA, SA: fetchSA, NT: fetchNT,
 };
 
-/**
- * Parse one NT price entry into the prices record. Deliberately tolerant:
- * the NT site has no versioned API (we scrape), so field drift must degrade
- * gracefully, not silently null every price.
- *  - IsAvailable: only an explicit `false` excludes — a missing/renamed
- *    field must not zero out the whole territory.
- *  - FuelCode: trimmed + uppercased before mapping.
- *  - Price: accepts number or string.
- */
-function applyNtPrice(
-  prices: Record<FuelType, number | null>,
-  rawCode: unknown,
-  rawPrice: unknown,
-  isAvailable: unknown
-) {
-  if (isAvailable === false) return;
-  const code = String(rawCode ?? '').trim().toUpperCase();
-  const ft = NT_CODE_MAP[code];
-  if (!ft) return;
-  const p = parseFloat(String(rawPrice));
-  if (isNaN(p) || p <= 0) return;
-  // NT site prices are decimal cents per litre (e.g. "235.9"), which is
-  // already the app's canonical format — QLD/SA receive tenths from their
-  // APIs and divide by 10 to reach this same format. (A stale comment here
-  // previously claimed the canonical format was tenths, and NT multiplied
-  // by 10 — making it the only source storing 2359 for 235.9¢/L.)
-  const val = Math.round(p * 10) / 10;
-  const existing = prices[ft];
-  // Keep the lower price if multiple NT codes map to the same FuelType (e.g. U91 + LAF).
-  if (existing === null || val < existing) prices[ft] = val;
+const VALID_FUEL_TYPES = ['U91', 'P95', 'P98', 'E10', 'DSL', 'PRDSL', 'LPG'] as const;
+
+/** Max distance a station can sit off the route to count as "along" it. */
+const MAX_DETOUR_KM = 5;
+/** How many results to return. */
+const MAX_RESULTS = 30;
+/** Cap on sample points (each may trigger a state-source fetch). */
+const MAX_SAMPLES = 12;
+/** Hard cap on route length we'll attempt — protects the function budget. */
+const MAX_ROUTE_KM = 1200;
+
+// Same bounding boxes as the client's stateFromCoords in Motavo.jsx.
+function stateFromCoords(lat: number, lng: number): StateCode {
+  if (lat <= -35.1 && lat >= -35.95 && lng >= 148.75 && lng <= 149.45) return 'ACT';
+  if (lat <= -39.2 && lng >= 143.5 && lng <= 149.2) return 'TAS';
+  if (lat <= -33.9 && lat >= -39.3 && lng >= 140.8 && lng <= 150.2) return 'VIC';
+  if (lat <= -28.0 && lat >= -37.6 && lng >= 140.9 && lng <= 153.7) return 'NSW';
+  if (lat <= -9.5  && lat >= -29.2 && lng >= 137.9 && lng <= 153.6) return 'QLD';
+  if (lat <= -25.9 && lat >= -38.2 && lng >= 128.9 && lng <= 141.1) return 'SA';
+  if (lat <= -10.9 && lat >= -26.1 && lng >= 128.9 && lng <= 138.1) return 'NT';
+  if (lng <= 129.1) return 'WA';
+  return 'NSW';
 }
 
-// ── Raw types from serverJson ─────────────────────────────────────────────────
-// MyFuel NT restructured this payload (observed June 2026): the prices array
-// is now `AvailableFuels` (was `AllFuels`), entry availability is lowercase
-// `isAvailable`, outlet id is `FuelOutletId`, name is `OutletName`, brand is
-// `OutletBrandIdentifier`. We read new names first and fall back to old ones.
-
-interface NTFuelEntry {
-  FuelCode:     string;
-  Price:        number | string;   // decimal cents, e.g. 198 or "235.9"
-  isAvailable?: boolean;           // current shape (lowercase i)
-  IsAvailable?: boolean;           // legacy shape
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-interface NTOutlet {
-  FuelOutletId?: number;           // current
-  OutletId?:     number;           // legacy
-  OutletName?:   string;           // current
-  Name?:         string;           // legacy
-  FullAddress?:  string;
-  Address?:      string;
-  Suburb:        string;
-  Postcode:      string;
-  Latitude:      number;
-  Longitude:     number;
-  OutletBrandIdentifier?: string;  // current
-  FuelBrandIdentifier?:   string;  // current (per-fuel brand)
-  BrandId?:      string;           // legacy
-  FuelCode?:     string | null;
-  FuelPrice?:    number | string;            // legacy top-level price
-  FuelPriceForSelectedCode?: number | string;// current top-level price
-  IsActive?:     boolean;
-  AvailableFuels?: NTFuelEntry[];  // current
-  AllFuels?:       NTFuelEntry[];  // legacy
-}
+type LatLng = [number, number]; // [lat, lng]
 
-interface NTServerJson {
-  FuelOutlet: NTOutlet[];
-}
-
-/**
- * Map raw NT outlets → canonical Stations. Exported for unit testing against
- * captured payloads.
- */
-export function parseNtOutlets(outlets: NTOutlet[], refreshedAt: number): Station[] {
-  return outlets
-    .filter(o => o.IsActive !== false && o.Latitude && o.Longitude)
-    .map(o => {
-      const prices: Record<FuelType, number | null> = {
-        U91: null, P95: null, P98: null,
-        E10: null, DSL: null, PRDSL: null, LPG: null,
-      };
-
-      const fuelEntries = o.AvailableFuels ?? o.AllFuels ?? [];
-      for (const f of fuelEntries) {
-        applyNtPrice(prices, f.FuelCode, f.Price, f.isAvailable ?? f.IsAvailable);
-      }
-
-      // Fallback: the searched fuel's price also appears top-level.
-      if (Object.values(prices).every(p => p === null)) {
-        applyNtPrice(prices, o.FuelCode, o.FuelPriceForSelectedCode ?? o.FuelPrice, undefined);
-      }
-
-      const id    = o.FuelOutletId ?? o.OutletId;
-      const name  = o.OutletName ?? o.Name ?? 'Unknown';
-      const brand = o.OutletBrandIdentifier || o.FuelBrandIdentifier || o.BrandId || name;
-
-      return {
-        id:               `nt-${id}`,
-        brand:            normalizeBrand(brand),
-        name,
-        address:          o.FullAddress || [o.Address, o.Suburb, 'NT', o.Postcode].filter(Boolean).join(', '),
-        suburb:           (o.Suburb || '').trim(),
-        state:            'NT' as const,
-        postcode:         o.Postcode,
-        lat:              o.Latitude,
-        lng:              o.Longitude,
-        prices,
-        updatedAt:        refreshedAt,
-        updatedMinutesAgo: 0,
-        source:           'nt-myfuelnt',
-      } satisfies Station;
+/** Fetch driving geometry from the public OSRM demo server. */
+async function fetchOsrmRoute(
+  fromLat: number, fromLng: number, toLat: number, toLng: number
+): Promise<{ points: LatLng[]; distanceKm: number; durationMin: number } | null> {
+  try {
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${fromLng},${fromLat};${toLng},${toLat}` +
+      `?overview=full&geometries=geojson&alternatives=false&steps=false`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Motavo/1.0 (fuel price comparison; motavo.au)' },
+      signal: AbortSignal.timeout(7000),
     });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data?.routes?.[0];
+    if (!route?.geometry?.coordinates?.length) return null;
+    // OSRM returns [lng, lat]; flip to [lat, lng].
+    const points: LatLng[] = route.geometry.coordinates.map(
+      (c: [number, number]) => [c[1], c[0]] as LatLng
+    );
+    return {
+      points,
+      distanceKm: route.distance / 1000,
+      durationMin: route.duration / 60,
+    };
+  } catch {
+    return null;
+  }
 }
 
-// ── Snapshot ──────────────────────────────────────────────────────────────────
-
-interface Snapshot {
-  stations:    Station[];
-  refreshedAt: number;
+/** Straight-line fallback when OSRM is down. */
+function straightLine(fromLat: number, fromLng: number, toLat: number, toLng: number) {
+  const points: LatLng[] = [];
+  const n = 40;
+  for (let i = 0; i <= n; i++) {
+    points.push([fromLat + ((toLat - fromLat) * i) / n, fromLng + ((toLng - fromLng) * i) / n]);
+  }
+  return { points, distanceKm: haversineKm(fromLat, fromLng, toLat, toLng), durationMin: 0 };
 }
 
-async function fetchSnapshot(): Promise<Snapshot> {
-  const cached = cacheGet<Snapshot>(SNAPSHOT_KEY);
-  if (cached) return cached;
+/** Cumulative distance along the polyline at each vertex. */
+function cumulativeKm(points: LatLng[]): number[] {
+  const out = [0];
+  for (let i = 1; i < points.length; i++) {
+    out.push(out[i - 1] + haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]));
+  }
+  return out;
+}
 
-  const ua = 'Mozilla/5.0 (compatible; Motavo/1.0; +https://motavo.com.au)';
+/** Pick evenly-spaced sample points along the polyline. */
+function samplePoints(points: LatLng[], cumKm: number[], totalKm: number): LatLng[] {
+  const count = Math.min(MAX_SAMPLES, Math.max(3, Math.ceil(totalKm / 25)));
+  const out: LatLng[] = [];
+  for (let i = 0; i < count; i++) {
+    const target = (totalKm * i) / (count - 1);
+    // Find first vertex at/after the target distance.
+    let idx = cumKm.findIndex(d => d >= target);
+    if (idx === -1) idx = points.length - 1;
+    out.push(points[idx]);
+  }
+  return out;
+}
 
-  // Step 1: GET homepage for CSRF token + session cookie.
-  const homeRes = await fetch(`${BASE_URL}/`, {
-    headers: { 'User-Agent': ua, Accept: 'text/html' },
-    redirect: 'follow',
-  });
-  if (!homeRes.ok) throw new Error(`NT homepage ${homeRes.status}`);
+/** Downsample geometry to a manageable size for the response payload. */
+function downsample(points: LatLng[], maxPoints = 200): LatLng[] {
+  if (points.length <= maxPoints) return points;
+  const step = points.length / maxPoints;
+  const out: LatLng[] = [];
+  for (let i = 0; i < points.length; i += step) out.push(points[Math.floor(i)]);
+  if (out[out.length - 1] !== points[points.length - 1]) out.push(points[points.length - 1]);
+  return out.map(p => [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5] as LatLng);
+}
 
-  const homeHtml = await homeRes.text();
+export async function GET(req: NextRequest) {
+  const sp = req.nextUrl.searchParams;
+  const fromLat = parseFloat(sp.get('fromLat') || '');
+  const fromLng = parseFloat(sp.get('fromLng') || '');
+  const toLat = parseFloat(sp.get('toLat') || '');
+  const toLng = parseFloat(sp.get('toLng') || '');
 
-  const tokenMatch =
-    homeHtml.match(/<input[^>]+name="__RequestVerificationToken"[^>]+value="([^"]+)"/) ??
-    homeHtml.match(/<input[^>]+value="([^"]+)"[^>]+name="__RequestVerificationToken"/);
-  if (!tokenMatch) throw new Error('NT: CSRF token not found');
-  const token = tokenMatch[1];
-
-  const cookies = (homeRes.headers.get('set-cookie') ?? '')
-    .split(/,(?=\s*\w+=)/)
-    .map(c => c.split(';')[0].trim())
-    .filter(Boolean)
-    .join('; ');
-
-  // Step 2: GET results for Darwin City, all unleaded (includes AllFuels per station).
-  const params = new URLSearchParams({
-    __RequestVerificationToken: token,
-    searchOptions:              'suburbPostcode',
-    Suburb:                     DARWIN_SUBURB,
-    SuburbId:                   DARWIN_SUBURB_ID,
-    RegionId:                   '',
-    FuelCode:                   SEARCH_FUEL_CODE,
-    BrandIdentifier:            '',
-  });
-
-  const resultsRes = await fetch(`${BASE_URL}/Home/Results?${params}`, {
-    headers: {
-      Cookie:       cookies,
-      Referer:      `${BASE_URL}/`,
-      'User-Agent': ua,
-      Accept:       'text/html',
-    },
-    redirect: 'follow',
-  });
-  if (!resultsRes.ok) throw new Error(`NT results ${resultsRes.status}`);
-
-  const html = await resultsRes.text();
-
-  // Step 3: Extract #serverJson hidden input value.
-  // The value is HTML-entity-encoded JSON.
-  const jsonMatch =
-    html.match(/<input[^>]+id="serverJson"[^>]+value="([^"]*)"/) ??
-    html.match(/<input[^>]+value="([^"]*)"[^>]+id="serverJson"/);
-  if (!jsonMatch) throw new Error('NT: #serverJson not found in Results HTML');
-
-  const decoded  = decodeEntities(jsonMatch[1]);
-  const server   = JSON.parse(decoded) as NTServerJson;
-  const outlets  = server.FuelOutlet ?? [];
-
-  const refreshedAt = Date.now();
-  const stations    = parseNtOutlets(outlets, refreshedAt);
-
-  // Self-diagnosing log: stations without prices is exactly the failure mode
-  // that hides behind a green status page. If it happens, say so loudly and
-  // include a payload sample so the fix is obvious from Vercel logs alone.
-  const priced = stations.filter(s => Object.values(s.prices).some(p => p !== null)).length;
-  if (stations.length > 0 && priced === 0) {
-    const sample = outlets[0] ?? {};
-    console.error(
-      `[NT] DEGRADED: ${stations.length} stations parsed but 0 have prices — ` +
-      `payload shape likely changed. Outlet keys: [${Object.keys(sample).join(', ')}]. ` +
-      `AllFuels sample: ${JSON.stringify((sample as any).AllFuels?.slice?.(0, 2) ?? null)}`
+  if ([fromLat, fromLng, toLat, toLng].some(isNaN)) {
+    return NextResponse.json(
+      { error: 'fromLat, fromLng, toLat and toLng are required numeric query parameters.' },
+      { status: 400 }
     );
   }
 
-  const snapshot: Snapshot = { stations, refreshedAt };
-  cacheSet(SNAPSHOT_KEY, snapshot, SNAPSHOT_TTL);
-  return snapshot;
-}
-
-function decodeEntities(s: string): string {
-  return s
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g,  '&')
-    .replace(/&lt;/g,   '<')
-    .replace(/&gt;/g,   '>')
-    .replace(/&#39;/g,  "'")
-    .replace(/&nbsp;/g, ' ');
-}
-
-// ── Public fetch ──────────────────────────────────────────────────────────────
-
-export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
-  const { lat, lng, radius = 5, fuelType, limit = 30 } = opts;
-
-  let snapshot: Snapshot;
-  let fromCache = false;
-
-  try {
-    const preFetch = cacheGet<Snapshot>(SNAPSHOT_KEY);
-    fromCache = preFetch !== null;
-    snapshot  = preFetch ?? await fetchSnapshot();
-  } catch (err) {
-    console.error('[NT] fetchSnapshot error:', err);
-    return {
-      stations:    [],
-      source:      'nt-myfuelnt',
-      cached:      false,
-      refreshedAt: 0,
-    };
+  const crowKm = haversineKm(fromLat, fromLng, toLat, toLng);
+  if (crowKm < 1) {
+    return NextResponse.json({ error: 'Origin and destination are the same place.' }, { status: 400 });
+  }
+  if (crowKm > MAX_ROUTE_KM) {
+    return NextResponse.json(
+      { error: `Route too long — keep it under ${MAX_ROUTE_KM} km for now.` },
+      { status: 400 }
+    );
   }
 
-  const nearby = snapshot.stations
-    .reduce<Station[]>((acc, s) => {
-      const dist = distanceKm(lat, lng, s.lat, s.lng);
-      if (dist > radius) return acc;
-      acc.push({ ...s, distance: dist });
-      return acc;
-    }, [])
-    .filter(s => !fuelType || s.prices[fuelType] !== null)
-    .sort((a, b) =>
-      fuelType
-        ? (a.prices[fuelType] ?? 9999) - (b.prices[fuelType] ?? 9999)
-        : (a.distance ?? 0)           - (b.distance ?? 0)
-    )
-    .slice(0, limit);
+  const rawFuel = sp.get('fuel') || 'U91';
+  const fuel = (VALID_FUEL_TYPES.includes(rawFuel as any) ? rawFuel : 'U91') as FuelType;
 
-  return {
-    stations:    nearby,
-    source:      'nt-myfuelnt',
-    cached:      fromCache,
-    refreshedAt: snapshot.refreshedAt,
+  // Whole-response cache: same trip + fuel within 5 min returns instantly.
+  const cacheKey = `route:${fromLat.toFixed(3)},${fromLng.toFixed(3)}:${toLat.toFixed(3)},${toLng.toFixed(3)}:${fuel}`;
+  const cached = cacheGet<object>(cacheKey);
+  if (cached) {
+    return NextResponse.json({ ...cached, cached: true });
+  }
+
+  // 1. Route geometry.
+  const osrm = await fetchOsrmRoute(fromLat, fromLng, toLat, toLng);
+  const geo = osrm || straightLine(fromLat, fromLng, toLat, toLng);
+  const cumKm = cumulativeKm(geo.points);
+  const totalKm = cumKm[cumKm.length - 1];
+
+  // 2. Sample along the route and fetch stations near each sample.
+  const samples = samplePoints(geo.points, cumKm, totalKm);
+  const results = await Promise.allSettled(
+    samples.map(([lat, lng]) => {
+      const state = stateFromCoords(lat, lng);
+      const fetcher = FETCHER[state];
+      return fetcher({ lat, lng, radius: MAX_DETOUR_KM + 2, limit: 40, state, fuelType: fuel });
+    })
+  );
+
+  // 3. Dedupe and compute detour + along-route position per station.
+  const byId = new Map<string, Station>();
+  for (const r of results) {
+    if (r.status !== 'fulfilled') continue;
+    for (const st of r.value?.stations || []) {
+      if (st?.id && !byId.has(st.id)) byId.set(st.id, st);
+    }
+  }
+
+  const stations = Array.from(byId.values())
+    .map(st => {
+      let best = Infinity;
+      let bestIdx = 0;
+      // Nearest route vertex — OSRM geometry is dense enough for a good approximation.
+      for (let i = 0; i < geo.points.length; i++) {
+        const d = haversineKm(st.lat, st.lng, geo.points[i][0], geo.points[i][1]);
+        if (d < best) { best = d; bestIdx = i; }
+      }
+      return { ...st, detourKm: Math.round(best * 10) / 10, alongKm: Math.round(cumKm[bestIdx]) };
+    })
+    .filter(st => st.detourKm <= MAX_DETOUR_KM && st.prices?.[fuel] != null)
+    .sort((a, b) => (a.prices[fuel]! - b.prices[fuel]!))
+    .slice(0, MAX_RESULTS);
+
+  const payload = {
+    route: {
+      distanceKm: Math.round(totalKm),
+      durationMin: Math.round(geo.durationMin),
+      source: osrm ? 'osrm' : 'straight-line',
+      points: downsample(geo.points),
+    },
+    fuel,
+    stations,
   };
+
+  cacheSet(cacheKey, payload, 5 * 60 * 1000);
+  return NextResponse.json(payload);
 }
