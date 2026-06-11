@@ -262,7 +262,6 @@ export default function EVPanel() {
   };
 
   const reset = () => { setCoords(null); setStations([]); setQuery(''); setLocLabel(''); };
-  const STATS = [['Live', 'Locations'], ['0', 'Paid listings'], ['Free', 'Always']];
 
   return (
     <div className="ev-panel">
@@ -323,13 +322,11 @@ export default function EVPanel() {
                   Couldn't get your location — try searching instead.
                 </p>
               )}
-              <div className="flex items-center gap-6 mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
-                {STATS.map(([val, label]) => (
-                  <div key={label}>
-                    <div className="font-display font-bold" style={{ fontSize: '1.4rem', lineHeight: 1, letterSpacing: '-0.02em' }}>{val}</div>
-                    <div className="text-tiny mt-0.5" style={{ color: 'var(--text-4)' }}>{label}</div>
-                  </div>
-                ))}
+              <div className="hidden sm:block mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                  Live charger locations across Australia from Open Charge Map.
+                  No network pays for placement — and it's free, always.
+                </p>
               </div>
               </div>
 
