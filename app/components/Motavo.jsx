@@ -2977,20 +2977,8 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   </p>
                 )}
 
-                <div className="hidden sm:block mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
-                    Every state and territory, straight from government price feeds.
-                    No station can pay to rank higher — and it's free, always.{' '}
-                    <button type="button" onClick={() => onNav({ name: 'methodology' })}
-                            className="ulink font-medium"
-                            style={{ color: 'var(--text-2)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>
-                      How our data works →
-                    </button>
-                  </p>
-                </div>
-
                 <button type="button" onClick={() => onNav({ name: 'route' })}
-                        className="hover-raise w-full flex items-center gap-4 px-4 py-4 mt-6 text-left transition-colors"
+                        className="hover-raise w-full flex items-center gap-4 px-4 py-4 mt-4 text-left transition-colors"
                         style={{ background: 'rgba(255,74,23,0.06)', border: '1px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
                   <span className="shrink-0 inline-flex items-center justify-center"
                         style={{ width: 42, height: 42, background: 'var(--accent)' }}>
@@ -3008,6 +2996,18 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   </span>
                   <ChevronRight size={17} className="shrink-0" style={{ color: 'var(--accent)' }} />
                 </button>
+
+                <div className="hidden sm:block mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                    Every state and territory, straight from government price feeds.
+                    No station can pay to rank higher — and it's free, always.{' '}
+                    <button type="button" onClick={() => onNav({ name: 'methodology' })}
+                            className="ulink font-medium"
+                            style={{ color: 'var(--text-2)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>
+                      How our data works →
+                    </button>
+                  </p>
+                </div>
 
                 <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
                         className="hover-raise inline-flex items-center gap-3 px-4 py-3 mt-3 transition-colors"
