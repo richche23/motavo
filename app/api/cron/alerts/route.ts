@@ -2,14 +2,12 @@
  * GET /api/cron/alerts — daily alert dispatcher.
  *
  * 1. Fetches all subscriptions from Redis (pattern: subscription:*:*:*)
- * 2. Groups by email and city
- * 3. For each city, checks if it just flipped to "buy now" (from non-buy or no prior alert today)
- * 4. Batches emails per subscriber (one email per person, lists all their buy-now cities)
- * 5. Sends via Resend
- * 6. Records lastAlertAt in Redis to avoid re-alerting within 24h
+ * 2. For each suburb subscription, checks if its state's price cycle is "peak" or "high"
+ * 3. If yes AND no alert sent today (lastAlertAt check), sends email
+ * 4. Records lastAlertAt in Redis to throttle alerts to once per 24 hours per suburb
  *
- * Triggered daily by Vercel Cron (if Pro plan) or manually via a scheduler external to Vercel.
- * On Hobby, just visit the URL manually once a day or use an external cron service.
+ * Suburb-level alerts check state-level cycle signals. When NSW says "buy now",
+ * all NSW suburb subscribers get alerted (once per day max).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
@@ -21,26 +19,15 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-if (!UPSTASH_URL || !UPSTASH_TOKEN) {
-  throw new Error('Upstash Redis env vars missing');
-}
-if (!RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY not set');
-}
-
-const resend = new Resend(RESEND_API_KEY);
-
 type Subscription = {
   email: string;
-  city: string;
+  suburb: string;
   fuelType: string;
   subscribedAt: number;
   lastAlertAt: number | null;
 };
 
 type SignalState = 'low' | 'mid' | 'high' | 'peak' | 'unknown' | 'stable';
-
-type CycleSignal = { signal: SignalState; latest?: number };
 
 async function scanRedis(pattern: string, cursor = '0', results: string[] = []): Promise<string[]> {
   const res = await fetch(`${UPSTASH_URL}/scan/${cursor}`, {
@@ -80,27 +67,36 @@ async function setRedis(key: string, value: Subscription) {
   if (!res.ok) throw new Error(`Redis set failed: ${res.status}`);
 }
 
-async function getCycleSignal(city: string): Promise<CycleSignal> {
+async function getCycleSignals(): Promise<Record<string, SignalState>> {
   try {
-    // Fetch the computed signal from the existing API endpoint
     const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
     const res = await fetch(`${base}/api/cycle/summary?fuel=U91`, {
       cache: 'no-store',
     });
-    if (!res.ok) return { signal: 'unknown' };
+    if (!res.ok) return {};
     const data = await res.json();
-    const signals = data.signals || {};
-    return signals[city] || { signal: 'unknown' };
+    const signals: Record<string, SignalState> = {};
+    for (const [state, signal] of Object.entries(data.signals || {})) {
+      signals[state] = (signal as any)?.signal || 'unknown';
+    }
+    return signals;
   } catch {
-    return { signal: 'unknown' };
+    return {};
   }
 }
 
 export async function GET(req: NextRequest) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN || !RESEND_API_KEY) {
+    return NextResponse.json(
+      { error: 'Missing environment variables (Upstash or Resend config)' },
+      { status: 500 }
+    );
+  }
+
+  const resend = new Resend(RESEND_API_KEY);
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  // Optional auth: if CRON_SECRET is set, require it. Allows manual testing without auth.
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -109,11 +105,11 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
-    // 1. Scan all subscriptions
+    // Fetch all subscriptions
     const keys = await scanRedis('subscription:*:*:*');
     console.log(`[alerts] found ${keys.length} subscriptions`);
 
-    // 2. Load each subscription
+    // Load each subscription
     const subscriptions = await Promise.all(
       keys.map(async k => {
         const sub = await getRedis(k);
@@ -122,38 +118,48 @@ export async function GET(req: NextRequest) {
     );
     const validSubs = subscriptions.filter(Boolean) as (Subscription & { key: string })[];
 
-    // 3. Group by email to batch results
-    const byEmail = new Map<string, (Subscription & { key: string; shouldAlert: boolean })[]>();
+    // Get state-level cycle signals
+    const cycleSignals = await getCycleSignals();
+
+    // Extract state from suburb slug (e.g., "melbourne-vic-3000" → "VIC")
+    const getStateFromSuburb = (suburb: string): string => {
+      const parts = suburb.split('-');
+      return parts[1]?.toUpperCase() || 'unknown';
+    };
+
+    // Group by email to batch emails
+    const byEmail = new Map<string, (Subscription & { key: string; shouldAlert: boolean; suburb: string })[]>();
     for (const sub of validSubs) {
-      const signal = await getCycleSignal(sub.city);
+      const state = getStateFromSuburb(sub.suburb);
+      const signal = cycleSignals[state] || 'unknown';
       const shouldAlert =
-        (signal.signal === 'peak' || signal.signal === 'high') &&
+        (signal === 'peak' || signal === 'high') &&
         (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo);
 
-      const entry = { ...sub, shouldAlert };
+      const entry = { ...sub, shouldAlert, suburb: sub.suburb };
       if (!byEmail.has(sub.email)) byEmail.set(sub.email, []);
       byEmail.get(sub.email)!.push(entry);
     }
 
-    // 4. Send emails
+    // Send emails
     const emailsSent: string[] = [];
     for (const [email, subs] of byEmail) {
-      const alertCities = subs.filter(s => s.shouldAlert);
-      if (alertCities.length === 0) continue;
+      const alertSuburbs = subs.filter(s => s.shouldAlert);
+      if (alertSuburbs.length === 0) continue;
 
-      const cityList = alertCities
-        .map(s => `${s.city} (${s.fuelType})`)
+      const suburbList = alertSuburbs
+        .map(s => `${s.suburb.split('-')[0]} (${s.fuelType})`)
         .join(', ');
 
       const result = await resend.emails.send({
         from: 'alerts@motavo.au',
         to: email,
-        subject: `⛽ Time to fill up — ${cityList} prices are up`,
+        subject: `⛽ Time to fill up — ${suburbList} prices are up`,
         html: `
 <p>Hi,</p>
-<p>Prices are <strong>good right now</strong> in ${alertCities.length === 1 ? cityList : 'your areas'}:</p>
+<p>Prices are <strong>good right now</strong> in ${alertSuburbs.length === 1 ? 'your area' : 'your areas'}:</p>
 <ul>
-${alertCities.map(s => `<li><strong>${s.city}</strong> (${s.fuelType})</li>`).join('\n')}
+${alertSuburbs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fuelType})</li>`).join('\n')}
 </ul>
 <p><a href="https://motavo.au">Check live prices</a> and fill up before they climb again.</p>
 <p>— Motavo</p>
@@ -164,10 +170,10 @@ ${alertCities.map(s => `<li><strong>${s.city}</strong> (${s.fuelType})</li>`).jo
         console.error(`[alerts] failed to send to ${email}:`, result.error);
       } else {
         emailsSent.push(email);
-        // Update lastAlertAt for each subscribed city so we don't re-alert within 24h
+        // Update lastAlertAt for each suburb
         await Promise.all(
-          alertCities.map(s =>
-            setRedis(`subscription:${s.email}:${s.city}:${s.fuelType}`, {
+          alertSuburbs.map(s =>
+            setRedis(`subscription:${s.email}:${s.suburb}:${s.fuelType}`, {
               ...s,
               lastAlertAt: now,
             })
