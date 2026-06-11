@@ -32,7 +32,6 @@ async function getRedis(key: string): Promise<any> {
   if (!res.ok) return null;
   const data = await res.json();
   try {
-    // Upstash returns {result: value} where value might be string or object
     let result = data.result;
     if (!result) return null;
     
@@ -47,7 +46,7 @@ async function getRedis(key: string): Promise<any> {
     }
     
     return result;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
