@@ -16,8 +16,6 @@ type Subscription = {
   lastAlertAt: number | null;
 };
 
-type SignalState = 'low' | 'mid' | 'high' | 'peak' | 'unknown' | 'stable';
-
 async function getKeysRedis(pattern: string): Promise<string[]> {
   const res = await fetch(`${UPSTASH_URL}/keys/${pattern}`, {
     headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
@@ -35,8 +33,7 @@ async function getRedis(key: string): Promise<any> {
   const data = await res.json();
   try {
     return data.result ? JSON.parse(data.result) : null;
-  } catch (e) {
-    console.error(`[alerts] parse failed for ${key}`, e);
+  } catch {
     return null;
   }
 }
@@ -50,24 +47,18 @@ async function setRedis(key: string, value: Subscription) {
   if (!res.ok) throw new Error(`Redis set failed: ${res.status}`);
 }
 
-async function getCycleSignals(): Promise<Record<string, SignalState>> {
+async function getCycleSignals(): Promise<Record<string, string>> {
   try {
     const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-    console.log(`[alerts] fetching cycle signals from ${base}/api/cycle/summary`);
     const res = await fetch(`${base}/api/cycle/summary?fuel=U91`, { cache: 'no-store' });
-    if (!res.ok) {
-      console.warn(`[alerts] cycle fetch failed: ${res.status}`);
-      return {};
-    }
+    if (!res.ok) return {};
     const data = await res.json();
-    const signals: Record<string, SignalState> = {};
+    const signals: Record<string, string> = {};
     for (const [state, signal] of Object.entries(data.signals || {})) {
       signals[state] = (signal as any)?.signal || 'unknown';
     }
-    console.log(`[alerts] loaded cycle signals:`, signals);
     return signals;
-  } catch (e) {
-    console.error('[alerts] cycle fetch error', e);
+  } catch {
     return {};
   }
 }
@@ -90,26 +81,19 @@ export async function GET(req: NextRequest) {
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
     const keys = await getKeysRedis('subscription:*:*:*');
-    console.log(`[alerts] found ${keys.length} keys:`, keys);
-
-    // Load subscriptions
+    
+    // Load subscriptions with detailed debug info
+    const debugInfo: Record<string, any> = {};
     const subscriptions = await Promise.all(
       keys.map(async k => {
         const sub = await getRedis(k);
-        console.log(`[alerts] key ${k} loaded as:`, sub);
-        if (!sub) {
-          console.warn(`[alerts] ${k} returned null`);
-          return null;
-        }
-        if (!sub.suburb) {
-          console.warn(`[alerts] ${k} missing suburb. contents:`, sub);
-          return null;
-        }
+        debugInfo[k] = { loaded: sub, hasSuburb: sub?.suburb ? true : false };
+        if (!sub) return null;
+        if (!sub.suburb) return null;
         return { key: k, ...sub };
       })
     );
     const validSubs = subscriptions.filter(Boolean) as (Subscription & { key: string })[];
-    console.log(`[alerts] ${validSubs.length} subscriptions passed validation`);
 
     // Get signals
     const cycleSignals = await getCycleSignals();
@@ -126,7 +110,6 @@ export async function GET(req: NextRequest) {
       const state = getStateFromSuburb(sub.suburb);
       const signal = cycleSignals[state] || 'unknown';
       const shouldAlert = (signal === 'peak' || signal === 'high') && (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo);
-      console.log(`[alerts] ${sub.suburb} state=${state} signal=${signal} shouldAlert=${shouldAlert}`);
       if (!byEmail.has(sub.email)) byEmail.set(sub.email, []);
       byEmail.get(sub.email)!.push({ ...sub, shouldAlert });
     }
@@ -134,10 +117,7 @@ export async function GET(req: NextRequest) {
     const emailsSent: string[] = [];
     for (const [email, subs] of byEmail) {
       const alertSubs = subs.filter(s => s.shouldAlert);
-      if (alertSubs.length === 0) {
-        console.log(`[alerts] ${email}: 0 suburbs to alert`);
-        continue;
-      }
+      if (alertSubs.length === 0) continue;
 
       const suburbList = alertSubs.map(s => `${s.suburb.split('-')[0]} (${s.fuelType})`).join(', ');
       const result = await resend.emails.send({
@@ -147,11 +127,8 @@ export async function GET(req: NextRequest) {
         html: `<p>Hi,</p><p>Prices are <strong>good right now</strong> in ${alertSubs.length === 1 ? 'your area' : 'your areas'}:</p><ul>${alertSubs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fuelType})</li>`).join('\n')}</ul><p><a href="https://motavo.au">Check live prices</a> and fill up before they climb again.</p><p>— Motavo</p>`,
       });
 
-      if (result.error) {
-        console.error(`[alerts] send to ${email} failed:`, result.error);
-      } else {
+      if (!result.error) {
         emailsSent.push(email);
-        console.log(`[alerts] sent email to ${email}`);
         await Promise.all(
           alertSubs.map(s =>
             setRedis(`subscription:${s.email}:${s.suburb}:${s.fuelType}`, {
@@ -170,9 +147,13 @@ export async function GET(req: NextRequest) {
       validSubscriptions: validSubs.length,
       emailsSent: emailsSent.length,
       recipients: emailsSent,
+      _debug: {
+        keysFound: keys,
+        subscriptionDetails: debugInfo,
+        cycleSignals,
+      },
     });
   } catch (e: any) {
-    console.error('[alerts] error:', e?.message);
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }
