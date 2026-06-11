@@ -1771,6 +1771,23 @@ const SavingsBanner = ({ stations, fuelType }) => {
   );
 };
 
+/**
+ * RoutePromo — slim banner surfacing the route planner from the results view,
+ * where people are already in fuel-buying mode. Kept quiet relative to the
+ * data components around it: one line, tap target the full row.
+ */
+const RoutePromo = ({ onNav }) => (
+  <button type="button" onClick={() => onNav({ name: 'route' })}
+          className="hover-raise w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
+    <Navigation size={15} className="shrink-0" style={{ color: 'var(--accent)' }} />
+    <span className="flex-1 min-w-0 text-sm" style={{ color: 'var(--text-2)' }}>
+      <span className="font-semibold" style={{ color: 'var(--text)' }}>Heading somewhere?</span> Rank every station along your route, not just nearby.
+    </span>
+    <ChevronRight size={15} className="shrink-0" style={{ color: 'var(--text-4)' }} />
+  </button>
+);
+
 const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasError }) => (
   <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
@@ -2837,6 +2854,7 @@ const Footer = ({ onNav }) => (
           <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>About</div>
           <ul className="space-y-2 text-sm">
             {[
+              { label: 'Route planner', view: { name: 'route' } },
               { label: 'About Motavo', view: { name: 'about' } },
               { label: 'Our data & methodology', view: { name: 'methodology' } },
               { label: 'How fuel cycles work', view: { name: 'editorial', slug: 'cycles' } },
@@ -2928,22 +2946,33 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   ))}
                 </div>
 
-                <div className="flex flex-wrap gap-3 mt-6">
-                  <button type="button" onClick={() => onNav({ name: 'route' })}
-                          className="hover-raise inline-flex items-center gap-3 px-4 py-3 transition-colors"
-                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
-                    <Navigation size={16} style={{ color: 'var(--accent)' }} />
-                    <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>Cheapest fuel along a route</span>
-                    <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
-                  </button>
-                  <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
-                          className="hover-raise inline-flex items-center gap-3 px-4 py-3 transition-colors"
-                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
-                    <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
-                    <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
-                    <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
-                  </button>
-                </div>
+                <button type="button" onClick={() => onNav({ name: 'route' })}
+                        className="hover-raise w-full flex items-center gap-4 px-4 py-4 mt-6 text-left transition-colors"
+                        style={{ background: 'rgba(255,74,23,0.06)', border: '1px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
+                  <span className="shrink-0 inline-flex items-center justify-center"
+                        style={{ width: 42, height: 42, background: 'var(--accent)' }}>
+                    <Navigation size={19} color="#ffffff" strokeWidth={2.2} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="font-display font-semibold text-base" style={{ color: 'var(--text)' }}>Route planner</span>
+                      <span className="font-mono text-micro font-bold uppercase track-wide px-1.5 py-0.5"
+                            style={{ background: 'var(--accent)', color: '#ffffff' }}>New</span>
+                    </span>
+                    <span className="block text-sm mt-0.5" style={{ color: 'var(--text-3)' }}>
+                      Cheapest fuel along your whole trip — not just near you.
+                    </span>
+                  </span>
+                  <ChevronRight size={17} className="shrink-0" style={{ color: 'var(--accent)' }} />
+                </button>
+
+                <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
+                        className="hover-raise inline-flex items-center gap-3 px-4 py-3 mt-3 transition-colors"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
+                  <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
+                  <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
+                  <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+                </button>
               </div>
 
               {/* Right: quick city list */}
@@ -2999,6 +3028,8 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
             <FuelTypePicker value={fuelType} onChange={onFuelType} />
 
             <PriceStats stations={stations} fuelType={fuelType} />
+
+            <RoutePromo onNav={onNav} />
 
             <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
                          onViewMode={setViewMode} sort={sort} onSort={setSort}
