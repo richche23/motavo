@@ -6,7 +6,7 @@ import { SUBURBS } from '@/lib/suburbs';
 
 const MELBOURNE = { lat: -37.8136, lng: 144.9631, label: 'Melbourne CBD' };
 const INDICATIVE_NOTE =
-  'Prices are indicative network rates, not live per-charger prices. Check the operator’s app for the exact cost before charging.';
+  'Indicative network rates (verified June 2026) — not live per-charger prices. Check the operator’s app for the exact cost before charging.';
 
 const MotavoMark = ({ size = 30 }) => (
   <svg viewBox="30 30 68 68" width={size} height={size} fill="none" aria-hidden="true">
