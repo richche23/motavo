@@ -34,17 +34,17 @@ async function getRedis(key: string): Promise<any> {
   try {
     let result = data.result;
     if (!result) return null;
-    
-    // If result is a string (JSON), parse it
-    if (typeof result === 'string') {
-      return JSON.parse(result);
+    // Unwrap repeatedly: handles plain JSON strings AND legacy
+    // double-wrapped {value, ex} envelopes from the old setRedis bug
+    for (let i = 0; i < 3; i++) {
+      if (typeof result === 'string') {
+        result = JSON.parse(result);
+      } else if (result && typeof result === 'object' && typeof result.value === 'string') {
+        result = JSON.parse(result.value);
+      } else {
+        break;
+      }
     }
-    
-    // If result is an object with a 'value' field (Upstash wrapped format), extract and parse
-    if (typeof result === 'object' && result.value) {
-      return JSON.parse(result.value);
-    }
-    
     return result;
   } catch {
     return null;
@@ -52,10 +52,10 @@ async function getRedis(key: string): Promise<any> {
 }
 
 async function setRedis(key: string, value: Subscription) {
-  const res = await fetch(`${UPSTASH_URL}/set/${key}`, {
+  const res = await fetch(`${UPSTASH_URL}/set/${key}?EX=${365 * 24 * 60 * 60}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ value: JSON.stringify(value), ex: 365 * 24 * 60 * 60 }),
+    body: JSON.stringify(value),
   });
   if (!res.ok) throw new Error(`Redis set failed: ${res.status}`);
 }
