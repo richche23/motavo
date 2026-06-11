@@ -305,17 +305,18 @@ export default function EVPanel() {
               <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                 Live charger locations from Open Charge Map, with indicative network pricing. Free, independent, no sponsored results.
               </p>
-              <div className="ev-search" style={{ marginBottom: '0.75rem', position: 'relative', maxWidth: 440 }}>
+              <button type="button" onClick={useMyLocation} disabled={locating}
+                      className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 font-semibold text-sm transition-opacity disabled:opacity-60"
+                      style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', borderRadius: 0, cursor: locating ? 'default' : 'pointer', marginBottom: '0.75rem' }}>
+                {locating ? <Loader2 size={15} className="animate-spin" /> : <Navigation size={15} />}
+                {locating ? 'Finding chargers near you…' : 'Find chargers near me'}
+              </button>
+
+              <div className="ev-search" style={{ marginBottom: '0.5rem', position: 'relative' }}>
                 <Search size={18} style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-4)' }} />
-                <input list="ev-suburbs" value={query} onChange={e => onSuburbPick(e.target.value)} placeholder="Search suburb or postcode…" />
+                <input list="ev-suburbs" value={query} onChange={e => onSuburbPick(e.target.value)} placeholder="Or search a suburb or postcode…" />
                 <datalist id="ev-suburbs">{suburbOptions.map(o => <option key={o.key} value={o.label} />)}</datalist>
               </div>
-              <button type="button" onClick={useMyLocation} disabled={locating}
-                      className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-60"
-                      style={{ color: 'var(--text-3)', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer' }}>
-                {locating ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
-                {locating ? 'Locating…' : 'Use my current location'}
-              </button>
               {locError && (
                 <p className="text-tiny mt-2" style={{ color: 'var(--warn)' }}>
                   <AlertCircle size={11} style={{ display: 'inline', marginRight: 4 }} />
