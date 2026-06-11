@@ -5,11 +5,11 @@ export const metadata: Metadata = {
   title: 'EV Charging Near You — Find Public Chargers Across Australia',
   description:
     'Find public EV charging stations near you across Australia, with connector types, charging speed and indicative network pricing. Live locations from Open Charge Map.',
-  alternates: { canonical: 'https://www.motavo.com.au/ev' },
+  alternates: { canonical: 'https://motavo.au/ev' },
   openGraph: {
     title: 'Motavo EV Charging — Find chargers across Australia',
     description: 'Public EV charging points with connector types, speeds and indicative pricing.',
-    url: 'https://www.motavo.com.au/ev',
+    url: 'https://motavo.au/ev',
     images: ['/opengraph-image.png'],
   },
 };
