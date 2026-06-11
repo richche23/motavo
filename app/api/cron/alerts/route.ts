@@ -1,7 +1,7 @@
 /**
  * GET /api/cron/alerts — daily alert dispatcher.
  *
- * 1. Fetches all subscriptions from Redis (pattern: subscription:*:*:*)
+ * 1. Fetches all subscriptions from Redis (using KEYS subscription:*:*:*)
  * 2. For each suburb subscription, checks if its state's price cycle is "peak" or "high"
  * 3. If yes AND no alert sent today (lastAlertAt check), sends email
  * 4. Records lastAlertAt in Redis to throttle alerts to once per 24 hours per suburb
@@ -26,28 +26,17 @@ type Subscription = {
 
 type SignalState = 'low' | 'mid' | 'high' | 'peak' | 'unknown' | 'stable';
 
-async function scanRedis(pattern: string, cursor = '0', results: string[] = []): Promise<string[]> {
-  const params = new URLSearchParams({
-    cursor,
-    match: pattern,
-    count: '100',
-  });
-  const res = await fetch(`${UPSTASH_URL}/scan?${params}`, {
-    method: 'GET',
+async function getKeysRedis(pattern: string): Promise<string[]> {
+  const res = await fetch(`${UPSTASH_URL}/keys/${pattern}`, {
     headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
   });
   if (!res.ok) {
-    console.error(`[alerts] scan failed: ${res.status}`, await res.text());
-    throw new Error(`Redis scan failed: ${res.status}`);
+    const text = await res.text();
+    console.error(`[alerts] keys failed: ${res.status}`, text);
+    throw new Error(`Redis keys failed: ${res.status}`);
   }
   const data = await res.json();
-  const keys = (data.result?.[1] || []) as string[];
-  results.push(...keys);
-  const nextCursor = data.result?.[0];
-  if (nextCursor && nextCursor !== '0') {
-    return scanRedis(pattern, nextCursor, results);
-  }
-  return results;
+  return (data.result || []) as string[];
 }
 
 async function getRedis(key: string): Promise<Subscription | null> {
@@ -110,8 +99,8 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
-    // Fetch all subscriptions
-    const keys = await scanRedis('subscription:*:*:*');
+    // Fetch all subscription keys using KEYS command
+    const keys = await getKeysRedis('subscription:*:*:*');
     console.log(`[alerts] found ${keys.length} subscriptions`);
 
     // Load each subscription
