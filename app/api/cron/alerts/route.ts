@@ -122,7 +122,8 @@ export async function GET(req: NextRequest) {
     for (const sub of validSubs) {
       const state = getStateFromSuburb(sub.suburb);
       const signal = cycleSignals[state] || 'unknown';
-      const shouldAlert = (signal === 'peak' || signal === 'high') && (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo);
+      const testMode = req.nextUrl.searchParams.get('test') === '1';
+      const shouldAlert = testMode || ((signal === 'peak' || signal === 'high') && (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo));
       if (!byEmail.has(sub.email)) byEmail.set(sub.email, []);
       byEmail.get(sub.email)!.push({ ...sub, shouldAlert });
     }
