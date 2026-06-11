@@ -12,6 +12,7 @@ import {
   Sun, Moon, Gauge, Fuel
 } from 'lucide-react';
 import { AlertSignup } from './AlertSignup';
+import EVPanel from './EVPanel';
 
 /* =====================================================================
    Large, prominent Fuel / EV mode toggle (home view)
