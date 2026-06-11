@@ -318,6 +318,44 @@ const CITIES = [
 // Map a state code to its representative capital-city entry (for cycle labels)
 const cityForState = (state) => CITIES.find(c => c.state === state) || null;
 
+/* ── Live cycle signals (city-grid chips) ─────────────────────────────────
+   One fetch pulls the server-logged cycle position for every state
+   (/api/cycle/summary — single Redis MGET behind it) and renders a compact
+   verdict chip on each city card. Chips only appear once the daily cron has
+   logged enough history for that state (>= 4 days, >= 3c/L spread) — no
+   false precision while it's still learning. */
+const SIGNAL_TONES = {
+  low:  { label: 'Buy now',   color: 'var(--success)' },
+  mid:  { label: 'Mid-cycle', color: 'var(--text-3)'  },
+  high: { label: 'Wait',      color: 'var(--warn)'    },
+  peak: { label: 'Peak',      color: 'var(--danger)'  },
+};
+
+function useCycleSignals(fuelType = 'U91') {
+  const [signals, setSignals] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/cycle/summary?fuel=${fuelType}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d?.signals) setSignals(d.signals); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [fuelType]);
+  return signals;
+}
+
+const SignalChip = ({ signal }) => {
+  const tone = signal && SIGNAL_TONES[signal.tone];
+  if (!tone) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 font-mono text-micro font-semibold uppercase track-wide px-1.5 py-0.5"
+          style={{ color: tone.color, border: `1px solid ${tone.color}`, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+      <span style={{ width: 5, height: 5, background: tone.color, display: 'inline-block', flexShrink: 0 }} />
+      {tone.label}
+    </span>
+  );
+};
+
 /**
  * Government fuel price data sources by state. All Australian states now
  * mandate real-time price reporting; each source provides a free API for
@@ -2774,6 +2812,7 @@ const Footer = ({ onNav }) => (
 
 const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, onSearchSelect, onNav, onFuelType, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
   const [stations, setStations] = useState([]);
+  const signals = useCycleSignals(fuelType);
   const [loadingStations, setLoadingStations] = useState(false);
 
   useEffect(() => {
@@ -2859,7 +2898,10 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                         <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
                       </div>
-                      <span className="text-tiny" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
+                      <span className="inline-flex items-center gap-2">
+                        <SignalChip signal={signals[c.state]} />
+                        <span className="text-tiny" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -2918,7 +2960,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
   );
 };
 
-const CitiesIndexView = ({ onNav }) => (
+const CitiesIndexView = ({ onNav }) => {
+  const signals = useCycleSignals('U91');
+  return (
   <div className="max-w-6xl mx-auto px-4 md:px-6 py-12 md:py-16">
     <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Capital cities</div>
     <h1 className="font-display font-semibold text-4xl md:text-6xl lead-tight mb-4">
@@ -2948,14 +2992,18 @@ const CitiesIndexView = ({ onNav }) => (
             </div>
             <div>
               <div className="text-micro uppercase track-wide font-medium mb-1" style={{ color: 'var(--text-4)' }}>Cycle</div>
-              <div className="font-medium">{c.cycle}</div>
+              <div className="font-medium flex items-center gap-2 flex-wrap">
+                <span>{c.cycle}</span>
+                <SignalChip signal={signals[c.state]} />
+              </div>
             </div>
           </div>
         </button>
       ))}
     </div>
   </div>
-);
+  );
+};
 
 const citySource = (state) => ({
   NSW: 'FuelCheck NSW', VIC: 'Servo Saver', QLD: 'QLD Fuel Price Reporting',
