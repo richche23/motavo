@@ -1,12 +1,24 @@
-// app/components/EVFinder.jsx — standalone EV page (Direction B / industrial)
+// app/components/EVFinder.jsx — standalone /ev page (Direction B / industrial)
+// Mirrors the homepage hero pattern: orange CTA → search → trust line, with
+// browse-by-city on the right. Hero shows until a location is chosen.
 'use client';
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { SUBURBS } from '@/lib/suburbs';
 
-const MELBOURNE = { lat: -37.8136, lng: 144.9631, label: 'Melbourne CBD' };
 const INDICATIVE_NOTE =
   'Indicative network rates (verified June 2026) — not live per-charger prices. Check the operator’s app for the exact cost before charging.';
+
+const EV_CITIES = [
+  { slug: 'sydney',    name: 'Sydney',    state: 'NSW', lat: -33.8688, lng: 151.2093 },
+  { slug: 'melbourne', name: 'Melbourne', state: 'VIC', lat: -37.8136, lng: 144.9631 },
+  { slug: 'brisbane',  name: 'Brisbane',  state: 'QLD', lat: -27.4698, lng: 153.0251 },
+  { slug: 'perth',     name: 'Perth',     state: 'WA',  lat: -31.9523, lng: 115.8613 },
+  { slug: 'adelaide',  name: 'Adelaide',  state: 'SA',  lat: -34.9285, lng: 138.6007 },
+  { slug: 'canberra',  name: 'Canberra',  state: 'ACT', lat: -35.2809, lng: 149.1300 },
+  { slug: 'hobart',    name: 'Hobart',    state: 'TAS', lat: -42.8821, lng: 147.3272 },
+  { slug: 'darwin',    name: 'Darwin',    state: 'NT',  lat: -12.4634, lng: 130.8456 },
+];
 
 const MotavoMark = ({ size = 30 }) => (
   <svg viewBox="30 30 68 68" width={size} height={size} fill="none" aria-hidden="true">
@@ -35,14 +47,15 @@ function priceLabel(s) {
 
 export default function EVFinder() {
   const [dark, setDark] = useState(false);
-  const [coords, setCoords] = useState(null);
+  const [coords, setCoords] = useState(null);       // null = hero showing
   const [locLabel, setLocLabel] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState(false);
   const [radius, setRadius] = useState(10);
-  const [level, setLevel] = useState('ALL'); // ALL | AC | DC
+  const [level, setLevel] = useState('ALL');        // ALL | AC | DC
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [note, setNote] = useState('');
   const [query, setQuery] = useState('');
 
   // theme — shares the main app's localStorage key
@@ -77,29 +90,15 @@ export default function EVFinder() {
     }
   }, [radius, level]);
 
-  // initial location: try geolocation, fall back to Melbourne
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setCoords(MELBOURNE); setLocLabel(MELBOURNE.label);
-      setNote('Showing Melbourne — your browser doesn’t support location.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos => { const c = { lat: pos.coords.latitude, lng: pos.coords.longitude }; setCoords(c); setLocLabel('Your location'); },
-      () => { setCoords(MELBOURNE); setLocLabel(MELBOURNE.label); setNote('Showing Melbourne — allow location access to see chargers near you.'); },
-      { timeout: 8000 }
-    );
-  }, []);
-
   // (re)load whenever coords/radius/level change
   useEffect(() => { if (coords) load(coords.lat, coords.lng, radius, level); }, [coords, radius, level, load]);
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) return;
-    setNote('');
+    if (!navigator.geolocation) { setLocError(true); return; }
+    setLocating(true); setLocError(false);
     navigator.geolocation.getCurrentPosition(
-      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocLabel('Your location'); setQuery(''); },
-      () => setNote('Couldn’t get your location — check browser permissions.'),
+      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocLabel('your location'); setQuery(''); setLocating(false); },
+      () => { setLocError(true); setLocating(false); },
       { timeout: 8000 }
     );
   };
@@ -111,8 +110,10 @@ export default function EVFinder() {
   const onSuburbPick = (value) => {
     setQuery(value);
     const match = suburbOptions.find(o => o.label.toLowerCase() === value.toLowerCase());
-    if (match) { setCoords({ lat: match.lat, lng: match.lng }); setLocLabel(match.label); setNote(''); }
+    if (match) { setCoords({ lat: match.lat, lng: match.lng }); setLocLabel(match.label); setLocError(false); }
   };
+
+  const reset = () => { setCoords(null); setLocLabel(''); setQuery(''); setStations([]); };
 
   return (
     <div className="ev" data-theme={dark ? 'dark' : 'light'}>
@@ -123,7 +124,7 @@ export default function EVFinder() {
           --border:#cbc6b9; --border-strong:#15120e;
           --text:#15120e; --text-2:#4a453d; --text-3:#6a655c; --text-4:#938c81;
           --accent:#ff4a17; --accent-dark:#d6390e; --accent-soft:#fbe7df;
-          --danger:#b91c1c;
+          --warn:#b4530a; --danger:#b91c1c;
           min-height:100vh; background:var(--bg); color:var(--text);
           font-family:'Hanken Grotesk',system-ui,sans-serif; letter-spacing:-0.006em;
         }
@@ -134,8 +135,8 @@ export default function EVFinder() {
           --accent:#ff5e30; --accent-dark:#d6390e; --accent-soft:rgba(255,94,48,0.12);
         }
         .ev * { box-sizing:border-box; border-radius:0 !important; }
-        .ev .wrap { max-width:1024px; margin:0 auto; padding:0 20px; }
-        .ev .display { font-family:'Anton','Hanken Grotesk',system-ui,sans-serif; text-transform:uppercase; letter-spacing:0.004em; font-weight:400; }
+        .ev .wrap { max-width:1152px; margin:0 auto; padding:0 20px; }
+        .ev .display { font-family:'Anton','Hanken Grotesk',system-ui,sans-serif; text-transform:uppercase; letter-spacing:0.005em; font-weight:400; }
         .ev .mono { font-family:'JetBrains Mono',ui-monospace,monospace; font-feature-settings:'tnum' on; letter-spacing:-0.01em; }
         .ev .track { font-family:'JetBrains Mono',ui-monospace,monospace; letter-spacing:0.16em; text-transform:uppercase; }
 
@@ -149,27 +150,59 @@ export default function EVFinder() {
         .ev .icon-btn { border:1px solid var(--border); background:var(--surface); color:var(--text-2); width:34px; height:34px; cursor:pointer; font-size:14px; display:inline-flex; align-items:center; justify-content:center; }
         .ev .icon-btn:hover { color:var(--text); }
 
-        .ev .kicker { font-size:11px; font-weight:600; color:var(--accent); margin:40px 0 10px; }
-        .ev h1 { font-size:clamp(34px,6vw,52px); line-height:1.02; margin:0 0 12px; }
-        .ev .sub { color:var(--text-2); font-size:15.5px; margin:0 0 8px; max-width:600px; }
-        .ev .trust { color:var(--text-3); font-size:13.5px; margin:0 0 26px; max-width:600px; }
+        /* HERO — two columns, mirrors homepage */
+        .ev .hero { padding-top:clamp(3rem,8vw,5.5rem); padding-bottom:clamp(3rem,6vw,5rem); }
+        .ev .hero-grid { display:grid; grid-template-columns:1fr; gap:2.5rem; align-items:start; }
+        @media (min-width:768px) { .ev .hero-grid { grid-template-columns:1fr 1fr; gap:4rem; } }
+        .ev h1 { font-size:clamp(3rem,7vw,5.2rem); line-height:0.84; letter-spacing:0.005em; margin:0 0 1.1rem; }
+        .ev h1 .a { color:var(--accent); }
+        .ev .sub { color:var(--text-3); font-size:1.05rem; line-height:1.6; max-width:440px; margin:0 0 2rem; }
+
+        .ev .cta { width:100%; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+                   padding:14px 20px; font:inherit; font-weight:600; font-size:14px;
+                   background:var(--accent); color:#fff; border:none; cursor:pointer; margin-bottom:0.75rem; }
+        .ev .cta:hover { opacity:0.92; }
+        .ev .cta:disabled { opacity:0.6; cursor:default; }
+
+        .ev .ev-search { position:relative; margin-bottom:0.5rem; }
+        .ev .ev-search svg { position:absolute; left:18px; top:50%; transform:translateY(-50%); color:var(--text-4); }
+        .ev .ev-search input { width:100%; padding:18px 18px 18px 48px; font:inherit; font-size:1.05rem; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+        .ev .ev-search input::placeholder { color:var(--text-4); }
+        .ev .ev-search input:focus { outline:none; border-color:var(--border-strong); }
+
+        .ev .locerr { font-size:12px; color:var(--warn); margin-top:6px; }
+        .ev .trust { margin-top:2rem; padding-top:1.25rem; border-top:1px solid var(--border); color:var(--text-3); font-size:14px; line-height:1.6; }
+
+        .ev .browse-label { font-size:11px; font-weight:500; color:var(--text-4); margin-bottom:12px; }
+        .ev .cities { display:flex; flex-direction:column; gap:6px; }
+        .ev .city { display:flex; align-items:center; justify-content:space-between; width:100%;
+                    padding:12px 16px; background:var(--surface); border:1px solid var(--border);
+                    font:inherit; cursor:pointer; color:var(--text); }
+        .ev .city:hover { border-color:var(--border-strong); }
+        .ev .city .st { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--accent); min-width:34px; text-align:left; }
+        .ev .city .nm { font-weight:500; font-size:14px; }
+        .ev .city .go { font-size:12px; color:var(--text-4); }
+
+        /* RESULTS */
+        .ev .results { padding:1.5rem 0 4rem; }
+        .ev .rhead { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:1.25rem; }
+        .ev .rkicker { font-size:10px; font-weight:500; color:var(--text-4); margin-bottom:8px; }
+        .ev h2 { font-size:clamp(1.8rem,4vw,2.4rem); line-height:1.05; margin:0; }
+        .ev h2 .a { color:var(--accent); }
+        .ev .rsub { color:var(--text-3); font-size:14px; margin-top:6px; }
+        .ev .reset { font:inherit; font-size:13px; font-weight:600; padding:9px 14px; background:var(--surface); color:var(--text-2); border:1px solid var(--border); cursor:pointer; }
+        .ev .reset:hover { color:var(--text); border-color:var(--border-strong); }
 
         .ev .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; margin-bottom:14px; }
-        .ev input[type=text], .ev select { font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
-        .ev input[type=text] { min-width:240px; }
-        .ev input[type=text]:focus, .ev select:focus { outline:none; border-color:var(--border-strong); }
-        .ev .btn { font:inherit; font-size:14px; font-weight:600; padding:10px 14px; border:1px solid var(--border-strong); background:var(--text); color:var(--bg); cursor:pointer; }
-        .ev .btn:hover { background:var(--accent); border-color:var(--accent); color:#fff; }
         .ev .seg { display:inline-flex; border:1px solid var(--border); }
         .ev .seg button { font:inherit; font-weight:600; font-size:13px; padding:10px 16px; border:0; background:var(--surface); color:var(--text-2); cursor:pointer; }
         .ev .seg button + button { border-left:1px solid var(--border); }
         .ev .seg button.on { background:var(--text); color:var(--bg); }
+        .ev select { font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
 
         .ev .banner { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); padding:11px 14px; font-size:13.5px; color:var(--text-2); margin:6px 0 18px; }
-        .ev .loc { font-size:13px; color:var(--text-3); margin-bottom:16px; }
-        .ev .loc strong { color:var(--text); }
 
-        .ev .list { display:flex; flex-direction:column; gap:0; padding-bottom:64px; border-top:1px solid var(--border); }
+        .ev .list { display:flex; flex-direction:column; border-top:1px solid var(--border); }
         .ev .card { border:1px solid var(--border); border-top:0; background:var(--surface); padding:16px 18px; }
         .ev .card:hover { border-color:var(--border-strong); }
         .ev .ctop { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
@@ -198,74 +231,118 @@ export default function EVFinder() {
         </div>
       </header>
 
-      <main className="wrap">
-        <div className="kicker track">EV · Australia-wide</div>
-        <h1 className="display">EV charging near you</h1>
-        <p className="sub">Public charging points with connector types, speeds and indicative network pricing.</p>
-        <p className="trust">Live charger locations across Australia from Open Charge Map. No network pays for placement — and it&rsquo;s free, always.</p>
+      {/* HERO — until a location is chosen */}
+      {!coords && (
+        <section className="hero">
+          <div className="wrap">
+            <div className="hero-grid">
+              <div>
+                <h1 className="display">Stop guessing<br /><span className="a">where to charge.</span></h1>
+                <p className="sub">Live charger locations from Open Charge Map, with indicative network pricing. Free, independent, no sponsored results.</p>
 
-        <div className="controls">
-          <input
-            type="text" list="ev-suburbs" placeholder="Search a suburb…"
-            value={query} onChange={e => onSuburbPick(e.target.value)}
-          />
-          <datalist id="ev-suburbs">
-            {suburbOptions.map(o => <option key={o.key} value={o.label} />)}
-          </datalist>
-          <button className="btn" onClick={useMyLocation}>Use my location</button>
-          <div className="seg" role="group" aria-label="Charger type">
-            {['ALL', 'AC', 'DC'].map(l => (
-              <button key={l} className={level === l ? 'on' : ''} onClick={() => setLevel(l)}>{l === 'ALL' ? 'All' : l}</button>
-            ))}
-          </div>
-          <select value={radius} onChange={e => setRadius(Number(e.target.value))} aria-label="Radius">
-            <option value={5}>5 km</option>
-            <option value={10}>10 km</option>
-            <option value={25}>25 km</option>
-            <option value={50}>50 km</option>
-          </select>
-        </div>
+                <button type="button" className="cta" onClick={useMyLocation} disabled={locating}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                  {locating ? 'Finding chargers near you…' : 'Find chargers near me'}
+                </button>
 
-        <div className="banner">
-          <span aria-hidden="true">ⓘ</span>
-          <span>{INDICATIVE_NOTE}</span>
-        </div>
-
-        {locLabel && <div className="loc">Showing chargers near <strong>{locLabel}</strong>{note ? ` — ${note}` : ''}</div>}
-
-        <div className="list">
-          {loading && <div className="muted">Finding chargers…</div>}
-          {error && !loading && <div className="muted">Couldn’t load chargers: {error}</div>}
-          {!loading && !error && stations.length === 0 && (
-            <div className="muted">No chargers found here. Try a wider radius or a different area.</div>
-          )}
-          {!loading && stations.map(s => (
-            <div className="card" key={s.id}>
-              <div className="ctop">
-                <div>
-                  <div className="net">{s.network}</div>
-                  {s.address && <div className="addr">{s.address}</div>}
+                <div className="ev-search">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input list="ev-suburbs" value={query} onChange={e => onSuburbPick(e.target.value)} placeholder="Or search a suburb or postcode…" />
+                  <datalist id="ev-suburbs">{suburbOptions.map(o => <option key={o.key} value={o.label} />)}</datalist>
                 </div>
-                <div>
-                  <div className="price">{priceLabel(s)}</div>
-                  {s.distance != null && <div className="dist">{s.distance} km</div>}
+                {locError && <p className="locerr">Couldn&rsquo;t get your location — try searching instead.</p>}
+
+                <div className="trust">
+                  Live charger locations across Australia from Open Charge Map.
+                  No network pays for placement — and it&rsquo;s free, always.
                 </div>
               </div>
-              <div className="chips">
-                {s.level && <span className={`chip ${s.level === 'DC' ? 'dc' : ''}`}>{s.level}</span>}
-                {s.maxPowerKw != null && <span className="chip">up to {s.maxPowerKw} kW</span>}
-                {s.connectors.map((c, i) => (
-                  <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
-                ))}
-              </div>
-              <div className="crow">
-                <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
-                {s.operational === false && <span className="off">May be offline</span>}
+
+              <div>
+                <div className="browse-label track">Browse by city</div>
+                <div className="cities">
+                  {EV_CITIES.map(c => (
+                    <button key={c.slug} type="button" className="city"
+                            onClick={() => { setCoords({ lat: c.lat, lng: c.lng }); setLocLabel(`${c.name}, ${c.state}`); setLocError(false); setQuery(''); }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <span className="st">{c.state}</span>
+                        <span className="nm">{c.name}</span>
+                      </span>
+                      <span className="go">Chargers →</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      </main>
+          </div>
+        </section>
+      )}
+
+      {/* RESULTS */}
+      {coords && (
+        <main className="wrap results">
+          <div className="rhead">
+            <div>
+              <div className="rkicker track">Now showing</div>
+              <h2 className="display">Chargers near <span className="a">{locLabel}</span></h2>
+              <p className="rsub">{loading ? 'Finding chargers…' : `${stations.length} chargers · within ${radius} km`}</p>
+            </div>
+            <button type="button" className="reset" onClick={reset}>Change location</button>
+          </div>
+
+          <div className="controls">
+            <div className="seg" role="group" aria-label="Charger type">
+              {['ALL', 'AC', 'DC'].map(l => (
+                <button key={l} className={level === l ? 'on' : ''} onClick={() => setLevel(l)}>{l === 'ALL' ? 'All' : l}</button>
+              ))}
+            </div>
+            <select value={radius} onChange={e => setRadius(Number(e.target.value))} aria-label="Radius">
+              <option value={5}>5 km</option>
+              <option value={10}>10 km</option>
+              <option value={25}>25 km</option>
+              <option value={50}>50 km</option>
+            </select>
+          </div>
+
+          <div className="banner">
+            <span aria-hidden="true">ⓘ</span>
+            <span>{INDICATIVE_NOTE}</span>
+          </div>
+
+          <div className="list">
+            {loading && <div className="muted">Finding chargers…</div>}
+            {error && !loading && <div className="muted">Couldn’t load chargers: {error}</div>}
+            {!loading && !error && stations.length === 0 && (
+              <div className="muted">No chargers found here. Try a wider radius or a different area.</div>
+            )}
+            {!loading && stations.map(s => (
+              <div className="card" key={s.id}>
+                <div className="ctop">
+                  <div>
+                    <div className="net">{s.network}</div>
+                    {s.address && <div className="addr">{s.address}</div>}
+                  </div>
+                  <div>
+                    <div className="price">{priceLabel(s)}</div>
+                    {s.distance != null && <div className="dist">{s.distance} km</div>}
+                  </div>
+                </div>
+                <div className="chips">
+                  {s.level && <span className={`chip ${s.level === 'DC' ? 'dc' : ''}`}>{s.level}</span>}
+                  {s.maxPowerKw != null && <span className="chip">up to {s.maxPowerKw} kW</span>}
+                  {s.connectors.map((c, i) => (
+                    <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
+                  ))}
+                </div>
+                <div className="crow">
+                  <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
+                  {s.operational === false && <span className="off">May be offline</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      )}
 
       <footer className="wrap">Charger data © Open Charge Map contributors. Pricing indicative — verify with the operator.</footer>
     </div>
