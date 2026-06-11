@@ -184,6 +184,23 @@ const GlobalStyles = () => (
     @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .fade-up { animation: fadeUp 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2, var(--border)) 50%, var(--surface) 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+
+    /* iOS Safari auto-zooms (and stays zoomed) when focusing any input with
+       font-size < 16px. Enforce the floor on touch-sized screens so no
+       current or future input can trigger it. Overrides inline styles. */
+    @media (max-width: 767px) {
+      input, select, textarea { font-size: 16px !important; }
+    }
+
     /* Headline accent — flat signal orange (no gradient) */
     .brand-gradient {
       background: none;
@@ -628,19 +645,21 @@ const STORAGE_KEYS = {
 };
 
 const fmStorage = {
-  // Uses sessionStorage so state survives a refresh but clears when the
-  // browser tab/app is closed — gives a clean home screen on next open.
+  // localStorage so state survives across visits — a returning user gets
+  // their last location and fuel type back instantly instead of starting
+  // from a blank homepage every time. (Was sessionStorage; changed
+  // deliberately: the weekly price-check habit shouldn't require re-search.)
   async get(key) {
     try {
       if (typeof window === 'undefined') return null;
-      const val = sessionStorage.getItem(key);
+      const val = localStorage.getItem(key);
       return val ? JSON.parse(val) : null;
     } catch { return null; }
   },
   async set(key, value) {
     try {
       if (typeof window === 'undefined') return;
-      sessionStorage.setItem(key, JSON.stringify(value));
+      localStorage.setItem(key, JSON.stringify(value));
     } catch { /* swallow */ }
   },
 };
@@ -1776,6 +1795,27 @@ const SavingsBanner = ({ stations, fuelType }) => {
  * where people are already in fuel-buying mode. Kept quiet relative to the
  * data components around it: one line, tap target the full row.
  */
+/**
+ * StationSkeleton — shimmer placeholder rows shown while live prices load.
+ * The gap between picking a location and data arriving (seconds on a cold
+ * state fetch) previously rendered nothing at all, which reads as broken.
+ */
+const StationSkeleton = ({ rows = 4 }) => (
+  <div className="space-y-2" aria-hidden="true">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className="flex items-center gap-3 px-3.5 py-4"
+           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="skeleton shrink-0" style={{ width: 36, height: 36 }} />
+        <div className="flex-1 min-w-0">
+          <div className="skeleton" style={{ height: 13, width: `${55 - i * 7}%`, marginBottom: 8 }} />
+          <div className="skeleton" style={{ height: 10, width: `${35 - i * 4}%` }} />
+        </div>
+        <div className="skeleton shrink-0" style={{ height: 26, width: 64 }} />
+      </div>
+    ))}
+  </div>
+);
+
 const RoutePromo = ({ onNav }) => (
   <button type="button" onClick={() => onNav({ name: 'route' })}
           className="hover-raise w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors"
@@ -2907,37 +2947,37 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
       {!location && (
         <section className="hero-mesh">
           <div className="max-w-6xl mx-auto px-4 md:px-6"
-               style={{ paddingTop: 'clamp(3rem, 8vw, 5.5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
+               style={{ paddingTop: 'clamp(2rem, 8vw, 5.5rem)', paddingBottom: 'clamp(2.5rem, 6vw, 5rem)' }}>
             <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
 
               {/* Left: headline + search */}
               <div>
                 <h1 className="font-display"
-                    style={{ fontSize: 'clamp(3rem, 7vw, 5.2rem)', lineHeight: 0.84, letterSpacing: '0.005em', marginBottom: '1.1rem' }}>
+                    style={{ fontSize: 'clamp(2.4rem, 7vw, 5.2rem)', lineHeight: 0.84, letterSpacing: '0.005em', marginBottom: '1.1rem' }}>
                   Stop overpaying<br/><span style={{ color: 'var(--accent)' }}>for fuel.</span>
                 </h1>
                 <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
                   Real government data, ranked by price or distance. Free, independent, no sponsored results.
                 </p>
 
-                <div style={{ marginBottom: '0.75rem' }}>
-                  <AddressSearch onSelect={onSearchSelect} variant="large" placeholder="Search suburb, postcode or address…" />
-                </div>
-
                 <button type="button" onClick={onLocate} disabled={locating}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-60"
-                        style={{ color: 'var(--text-3)', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer' }}>
-                  {locating ? <Loader2 size={13} className="animate-spin" /> : <Navigation size={13} />}
-                  {locating ? 'Locating…' : 'Use my current location'}
+                        className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 font-semibold text-sm transition-opacity disabled:opacity-60"
+                        style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', borderRadius: 0, cursor: locating ? 'default' : 'pointer', marginBottom: '0.75rem' }}>
+                  {locating ? <Loader2 size={15} className="animate-spin" /> : <Navigation size={15} />}
+                  {locating ? 'Finding prices near you…' : 'Find cheapest fuel near me'}
                 </button>
+
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <AddressSearch onSelect={onSearchSelect} variant="large" placeholder="Or search a suburb, postcode or address…" />
+                </div>
                 {locError && (
-                  <p className="text-tiny mt-2" style={{ color: 'var(--warn)' }}>
+                  <p className="text-tiny mt-1" style={{ color: 'var(--warn)' }}>
                     <AlertCircle size={11} style={{ display: 'inline', marginRight: 4 }} />
                     Couldn't get your location — try searching instead.
                   </p>
                 )}
 
-                <div className="flex items-center gap-6 mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="hidden sm:flex items-center gap-6 mt-8 pt-6" style={{ borderTop: '1px solid var(--border)' }}>
                   {[['8', 'States covered'], ['0', 'Paid listings'], ['Free', 'Always']].map(([val, label]) => (
                     <div key={label}>
                       <div className="font-display font-bold" style={{ fontSize: '1.4rem', lineHeight: 1, letterSpacing: '-0.02em' }}>{val}</div>
@@ -2986,6 +3026,11 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                       <div className="flex items-center gap-3">
                         <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
+                        {signals[c.state]?.latest != null && (
+                          <span className="font-mono text-tiny tabular-nums" style={{ color: 'var(--text-2)' }}>
+                            from ~{signals[c.state].latest.toFixed(1)}¢
+                          </span>
+                        )}
                       </div>
                       <span className="inline-flex flex-col items-end gap-1">
                         <SignalChip signal={signals[c.state]} />
@@ -3010,7 +3055,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   Around <span style={{ color: 'var(--accent)' }}>{location.label}</span>
                 </h2>
                 <p className="text-sm mt-1.5" style={{ color: 'var(--text-3)' }}>
-                  {stations.length} stations · {FUEL_TYPES.find(f => f.code === fuelType)?.label}
+                  {loadingStations
+                    ? 'Checking live prices…'
+                    : `${stations.length} stations · ${FUEL_TYPES.find(f => f.code === fuelType)?.label}`}
                 </p>
               </div>
               <button type="button" onClick={() => onSample(null)}
@@ -3031,6 +3078,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
             <RoutePromo onNav={onNav} />
 
+            {loadingStations ? (
+              <StationSkeleton rows={4} />
+            ) : (
             <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
                          onViewMode={setViewMode} sort={sort} onSort={setSort}
                          reportsByStation={reportsByStationFor(stations)}
@@ -3039,6 +3089,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                          onOpenReportModal={onOpenReportModal}
                          userLat={location?.lat}
                          userLng={location?.lng} />
+            )}
           </div>
         ) : null}
 
@@ -3256,6 +3307,11 @@ const CitiesIndexView = ({ onNav }) => {
             <div>
               <div className="font-mono text-tiny font-medium track-wide mb-1.5" style={{ color: 'var(--accent)' }}>{c.state}</div>
               <h2 className="font-display font-semibold text-3xl">{c.name}</h2>
+              {signals[c.state]?.latest != null && (
+                <div className="font-mono text-sm tabular-nums mt-1" style={{ color: 'var(--text-2)' }}>
+                  from ~{signals[c.state].latest.toFixed(1)}¢/L
+                </div>
+              )}
             </div>
             <ArrowUpRight size={20} style={{ color: 'var(--text-3)' }} />
           </div>
@@ -3335,6 +3391,9 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
       <div className="mb-5"><CycleSignal stations={stations} fuelType={fuelType} state={city.state} cycleLabel={city.cycle} /></div>
       <div className="mb-6"><PriceStats stations={stations} fuelType={fuelType} /></div>
 
+      {loadingStations ? (
+        <StationSkeleton rows={4} />
+      ) : (
       <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
                    onViewMode={setViewMode} sort={sort} onSort={setSort}
                    reportsByStation={reportsByStationFor(stations)}
@@ -3343,6 +3402,7 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
                    onOpenReportModal={onOpenReportModal}
                    userLat={city.center.lat}
                    userLng={city.center.lng} />
+      )}
 
     </div>
   );
@@ -3551,9 +3611,12 @@ export default function App({ initialView, initialLocation } = {}) {
       ]);
       if (cancelled) return;
 
-      // Intentionally do NOT restore the saved location on load — the site
-      // should always open on the clean home page, not jump straight to the
-      // last searched area. Users search or tap "Use my location" each visit.
+      // Restore the last location so a returning visitor lands straight on
+      // their prices (GasBuddy-style) instead of a blank homepage. Only on
+      // the bare homepage — never override a suburb page's initialLocation.
+      if (savedLocation?.lat && savedLocation?.lng && !initialLocation) {
+        setLocation(savedLocation);
+      }
       if (savedFuel) setFuelType(savedFuel);
       if (Array.isArray(savedConfirms)) setConfirmedReportIds(new Set(savedConfirms));
 
