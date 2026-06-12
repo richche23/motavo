@@ -178,8 +178,8 @@ export const AlertSignup = () => {
               disabled={loading}
               className="text-sm font-medium py-1.5 px-3 transition-colors"
               style={{
-                background: fuelType === f.code ? 'var(--accent)' : 'transparent',
-                color: fuelType === f.code ? '#ffffff' : 'var(--text-3)',
+                background: fuelType === f.code ? 'var(--text)' : 'transparent',
+                color: fuelType === f.code ? 'var(--bg)' : 'var(--text-3)',
                 border: `1px solid ${fuelType === f.code ? 'var(--accent)' : 'var(--border)'}`,
                 borderRadius: 0,
                 cursor: loading ? 'default' : 'pointer',
@@ -198,12 +198,11 @@ export const AlertSignup = () => {
         disabled={!isReady || loading}
         className="w-full flex items-center justify-center gap-2 py-3 font-semibold text-sm transition-opacity"
         style={{
-          background: isReady && !loading ? 'var(--accent)' : 'var(--text-4)',
-          color: '#ffffff',
-          border: 'none',
+          background: isReady && !loading ? 'var(--accent)' : 'var(--surface-2)',
+          color: isReady && !loading ? '#ffffff' : 'var(--text-4)',
+          border: isReady && !loading ? 'none' : '1px dashed var(--border)',
           borderRadius: 0,
           cursor: !isReady || loading ? 'default' : 'pointer',
-          opacity: !isReady || loading ? 0.5 : 1,
         }}
       >
         {loading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
