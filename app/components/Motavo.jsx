@@ -14,6 +14,7 @@ import {
 import { AlertSignup } from './AlertSignup';
 import EVPanel from './EVPanel';
 import { SUBURBS } from '@/lib/suburbs';
+import AddToHomeScreen from './AddToHomeScreen';
 
 /* =====================================================================
    Large, prominent Fuel / EV mode toggle (home view)
@@ -3874,6 +3875,7 @@ export default function App({ initialView, initialLocation } = {}) {
       />
       <main className="flex-1">{renderView()}</main>
       <Footer onNav={setView} />
+      <AddToHomeScreen />
       <SearchModal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
