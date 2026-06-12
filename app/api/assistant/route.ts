@@ -85,6 +85,9 @@ function stateFromCoords(lat: number, lng: number): StateCode {
   return 'NSW';
 }
 
+/** Words that are about fuel/asking, not the place itself. */
+const NOISE_WORDS = /\b(please|today|now|right now|currently|tomorrow|tonight|cheapest|cheap|fuel|petrol|price|prices|cost|station|servo|where|what|whats|what's|is|the|find|me|near|nearby|best|premium|diesel|unleaded|e10|lpg|u91|p95|p98|91|95|98)\b/gi;
+
 /** Pull the most likely place phrase out of a chat message. */
 function extractPlaceQuery(text: string): string | null {
   // 4-digit postcode (fuel types are 2-digit, so no collision)
@@ -93,10 +96,16 @@ function extractPlaceQuery(text: string): string | null {
   // "... in/near/at/around <place>" — grab up to 4 trailing words
   const m = text.match(/\b(?:in|near|at|around)\s+([a-zA-Z][a-zA-Z'\- ]{2,40})/i);
   if (m) {
-    return m[1]
-      .replace(/\b(please|today|now|right now|currently|tomorrow|tonight)\b/gi, '')
-      .replace(/[?.!,].*$/, '')
-      .trim() || null;
+    const cleaned = m[1].replace(NOISE_WORDS, '').replace(/[?.!,].*$/, '').replace(/\s+/g, ' ').trim();
+    if (cleaned.length >= 3) return cleaned;
+  }
+  // Bare place name: short message that's mostly a location ("seaford",
+  // "wagga wagga prices", "98 frankston"). Strip fuel/asking words and see
+  // what's left.
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 5) {
+    const cleaned = text.replace(NOISE_WORDS, '').replace(/[?.!,]/g, '').replace(/\s+/g, ' ').trim();
+    if (cleaned.length >= 3 && /^[a-zA-Z'\- ]+$/.test(cleaned)) return cleaned;
   }
   return null;
 }
@@ -107,16 +116,23 @@ async function geocodePlace(q: string): Promise<ResolvedPlace | null> {
   const cached = cacheGet<ResolvedPlace | 'miss'>(key);
   if (cached) return cached === 'miss' ? null : cached;
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Australia')}&format=json&countrycodes=au&limit=1&addressdetails=1`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Australia')}&format=json&countrycodes=au&limit=1&addressdetails=1&email=privacy%40motavo.au`;
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Motavo/1.0 (fuel price comparison; motavo.au)' },
+      headers: {
+        'User-Agent': 'Motavo/1.0 (https://motavo.au; privacy@motavo.au)',
+        'Referer': 'https://motavo.au',
+      },
       signal: AbortSignal.timeout(5000),
       cache: 'no-store',
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`[assistant] geocode "${q}" failed: HTTP ${res.status}`);
+      return null;
+    }
     const data = await res.json();
     const r = data?.[0];
     if (!r?.lat || !r?.lon) {
+      console.warn(`[assistant] geocode "${q}": no results`);
       cacheSet(key, 'miss', 24 * 60 * 60 * 1000);
       return null;
     }
@@ -128,8 +144,10 @@ async function geocodePlace(q: string): Promise<ResolvedPlace | null> {
     const state = STATE_NAME_TO_CODE[r.address?.state] || stateFromCoords(lat, lng);
     const place: ResolvedPlace = { name, state, lat, lng };
     cacheSet(key, place, 24 * 60 * 60 * 1000);
+    console.log(`[assistant] geocoded "${q}" → ${place.name}, ${place.state}`);
     return place;
-  } catch {
+  } catch (e: any) {
+    console.warn(`[assistant] geocode "${q}" error: ${e?.message ?? e}`);
     return null;
   }
 }
