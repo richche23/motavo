@@ -241,7 +241,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
           --bg:#e7e4dd; --bg-2:#ddd9cf; --surface:#f2f0ea; --surface-2:#e7e4dd; --surface-3:#d9d5ca;
           --border:#cbc6b9; --border-strong:#15120e;
           --text:#15120e; --text-2:#4a453d; --text-3:#6a655c; --text-4:#938c81;
-          --accent:#ff4a17; --accent-dark:#d6390e; --accent-soft:#fbe7df;
+          --accent:#ff4a17; --accent-dark:#d6390e; --accent-soft:#fbe7df; --accent-text:#b32f09;
           --warn:#b4530a; --danger:#b91c1c;
           min-height:100vh; background:var(--bg); color:var(--text);
           font-family:'Hanken Grotesk',system-ui,sans-serif; letter-spacing:-0.006em;
@@ -250,7 +250,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
           --bg:#14110d; --bg-2:#1b1813; --surface:#1b1813; --surface-2:#221e18; --surface-3:#2c2820;
           --border:#322d25; --border-strong:#4a4338;
           --text:#efe9df; --text-2:#cfc7ba; --text-3:#9a9183; --text-4:#6f675b;
-          --accent:#ff5e30; --accent-dark:#d6390e; --accent-soft:rgba(255,94,48,0.12);
+          --accent:#ff5e30; --accent-dark:#d6390e; --accent-soft:rgba(255,94,48,0.12); --accent-text:#ff7a52;
         }
         .ev * { box-sizing:border-box; border-radius:0 !important; }
         .ev .wrap { max-width:1152px; margin:0 auto; padding:0 20px; }
@@ -297,7 +297,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
                     padding:12px 16px; background:var(--surface); border:1px solid var(--border);
                     font:inherit; cursor:pointer; color:var(--text); }
         .ev .city:hover { border-color:var(--border-strong); }
-        .ev .city .st { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--accent); min-width:34px; text-align:left; }
+        .ev .city .st { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--accent-text); min-width:34px; text-align:left; }
         .ev .city .nm { font-weight:500; font-size:14px; }
         .ev .city .go { font-size:12px; color:var(--text-4); }
 
@@ -326,11 +326,11 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         .ev .ctop { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
         .ev .net { font-weight:700; font-size:16px; letter-spacing:-0.01em; }
         .ev .addr { color:var(--text-3); font-size:13.5px; margin-top:2px; }
-        .ev .price { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--accent); white-space:nowrap; text-align:right; }
+        .ev .price { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--accent-text); white-space:nowrap; text-align:right; }
         .ev .dist { color:var(--text-3); font-size:12px; font-weight:500; margin-top:3px; text-align:right; font-family:'JetBrains Mono',monospace; }
         .ev .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
         .ev .chip { font-size:11px; font-weight:600; color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); padding:4px 9px; font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; text-transform:uppercase; }
-        .ev .chip.dc { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+        .ev .chip.dc { color:var(--accent-text); border-color:var(--accent); background:var(--accent-soft); }
         .ev .crow { display:flex; align-items:center; gap:14px; margin-top:13px; }
         .ev .dir { color:var(--text); text-decoration:none; font-weight:700; font-size:13.5px; border-bottom:2px solid var(--accent); padding-bottom:1px; }
         .ev .dir:hover { color:var(--accent); }
