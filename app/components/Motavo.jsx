@@ -26,7 +26,7 @@ const ModeToggle = ({ mode, onMode }) => {
     borderRadius: 0, border: 'none', cursor: 'pointer',
     transition: 'all .15s ease', letterSpacing: '-0.01em',
   };
-  const on = { ...base, background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 10px var(--accent-glow)' };
+  const on = { ...base, background: 'var(--text)', color: 'var(--bg)' };
   const off = { ...base, background: 'transparent', color: 'var(--text-2)' };
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 16px 6px' }}>
@@ -109,6 +109,8 @@ const GlobalStyles = () => (
       /* Functional aliases */
       --accent: var(--blue);
       --accent-dark: var(--blue-dark);
+      /* accent-text: AA-contrast orange for SMALL text on light surfaces */
+      --accent-text: #b32f09;
       --accent-glow: rgba(255, 74, 23, 0.20);
       --success: var(--green);
       --success-glow: rgba(46, 125, 79, 0.18);
@@ -142,6 +144,7 @@ const GlobalStyles = () => (
       --green-soft: rgba(76, 175, 122, 0.10);
       --accent-glow: rgba(255, 94, 48, 0.28);
       --success-glow: rgba(76, 175, 122, 0.22);
+      --accent-text: #ff7a52;
     }
 
     .font-display { font-family: 'Anton', 'Hanken Grotesk', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.004em; font-weight: 400 !important; }
@@ -925,9 +928,9 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
               style={{
                 padding: '5px 11px', fontSize: 13,
                 border: '1px solid',
-                borderColor: active ? 'var(--accent)' : 'var(--border)',
-                background: active ? 'var(--accent)' : 'var(--surface)',
-                color: active ? '#ffffff' : 'var(--text-2)',
+                borderColor: active ? 'var(--text)' : 'var(--border)',
+                background: active ? 'var(--text)' : 'var(--surface)',
+                color: active ? 'var(--bg)' : 'var(--text-2)',
                 borderRadius: 0,
               }}
               aria-pressed={active}
@@ -2885,7 +2888,7 @@ const SuburbDirectory = () => (
       if (!subs.length) return null;
       return (
         <div key={st} className="mb-4 text-sm" style={{ lineHeight: 2 }}>
-          <span className="track-wide" style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, marginRight: 10 }}>{st}</span>
+          <span className="track-wide" style={{ color: 'var(--accent-text)', fontSize: 11, fontWeight: 600, marginRight: 10 }}>{st}</span>
           {subs.map((s, i) => (
             <span key={s.slug}>
               <a href={`/fuel/${s.slug}`} className="ulink" style={{ color: 'var(--text-3)', textDecoration: 'none' }}>{s.name}</a>
@@ -3065,7 +3068,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                             className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
                             style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
                       <div className="flex items-center gap-3">
-                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
+                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent-text)', minWidth: 28 }}>{c.state}</span>
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
                         {signals[c.state]?.latest != null && (
                           <span className="font-mono text-tiny tabular-nums" style={{ color: 'var(--text-2)' }}>
