@@ -1,6 +1,8 @@
 // app/components/AddToHomeScreen.jsx — mobile "add to home screen" banner.
-// Android/Chrome: uses the native beforeinstallprompt flow.
-// iOS Safari: no install API exists, so we show one-line instructions instead.
+// Also registers the service worker (required for Chrome installability).
+// Android/Chrome: native beforeinstallprompt flow, with manual instructions
+//   as a fallback if the event hasn't fired (first visit, SW still installing).
+// iOS Safari: no install API exists — one-line Share-menu instructions.
 // Dismissal is remembered for 30 days. Never shows when already installed.
 'use client';
 
@@ -10,11 +12,17 @@ const DISMISS_KEY = 'fm:a2hs-dismissed';
 const DISMISS_DAYS = 30;
 
 export default function AddToHomeScreen() {
-  const [mode, setMode] = useState(null);   // null | 'native' | 'ios'
+  const [mode, setMode] = useState(null);   // null | 'native' | 'ios' | 'android-manual'
   const [deferred, setDeferred] = useState(null);
 
   useEffect(() => {
     try {
+      // Register the service worker regardless of banner state — Chrome needs
+      // it before it will ever consider the site installable.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+
       // Already installed / running standalone? Never show.
       const standalone =
         window.matchMedia('(display-mode: standalone)').matches ||
@@ -37,14 +45,25 @@ export default function AddToHomeScreen() {
         return () => clearTimeout(t);
       }
 
-      // Android/Chrome: wait for the real install prompt to become available.
+      // Android/Chrome: prefer the real install prompt…
       const onPrompt = (e) => {
         e.preventDefault();
         setDeferred(e);
         setMode('native');
       };
       window.addEventListener('beforeinstallprompt', onPrompt);
-      return () => window.removeEventListener('beforeinstallprompt', onPrompt);
+
+      // …but if it hasn't fired after a few seconds (common on the first
+      // visit while the SW installs, or in non-Chrome browsers), fall back
+      // to manual instructions so the option is still there.
+      const fallback = setTimeout(() => {
+        setMode((m) => m || 'android-manual');
+      }, 6000);
+
+      return () => {
+        window.removeEventListener('beforeinstallprompt', onPrompt);
+        clearTimeout(fallback);
+      };
     } catch {}
   }, []);
 
@@ -63,6 +82,11 @@ export default function AddToHomeScreen() {
   };
 
   if (!mode) return null;
+
+  const sub =
+    mode === 'native' ? 'Cheapest fuel and chargers, one tap away.'
+    : mode === 'ios' ? 'Tap the Share button, then “Add to Home Screen”.'
+    : 'Open the browser menu (⋮), then tap “Add to Home screen”.';
 
   return (
     <div style={{
@@ -84,13 +108,8 @@ export default function AddToHomeScreen() {
       </span>
 
       <span style={{ flex: 1, fontSize: 13.5, lineHeight: 1.45 }}>
-        {mode === 'native' ? (
-          <><strong>Add Motavo to your home screen</strong><br />
-          <span style={{ color: 'var(--text-3, #6a655c)' }}>Cheapest fuel and chargers, one tap away.</span></>
-        ) : (
-          <><strong>Add Motavo to your home screen</strong><br />
-          <span style={{ color: 'var(--text-3, #6a655c)' }}>Tap the Share button, then &ldquo;Add to Home Screen&rdquo;.</span></>
-        )}
+        <strong>Add Motavo to your home screen</strong><br />
+        <span style={{ color: 'var(--text-3, #6a655c)' }}>{sub}</span>
       </span>
 
       {mode === 'native' && (
