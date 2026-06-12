@@ -122,6 +122,16 @@ export default async function SuburbPage({ params }: { params: { suburb: string 
   // Live, server-rendered price data — indexable, refreshes via ISR.
   const live = await getPriceSummary(s.state as StateCode, s.lat, s.lng, s.name);
 
+  // Nearest suburbs by straight-line distance — internal links for SEO + UX.
+  const nearby = SUBURBS
+    .filter((x) => x.slug !== s.slug)
+    .map((x) => ({
+      ...x,
+      _d: Math.hypot((x.lat - s.lat) * 111, (x.lng - s.lng) * 88),
+    }))
+    .sort((a, b) => a._d - b._d)
+    .slice(0, 8);
+
   const faqs = [
     {
       q: `Where is the cheapest fuel in ${s.name}?`,
@@ -269,6 +279,28 @@ export default async function SuburbPage({ params }: { params: { suburb: string 
             </div>
           ))}
         </dl>
+
+        {/* Internal links: nearby suburbs + site hubs. These keep the suburb
+            pages out of orphan/dead-end territory for crawlers AND give users
+            a path sideways. Plain <a> tags, server-rendered. */}
+        <h2 style={{ fontSize: 20, fontWeight: 600, margin: '28px 0 12px', color: 'var(--text, #1a2233)' }}>
+          Fuel prices near {s.name}
+        </h2>
+        <p style={{ margin: 0, lineHeight: 2 }}>
+          {nearby.map((n, i) => (
+            <span key={n.slug}>
+              <a href={`/fuel/${n.slug}`} style={{ color: 'var(--accent, #ff4a17)', textDecoration: 'none', fontWeight: 600 }}>
+                Fuel prices in {n.name}, {n.state}
+              </a>
+              {i < nearby.length - 1 ? ' · ' : ''}
+            </span>
+          ))}
+        </p>
+        <p style={{ marginTop: 20 }}>
+          <a href="/" style={{ color: 'var(--accent, #ff4a17)', textDecoration: 'none', fontWeight: 600 }}>Compare fuel prices Australia-wide</a>
+          {' · '}
+          <a href="/ev" style={{ color: 'var(--accent, #ff4a17)', textDecoration: 'none', fontWeight: 600 }}>Find EV chargers near {s.name}</a>
+        </p>
       </section>
     </>
   );
