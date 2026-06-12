@@ -163,8 +163,8 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
   // theme — shares the main app's localStorage key
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('fm:color-scheme');
-      setDark(saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
+      // Match the homepage: light by default, dark only if explicitly chosen.
+      setDark(localStorage.getItem('fm:color-scheme') === 'dark');
     } catch {}
     // deep link: /ev?route=1 opens the route planner directly
     try {
@@ -302,7 +302,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         .ev .city .go { font-size:12px; color:var(--text-4); }
 
         /* RESULTS */
-        .ev .results { padding:1.5rem 0 4rem; }
+        .ev .results { padding-top:1.5rem; padding-bottom:4rem; }
         .ev .rhead { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:1.25rem; }
         .ev .rkicker { font-size:10px; font-weight:500; color:var(--text-4); margin-bottom:8px; }
         .ev h2 { font-size:clamp(1.8rem,4vw,2.4rem); line-height:1.05; margin:0; }
@@ -340,7 +340,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
 
         /* geo search */
         .ev .gs { position:relative; }
-        .ev .gs > svg { position:absolute; left:18px; top:27px; transform:translateY(-50%); color:var(--text-4); pointer-events:none; }
+        .ev .gs > svg { position:absolute; left:18px; top:29px; transform:translateY(-50%); color:var(--text-4); pointer-events:none; z-index:1; }
         .ev .gs input { width:100%; padding:18px 18px 18px 48px; font:inherit; font-size:1.05rem; border:1px solid var(--border); background:var(--surface); color:var(--text); }
         .ev .gs input::placeholder { color:var(--text-4); }
         .ev .gs input:focus { outline:none; border-color:var(--border-strong); }
@@ -365,8 +365,6 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         .ev .route-card .ch { margin-left:auto; color:var(--accent); flex-shrink:0; }
 
         .ev .rform { display:flex; flex-direction:column; gap:10px; max-width:560px; margin-bottom:1rem; }
-        .ev .rform input { width:100%; padding:14px 16px; font:inherit; font-size:15px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
-        .ev .rform input:focus { outline:none; border-color:var(--border-strong); }
         .ev .rform .lbl { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
         .ev .gap { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; font-size:13.5px; margin:14px 0;
                    background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); color:var(--text-2); }
