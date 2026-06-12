@@ -34,6 +34,99 @@ const MotavoWordmark = ({ size = 20 }) => (
   </svg>
 );
 
+const STATE_NAMES = {
+  'New South Wales': 'NSW', 'Victoria': 'VIC', 'Queensland': 'QLD',
+  'Western Australia': 'WA', 'South Australia': 'SA', 'Tasmania': 'TAS',
+  'Australian Capital Territory': 'ACT', 'Northern Territory': 'NT',
+};
+
+function shortenAddress(displayName) {
+  const parts = displayName.split(',').map(p => p.trim());
+  return parts.slice(0, 3).join(', ');
+}
+
+/**
+ * GeoSearch — free-text location search. Local suburb matches first (instant),
+ * then Nominatim (debounced 300ms, AU-only) for any address or postcode.
+ * onSelect receives { label, lat, lng }.
+ */
+function GeoSearch({ placeholder, onSelect, value = '' }) {
+  const [q, setQ] = useState(value);
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const blurTimer = useState({ t: null })[0];
+
+  const localMatches = useCallback((needle) => {
+    const n = needle.toLowerCase();
+    return SUBURBS
+      .filter(su => su.name.toLowerCase().includes(n) || String(su.postcode || '').startsWith(needle))
+      .slice(0, 5)
+      .map(su => ({ id: `local-${su.slug}`, label: `${su.name}, ${su.state}`, sublabel: su.postcode ? String(su.postcode) : '', lat: su.lat, lng: su.lng }));
+  }, []);
+
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 2) { setResults([]); setLoading(false); return; }
+
+    const local = localMatches(needle);
+    setResults(local);
+
+    const strong = local.filter(r => r.label.toLowerCase().startsWith(needle.toLowerCase())).length;
+    if (strong >= 4) { setLoading(false); return; }
+
+    const ctrl = new AbortController();
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(needle)}&format=json&countrycodes=au&limit=5&addressdetails=1`;
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) throw new Error('geocode failed');
+        const data = await res.json();
+        const remote = data
+          .filter(r => r.lat && r.lon)
+          .map(r => ({
+            id: `addr-${r.place_id}`,
+            label: shortenAddress(r.display_name),
+            sublabel: [STATE_NAMES[r.address?.state] || r.address?.state || '', r.address?.postcode || ''].filter(Boolean).join(' '),
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lon),
+          }));
+        const seen = new Set(local.map(l => l.label.toLowerCase()));
+        setResults([...local, ...remote.filter(r => !seen.has(r.label.toLowerCase()))]);
+      } catch { /* local results still showing */ }
+      finally { setLoading(false); }
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [q, localMatches]);
+
+  const pick = (r) => {
+    setQ(r.label);
+    setOpen(false);
+    onSelect(r);
+  };
+
+  return (
+    <div className="gs" onFocus={() => { clearTimeout(blurTimer.t); setOpen(true); }}
+         onBlur={() => { blurTimer.t = setTimeout(() => setOpen(false), 150); }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }} placeholder={placeholder} />
+      {open && q.trim().length >= 2 && (
+        <div className="gs-drop">
+          {results.map(r => (
+            <button key={r.id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => pick(r)}>
+              <span className="gs-label">{r.label}</span>
+              {r.sublabel && <span className="gs-sub">{r.sublabel}</span>}
+            </button>
+          ))}
+          {loading && <div className="gs-hint">Searching…</div>}
+          {!loading && results.length === 0 && <div className="gs-hint">No matches — try a suburb, postcode or address.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function priceLabel(s) {
   if (s.tariff && (s.tariff.dcPerKwh != null || s.tariff.acPerKwh != null)) {
     const parts = [];
@@ -56,7 +149,15 @@ export default function EVFinder() {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [query, setQuery] = useState('');
+
+  // route planner
+  const [mode, setMode] = useState('finder');        // 'finder' | 'route'
+  const [fromPick, setFromPick] = useState(null);    // { label, lat, lng }
+  const [toPick, setToPick] = useState(null);
+  const [routeData, setRouteData] = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState('');
+  const [routeLevel, setRouteLevel] = useState('DC');  // road trips default to DC
 
   // theme — shares the main app's localStorage key
   useEffect(() => {
@@ -97,23 +198,35 @@ export default function EVFinder() {
     if (!navigator.geolocation) { setLocError(true); return; }
     setLocating(true); setLocError(false);
     navigator.geolocation.getCurrentPosition(
-      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocLabel('your location'); setQuery(''); setLocating(false); },
+      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocLabel('your location'); setLocating(false); },
       () => { setLocError(true); setLocating(false); },
       { timeout: 8000 }
     );
   };
 
-  const suburbOptions = useMemo(
-    () => SUBURBS.map(s => ({ key: s.slug, label: `${s.name}, ${s.state}`, lat: s.lat, lng: s.lng })),
-    []
-  );
-  const onSuburbPick = (value) => {
-    setQuery(value);
-    const match = suburbOptions.find(o => o.label.toLowerCase() === value.toLowerCase());
-    if (match) { setCoords({ lat: match.lat, lng: match.lng }); setLocLabel(match.label); setLocError(false); }
-  };
+  const reset = () => { setCoords(null); setLocLabel(''); setStations([]); setMode('finder'); setRouteData(null); setRouteError(''); setFromPick(null); setToPick(null); };
 
-  const reset = () => { setCoords(null); setLocLabel(''); setQuery(''); setStations([]); };
+  const planRoute = async () => {
+    const from = fromPick;
+    const to = toPick;
+    if (!from || !to) { setRouteError('Pick a start and destination from the suggestions.'); return; }
+    setRouteLoading(true); setRouteError(''); setRouteData(null);
+    try {
+      const params = new URLSearchParams({
+        fromLat: String(from.lat), fromLng: String(from.lng),
+        toLat: String(to.lat), toLng: String(to.lng),
+      });
+      if (routeLevel !== 'ALL') params.set('level', routeLevel);
+      const res = await fetch(`/api/ev-route?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
+      setRouteData({ ...data, fromLabel: from.label, toLabel: to.label });
+    } catch (e) {
+      setRouteError(e.message || 'Could not plan route');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
 
   return (
     <div className="ev" data-theme={dark ? 'dark' : 'light'}>
@@ -219,6 +332,43 @@ export default function EVFinder() {
         .ev .off { font-size:11px; font-weight:700; color:var(--danger); font-family:'JetBrains Mono',monospace; letter-spacing:0.08em; text-transform:uppercase; }
         .ev .muted { color:var(--text-3); font-size:14px; padding:34px 0; text-align:center; border:1px solid var(--border); border-top:0; background:var(--surface); }
         .ev footer { border-top:1px solid var(--border); color:var(--text-3); font-size:12.5px; padding:24px 0; text-align:center; }
+
+        /* geo search */
+        .ev .gs { position:relative; }
+        .ev .gs > svg { position:absolute; left:18px; top:27px; transform:translateY(-50%); color:var(--text-4); pointer-events:none; }
+        .ev .gs input { width:100%; padding:18px 18px 18px 48px; font:inherit; font-size:1.05rem; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+        .ev .gs input::placeholder { color:var(--text-4); }
+        .ev .gs input:focus { outline:none; border-color:var(--border-strong); }
+        .ev .gs-drop { position:absolute; left:0; right:0; top:100%; z-index:20; background:var(--surface); border:1px solid var(--border-strong); border-top:0; max-height:280px; overflow-y:auto; }
+        .ev .gs-drop button { display:flex; align-items:baseline; justify-content:space-between; gap:12px; width:100%; padding:12px 16px; font:inherit; font-size:14px; text-align:left; background:none; border:0; border-bottom:1px solid var(--border); color:var(--text); cursor:pointer; }
+        .ev .gs-drop button:last-of-type { border-bottom:0; }
+        .ev .gs-drop button:hover { background:var(--surface-2); }
+        .ev .gs-label { font-weight:500; }
+        .ev .gs-sub { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-4); flex-shrink:0; }
+        .ev .gs-hint { padding:12px 16px; font-size:13px; color:var(--text-3); }
+
+        /* route planner */
+        .ev .route-card { width:100%; display:flex; align-items:center; gap:16px; padding:16px;
+                          margin-top:1rem; text-align:left; font:inherit; cursor:pointer;
+                          background:rgba(255,74,23,0.06); border:1px solid var(--accent); color:var(--text); }
+        .ev[data-theme="dark"] .route-card { background:rgba(255,94,48,0.08); }
+        .ev .route-card .ic { flex-shrink:0; width:42px; height:42px; display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; }
+        .ev .route-card .t { display:flex; align-items:center; gap:8px; }
+        .ev .route-card .t b { font-family:'Anton','Hanken Grotesk',sans-serif; text-transform:uppercase; font-weight:400; font-size:16px; letter-spacing:0.01em; }
+        .ev .route-card .new { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.16em; background:var(--accent); color:#fff; padding:2px 6px; }
+        .ev .route-card .d { color:var(--text-3); font-size:14px; margin-top:2px; }
+        .ev .route-card .ch { margin-left:auto; color:var(--accent); flex-shrink:0; }
+
+        .ev .rform { display:flex; flex-direction:column; gap:10px; max-width:560px; margin-bottom:1rem; }
+        .ev .rform input { width:100%; padding:14px 16px; font:inherit; font-size:15px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+        .ev .rform input:focus { outline:none; border-color:var(--border-strong); }
+        .ev .rform .lbl { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+        .ev .gap { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; font-size:13.5px; margin:14px 0;
+                   background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); color:var(--text-2); }
+        .ev .gap.bad { border-left-color:var(--danger); }
+        .ev .gap b { font-family:'JetBrains Mono',monospace; }
+        .ev .stop-km { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--bg); background:var(--text); padding:3px 7px; flex-shrink:0; }
+        .ev .detour { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-3); }
       `}</style>
 
       <header>
@@ -232,7 +382,7 @@ export default function EVFinder() {
       </header>
 
       {/* HERO — until a location is chosen */}
-      {!coords && (
+      {!coords && mode === 'finder' && (
         <section className="hero">
           <div className="wrap">
             <div className="hero-grid">
@@ -245,12 +395,22 @@ export default function EVFinder() {
                   {locating ? 'Finding chargers near you…' : 'Find chargers near me'}
                 </button>
 
-                <div className="ev-search">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                  <input list="ev-suburbs" value={query} onChange={e => onSuburbPick(e.target.value)} placeholder="Or search a suburb or postcode…" />
-                  <datalist id="ev-suburbs">{suburbOptions.map(o => <option key={o.key} value={o.label} />)}</datalist>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <GeoSearch placeholder="Or search a suburb, postcode or address…"
+                             onSelect={r => { setCoords({ lat: r.lat, lng: r.lng }); setLocLabel(r.label); setLocError(false); }} />
                 </div>
                 {locError && <p className="locerr">Couldn&rsquo;t get your location — try searching instead.</p>}
+
+                <button type="button" className="route-card" onClick={() => { setMode('route'); setRouteData(null); setRouteError(''); }}>
+                  <span className="ic">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                  </span>
+                  <span>
+                    <span className="t"><b>EV route planner</b><span className="new">New</span></span>
+                    <span className="d" style={{ display: 'block' }}>Chargers along your whole trip — and the longest gap between them.</span>
+                  </span>
+                  <span className="ch">›</span>
+                </button>
 
                 <div className="trust">
                   Live charger locations across Australia from Open Charge Map.
@@ -263,7 +423,7 @@ export default function EVFinder() {
                 <div className="cities">
                   {EV_CITIES.map(c => (
                     <button key={c.slug} type="button" className="city"
-                            onClick={() => { setCoords({ lat: c.lat, lng: c.lng }); setLocLabel(`${c.name}, ${c.state}`); setLocError(false); setQuery(''); }}>
+                            onClick={() => { setCoords({ lat: c.lat, lng: c.lng }); setLocLabel(`${c.name}, ${c.state}`); setLocError(false); }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
                         <span className="st">{c.state}</span>
                         <span className="nm">{c.name}</span>
@@ -279,7 +439,7 @@ export default function EVFinder() {
       )}
 
       {/* RESULTS */}
-      {coords && (
+      {coords && mode === 'finder' && (
         <main className="wrap results">
           <div className="rhead">
             <div>
@@ -341,6 +501,105 @@ export default function EVFinder() {
               </div>
             ))}
           </div>
+        </main>
+      )}
+
+      {/* ROUTE PLANNER */}
+      {mode === 'route' && (
+        <main className="wrap results">
+          <div className="rhead">
+            <div>
+              <div className="rkicker track">EV route planner</div>
+              <h2 className="display">Chargers along <span className="a">your trip.</span></h2>
+              <p className="rsub">Pick a start and end suburb — we&rsquo;ll find every charger within 7&nbsp;km of the route, in trip order.</p>
+            </div>
+            <button type="button" className="reset" onClick={reset}>‹ Back</button>
+          </div>
+
+          <div className="rform">
+            <div>
+              <div className="lbl">From</div>
+              <GeoSearch placeholder="Start — suburb, postcode or address…" onSelect={setFromPick} />
+            </div>
+            <div>
+              <div className="lbl">To</div>
+              <GeoSearch placeholder="Destination — suburb, postcode or address…" onSelect={setToPick} />
+            </div>
+            <div className="controls" style={{ marginBottom: 0 }}>
+              <div className="seg" role="group" aria-label="Charger type">
+                {['DC', 'ALL'].map(l => (
+                  <button key={l} className={routeLevel === l ? 'on' : ''} onClick={() => setRouteLevel(l)}>{l === 'ALL' ? 'All chargers' : 'DC fast only'}</button>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="cta" onClick={planRoute} disabled={routeLoading} style={{ marginBottom: 0 }}>
+              {routeLoading ? 'Planning your route…' : 'Find chargers along route'}
+            </button>
+            {routeError && <p className="locerr">{routeError}</p>}
+          </div>
+
+          {routeData && (
+            <>
+              <div className="rhead" style={{ marginTop: '1.5rem' }}>
+                <div>
+                  <div className="rkicker track">{routeData.fromLabel} → {routeData.toLabel}</div>
+                  <p className="rsub" style={{ marginTop: 0 }}>
+                    {routeData.route.distanceKm} km
+                    {routeData.route.durationMin ? ` · about ${Math.floor(routeData.route.durationMin / 60)}h ${routeData.route.durationMin % 60}m drive` : ''}
+                    {` · ${routeData.chargers.length} chargers within 7 km of the route`}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`gap ${routeData.gaps.longestGapKm > 200 ? 'bad' : ''}`}>
+                <span aria-hidden="true">{routeData.gaps.longestGapKm > 200 ? '⚠' : 'ⓘ'}</span>
+                <span>
+                  Longest stretch without a charger: <b>{routeData.gaps.longestGapKm} km</b>
+                  {routeData.chargers.length > 0 ? <> ({routeData.gaps.from} → {routeData.gaps.to})</> : null}
+                  {routeData.gaps.longestGapKm > 200 ? ' — plan this leg carefully.' : ''}
+                </span>
+              </div>
+
+              <div className="banner">
+                <span aria-hidden="true">ⓘ</span>
+                <span>{INDICATIVE_NOTE}</span>
+              </div>
+
+              <div className="list">
+                {routeData.chargers.length === 0 && (
+                  <div className="muted">No chargers found within 7 km of this route{routeLevel === 'DC' ? ' — try including AC chargers.' : '.'}</div>
+                )}
+                {routeData.chargers.map(s2 => (
+                  <div className="card" key={s2.id}>
+                    <div className="ctop">
+                      <div className="who" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <span className="stop-km">{s2.alongKm} km</span>
+                        <div>
+                          <div className="net">{s2.network}</div>
+                          {s2.address && <div className="addr">{s2.address}</div>}
+                          <div className="detour" style={{ marginTop: 3 }}>{s2.detourKm <= 0.5 ? 'on route' : `${s2.detourKm} km off route`}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="price">{priceLabel(s2)}</div>
+                      </div>
+                    </div>
+                    <div className="chips">
+                      {s2.level && <span className={`chip ${s2.level === 'DC' ? 'dc' : ''}`}>{s2.level}</span>}
+                      {s2.maxPowerKw != null && <span className="chip">up to {s2.maxPowerKw} kW</span>}
+                      {s2.connectors.map((c, i) => (
+                        <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
+                      ))}
+                    </div>
+                    <div className="crow">
+                      <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s2.lat},${s2.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
+                      {s2.operational === false && <span className="off">May be offline</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </main>
       )}
 
