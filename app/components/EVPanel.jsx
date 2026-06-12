@@ -317,6 +317,24 @@ export default function EVPanel() {
                 <input list="ev-suburbs" value={query} onChange={e => onSuburbPick(e.target.value)} placeholder="Or search a suburb or postcode…" />
                 <datalist id="ev-suburbs">{suburbOptions.map(o => <option key={o.key} value={o.label} />)}</datalist>
               </div>
+
+              <a href="/ev?route=1" className="block w-full hover-raise" style={{
+                display: 'flex', alignItems: 'center', gap: 16, padding: 16, marginTop: '1rem',
+                textDecoration: 'none', color: 'var(--text)',
+                background: 'rgba(255,74,23,0.06)', border: '1px solid var(--accent)',
+              }}>
+                <span style={{ flexShrink: 0, width: 42, height: 42, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent)', color: '#fff' }}>
+                  <Navigation size={19} />
+                </span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="font-display" style={{ fontSize: 16, textTransform: 'uppercase', letterSpacing: '0.01em' }}>EV route planner</span>
+                    <span className="track-wide" style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', background: 'var(--accent)', color: '#fff', padding: '2px 6px' }}>New</span>
+                  </span>
+                  <span style={{ display: 'block', color: 'var(--text-3)', fontSize: 14, marginTop: 2 }}>Chargers along your whole trip — and the longest gap between them.</span>
+                </span>
+                <ArrowRight size={18} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              </a>
               {locError && (
                 <p className="text-tiny mt-2" style={{ color: 'var(--warn)' }}>
                   <AlertCircle size={11} style={{ display: 'inline', marginRight: 4 }} />
