@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AlertSignup } from './AlertSignup';
 import EVPanel from './EVPanel';
+import { SUBURBS } from '@/lib/suburbs';
 
 /* =====================================================================
    Large, prominent Fuel / EV mode toggle (home view)
@@ -2732,17 +2733,13 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
         </button>
 
         <nav className="hidden md:flex items-center gap-0.5 ml-4 flex-1">
-          {[
-            { label: 'Route planner', view: { name: 'route' } },
-          ].map(item => (
-            <button
-              key={item.label} type="button" onClick={() => item.isHome ? goHome() : goto(item.view)}
-              className="px-3 py-1.5 text-sm font-medium transition-colors"
-              style={{ color: 'var(--text-2)', borderRadius: 0 }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}
-            >{item.label}</button>
-          ))}
+          <a
+            href="/ev"
+            className="px-3 py-1.5 text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-2)', borderRadius: 0, textDecoration: 'none' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}
+          >EV charging</a>
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
@@ -2851,8 +2848,12 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
       {open && (
         <div className="md:hidden fade-up" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
           <div className="max-w-6xl mx-auto px-4 py-4">
+            <a href="/ev"
+               className="w-full text-left py-3 font-medium inline-flex items-center justify-between"
+               style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
+              EV charging <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+            </a>
             {[
-              { label: 'Route planner', view: { name: 'route' } },
               { label: 'About', view: { name: 'about' } },
             ].map(item => (
               <button key={item.label} type="button" onClick={() => goto(item.view)}
@@ -2867,6 +2868,34 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
     </header>
   );
 };
+
+const STATE_ORDER = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'ACT', 'TAS', 'NT'];
+
+/** Crawlable directory of every suburb page — the internal-linking backbone
+ *  for the /fuel/[suburb] SEO pages. Plain anchors, rendered in the
+ *  pre-rendered HTML, grouped by state. */
+const SuburbDirectory = () => (
+  <div className="pt-10 mt-2 mb-12" style={{ borderTop: '1px solid var(--border)' }}>
+    <div className="text-micro font-medium uppercase track-wide mb-5" style={{ color: 'var(--text-4)' }}>
+      Fuel prices by suburb
+    </div>
+    {STATE_ORDER.map(st => {
+      const subs = SUBURBS.filter(s => s.state === st);
+      if (!subs.length) return null;
+      return (
+        <div key={st} className="mb-4 text-sm" style={{ lineHeight: 2 }}>
+          <span className="track-wide" style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, marginRight: 10 }}>{st}</span>
+          {subs.map((s, i) => (
+            <span key={s.slug}>
+              <a href={`/fuel/${s.slug}`} className="ulink" style={{ color: 'var(--text-3)', textDecoration: 'none' }}>{s.name}</a>
+              {i < subs.length - 1 ? <span style={{ color: 'var(--text-4)' }}> · </span> : null}
+            </span>
+          ))}
+        </div>
+      );
+    })}
+  </div>
+);
 
 const Footer = ({ onNav }) => (
   <footer className="mt-20 pt-14 pb-10" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-2)' }}>
@@ -2896,8 +2925,10 @@ const Footer = ({ onNav }) => (
         <div>
           <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>About</div>
           <ul className="space-y-2 text-sm">
+            <li>
+              <a href="/ev" className="ulink" style={{ color: 'var(--text-2)', textDecoration: 'none' }}>EV charging</a>
+            </li>
             {[
-              { label: 'Route planner', view: { name: 'route' } },
               { label: 'About Motavo', view: { name: 'about' } },
               { label: 'Our data & methodology', view: { name: 'methodology' } },
               { label: 'How fuel cycles work', view: { name: 'editorial', slug: 'cycles' } },
@@ -2911,6 +2942,7 @@ const Footer = ({ onNav }) => (
           </ul>
         </div>
       </div>
+      <SuburbDirectory />
       <div className="pt-6 text-xs flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
            style={{ borderTop: '1px solid var(--border)', color: 'var(--text-4)' }}>
         <div>© {new Date().getFullYear()} Motavo · <button type="button" onClick={() => onNav({ name: 'methodology' })} className="ulink" style={{ color: 'inherit', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>Independent fuel price comparison</button>.</div>
