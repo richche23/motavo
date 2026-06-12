@@ -7,6 +7,7 @@ import { fetchStations as fetchWA } from '@/lib/sources/wa-fuelwatch';
 import { fetchStations as fetchSA } from '@/lib/sources/sa-informedsources';
 import { fetchStations as fetchNT } from '@/lib/sources/nt-myfuelnt';
 import type { StateCode, FuelType, SourceFetcher } from '@/lib/types';
+import { cacheGet, cacheSet } from '@/lib/cache';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -50,12 +51,96 @@ async function underRateLimit(ip: string): Promise<boolean> {
   }
 }
 
-// ── Parse suburb + fuel type from the message (deterministic, free) ─────────
+// ── Resolve a location from the message ─────────────────────────────────────
+// 1. Instant, free: substring match against the curated SUBURBS list.
+// 2. Fallback: extract a place phrase and geocode it via Nominatim (AU-only),
+//    so ANY Australian suburb, town or postcode works — not just the 91 curated.
 const SUBURBS_BY_LEN = [...SUBURBS].sort((a, b) => b.name.length - a.name.length);
 
-function detectSuburb(text: string) {
+type ResolvedPlace = { name: string; state: StateCode; lat: number; lng: number };
+
+function detectSuburb(text: string): ResolvedPlace | null {
   const t = text.toLowerCase();
-  return SUBURBS_BY_LEN.find((s) => t.includes(s.name.toLowerCase())) || null;
+  const hit = SUBURBS_BY_LEN.find((s) => t.includes(s.name.toLowerCase()));
+  return hit ? { name: hit.name, state: hit.state as StateCode, lat: hit.lat, lng: hit.lng } : null;
+}
+
+const STATE_NAME_TO_CODE: Record<string, StateCode> = {
+  'New South Wales': 'NSW', 'Victoria': 'VIC', 'Queensland': 'QLD',
+  'Western Australia': 'WA', 'South Australia': 'SA', 'Tasmania': 'TAS',
+  'Australian Capital Territory': 'ACT', 'Northern Territory': 'NT',
+};
+
+// Same bounding boxes as elsewhere in the app — used when Nominatim's
+// address details don't include a recognisable state.
+function stateFromCoords(lat: number, lng: number): StateCode {
+  if (lat <= -35.1 && lat >= -35.95 && lng >= 148.75 && lng <= 149.45) return 'ACT';
+  if (lat <= -39.2 && lng >= 143.5 && lng <= 149.2) return 'TAS';
+  if (lat <= -33.9 && lat >= -39.3 && lng >= 140.8 && lng <= 150.2) return 'VIC';
+  if (lat <= -28.0 && lat >= -37.6 && lng >= 140.9 && lng <= 153.7) return 'NSW';
+  if (lat <= -9.5  && lat >= -29.2 && lng >= 137.9 && lng <= 153.6) return 'QLD';
+  if (lat <= -25.9 && lat >= -38.2 && lng >= 128.9 && lng <= 141.1) return 'SA';
+  if (lat <= -10.9 && lat >= -26.1 && lng >= 128.9 && lng <= 138.1) return 'NT';
+  if (lng <= 129.1) return 'WA';
+  return 'NSW';
+}
+
+/** Pull the most likely place phrase out of a chat message. */
+function extractPlaceQuery(text: string): string | null {
+  // 4-digit postcode (fuel types are 2-digit, so no collision)
+  const postcode = text.match(/\b(0[289]\d{2}|[1-9]\d{3})\b/);
+  if (postcode) return postcode[1];
+  // "... in/near/at/around <place>" — grab up to 4 trailing words
+  const m = text.match(/\b(?:in|near|at|around)\s+([a-zA-Z][a-zA-Z'\- ]{2,40})/i);
+  if (m) {
+    return m[1]
+      .replace(/\b(please|today|now|right now|currently|tomorrow|tonight)\b/gi, '')
+      .replace(/[?.!,].*$/, '')
+      .trim() || null;
+  }
+  return null;
+}
+
+/** Geocode an AU place via Nominatim. Cached 24h to respect their rate policy. */
+async function geocodePlace(q: string): Promise<ResolvedPlace | null> {
+  const key = `geo:asst:${q.toLowerCase()}`;
+  const cached = cacheGet<ResolvedPlace | 'miss'>(key);
+  if (cached) return cached === 'miss' ? null : cached;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ', Australia')}&format=json&countrycodes=au&limit=1&addressdetails=1`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Motavo/1.0 (fuel price comparison; motavo.au)' },
+      signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const r = data?.[0];
+    if (!r?.lat || !r?.lon) {
+      cacheSet(key, 'miss', 24 * 60 * 60 * 1000);
+      return null;
+    }
+    const lat = parseFloat(r.lat);
+    const lng = parseFloat(r.lon);
+    const name =
+      r.address?.suburb || r.address?.town || r.address?.city || r.address?.village ||
+      (r.display_name || q).split(',')[0].trim();
+    const state = STATE_NAME_TO_CODE[r.address?.state] || stateFromCoords(lat, lng);
+    const place: ResolvedPlace = { name, state, lat, lng };
+    cacheSet(key, place, 24 * 60 * 60 * 1000);
+    return place;
+  } catch {
+    return null;
+  }
+}
+
+/** Local list first (instant), then geocode whatever place the message names. */
+async function resolveLocation(text: string): Promise<ResolvedPlace | null> {
+  const local = detectSuburb(text);
+  if (local) return local;
+  const q = extractPlaceQuery(text);
+  if (!q) return null;
+  return geocodePlace(q);
 }
 
 function detectFuel(text: string): FuelType {
@@ -75,9 +160,9 @@ const FUEL_LABEL: Record<FuelType, string> = {
 };
 
 async function liveDataBlock(text: string): Promise<string> {
-  const sub = detectSuburb(text);
+  const sub = await resolveLocation(text);
   if (!sub) {
-    return '[LIVE_DATA: none. If the user wants a price, ask them to name a supported suburb (e.g. Frankston, Bondi, Geelong, Glenelg). You may still give general fuel-cycle guidance.]';
+    return '[LIVE_DATA: none. If the user wants a price, ask them to name any Australian suburb, town or postcode (e.g. "cheapest 91 in Pakenham" or "diesel near 3196"). You may still give general fuel-cycle guidance.]';
   }
   const fuelType = detectFuel(text);
   const fetcher = FETCHER[sub.state as StateCode];
@@ -102,7 +187,7 @@ const SYSTEM = `You are Motavo's assistant, helping Australian drivers find chea
 Rules:
 - Any price you state MUST come from the [LIVE_DATA] block in the latest message. NEVER invent, estimate, or recall a price.
 - Prices are cents per litre (c/L). Be concise and practical, in Australian English.
-- If LIVE_DATA has no prices, say so and (if useful) ask for a supported suburb. Do not make up numbers.
+- If LIVE_DATA has no prices, say so and (if useful) ask for a suburb, town or postcode anywhere in Australia. Do not make up numbers.
 - You may give general guidance on fuel price cycles (e.g. Perth is weekly, cheapest Tuesdays; Sydney/Brisbane run ~3–6 week cycles) but never claim a specific current cycle position you weren't given.
 - Politely steer off-topic questions back to fuel and EV charging.`;
 
@@ -159,7 +244,7 @@ export async function POST(req: NextRequest) {
       .map((p: any) => p?.text || '')
       .join('')
       .trim();
-    return NextResponse.json({ reply: reply || "Sorry, I couldn't work that out — try naming a suburb." });
+    return NextResponse.json({ reply: reply || "Sorry, I couldn't work that out — try naming a suburb or postcode." });
   } catch (err: any) {
     console.error('[assistant] error:', err?.message ?? err);
     return NextResponse.json({ reply: 'The assistant hit an error. Please try again shortly.' });
