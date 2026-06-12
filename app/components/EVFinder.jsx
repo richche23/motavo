@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { SUBURBS } from '@/lib/suburbs';
+import AddToHomeScreen from './AddToHomeScreen';
 
 const INDICATIVE_NOTE =
   'Indicative network rates (verified June 2026) — not live per-charger prices. Check the operator’s app for the exact cost before charging.';
@@ -138,10 +139,10 @@ function priceLabel(s) {
   return 'Price varies';
 }
 
-export default function EVFinder() {
+export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
   const [dark, setDark] = useState(false);
-  const [coords, setCoords] = useState(null);       // null = hero showing
-  const [locLabel, setLocLabel] = useState('');
+  const [coords, setCoords] = useState(initialCoords); // null = hero showing
+  const [locLabel, setLocLabel] = useState(initialLabel);
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState(false);
   const [radius, setRadius] = useState(10);
@@ -608,6 +609,7 @@ export default function EVFinder() {
       )}
 
       <footer className="wrap">Charger data © Open Charge Map contributors. Pricing indicative — verify with the operator.</footer>
+      <AddToHomeScreen />
     </div>
   );
 }
