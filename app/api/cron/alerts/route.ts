@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
+import { unsubscribeUrl } from '@/lib/alertTokens';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -123,7 +124,10 @@ export async function GET(req: NextRequest) {
       const state = getStateFromSuburb(sub.suburb);
       const signal = cycleSignals[state] || 'unknown';
       const testMode = req.nextUrl.searchParams.get('test') === '1';
-      const shouldAlert = testMode || ((signal === 'peak' || signal === 'high') && (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo));
+      // 'low' = current price near the bottom of the recent cycle range —
+      // the RIGHT time to fill up. (Previously fired on peak/high, which is
+      // the top of the cycle: the worst time. Inversion fixed June 2026.)
+      const shouldAlert = testMode || (signal === 'low' && (!sub.lastAlertAt || sub.lastAlertAt < oneDayAgo));
       if (!byEmail.has(sub.email)) byEmail.set(sub.email, []);
       byEmail.get(sub.email)!.push({ ...sub, shouldAlert });
     }
@@ -134,11 +138,24 @@ export async function GET(req: NextRequest) {
       if (alertSubs.length === 0) continue;
 
       const suburbList = alertSubs.map(s => `${s.suburb.split('-')[0]} (${s.fuelType})`).join(', ');
+      const unsub = unsubscribeUrl(email);
       const result = await resend.emails.send({
         from: 'alerts@motavo.au',
         to: email,
-        subject: `⛽ Time to fill up — ${suburbList} prices are up`,
-        html: `<p>Hi,</p><p>Prices are <strong>good right now</strong> in ${alertSubs.length === 1 ? 'your area' : 'your areas'}:</p><ul>${alertSubs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fuelType})</li>`).join('\n')}</ul><p><a href="https://motavo.au">Check live prices</a> and fill up before they climb again.</p><p>— Motavo</p>`,
+        subject: `⛽ Prices near the cycle low — good time to fill up (${suburbList})`,
+        headers: {
+          'List-Unsubscribe': `<${unsub}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+        html: `<p>Hi,</p>
+<p>Fuel prices are sitting <strong>near the bottom of the price cycle</strong> in ${alertSubs.length === 1 ? 'your area' : 'your areas'}:</p>
+<ul>${alertSubs.map(s => `<li><strong>${s.suburb.split('-')[0]}</strong> (${s.fuelType})</li>`).join('\n')}</ul>
+<p>Cycles in Australian capitals jump sharply once they bottom out — filling up now usually beats waiting.</p>
+<p><a href="https://motavo.au">Check live prices near you →</a></p>
+<p>— Motavo</p>
+<hr style="border:none;border-top:1px solid #ddd;margin:24px 0 12px">
+<p style="font-size:12px;color:#888">You're receiving this because you subscribed to Motavo price alerts.
+<a href="${unsub}" style="color:#888">Unsubscribe</a></p>`,
       });
 
       if (!result.error) {
