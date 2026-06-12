@@ -43,6 +43,17 @@ export default function Assistant() {
     }
   }
 
+  // Compact icon-only launcher on small screens so it doesn't sit over
+  // content rows or compete with primary CTAs.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const update = () => setCompact(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   return (
     <>
       {!open && (
@@ -52,13 +63,15 @@ export default function Assistant() {
           aria-label="Open the Motavo assistant"
           style={{
             position: 'fixed', right: 18, bottom: 18, zIndex: 900,
-            display: 'inline-flex', alignItems: 'center', gap: 8,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             background: 'var(--accent, #ff4a17)', color: '#fff',
-            border: 'none', cursor: 'pointer', padding: '12px 16px',
+            border: 'none', cursor: 'pointer',
+            padding: compact ? 0 : '12px 16px',
+            width: compact ? 52 : undefined, height: compact ? 52 : undefined,
             fontWeight: 700, fontSize: 14, boxShadow: '0 6px 20px rgba(0,0,0,0.22)',
           }}
         >
-          <MessageCircle size={18} /> Ask Motavo
+          <MessageCircle size={compact ? 22 : 18} />{compact ? null : ' Ask Motavo'}
         </button>
       )}
 
