@@ -22,5 +22,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...suburbPages];
+  // EV charging per suburb — charger networks change slowly, weekly is honest.
+  const evSuburbPages: MetadataRoute.Sitemap = SUBURBS.map((s) => ({
+    url: `${SITE_URL}/ev/${s.slug}`,
+    lastModified: now,
+    changeFrequency: 'weekly',
+    priority: 0.6,
+  }));
+
+  return [...staticPages, ...suburbPages, ...evSuburbPages];
 }
