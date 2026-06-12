@@ -165,6 +165,10 @@ export default function EVFinder() {
       const saved = localStorage.getItem('fm:color-scheme');
       setDark(saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
     } catch {}
+    // deep link: /ev?route=1 opens the route planner directly
+    try {
+      if (new URLSearchParams(window.location.search).get('route') === '1') setMode('route');
+    } catch {}
   }, []);
   const toggleTheme = () => {
     setDark(d => {
