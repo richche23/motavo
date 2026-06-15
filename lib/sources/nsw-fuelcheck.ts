@@ -145,17 +145,44 @@ async function fetchSnapshot(): Promise<Station[]> {
   return stations;
 }
 
+// Canberra CBD — used to identify ACT stations geographically, because the
+// FuelCheck v1 API tags most ACT stations as 'NSW' (or leaves state blank).
+// The ACT is a compact ~35km-wide enclave, so a radius around the city centre
+// reliably captures ACT + immediate-border stations (e.g. Queanbeyan, which is
+// effectively Canberra) without pulling in unrelated NSW metros.
+const CANBERRA = { lat: -35.2809, lng: 149.1300 };
+const ACT_RADIUS_KM = 30;
+
 export async function fetchStations(opts: FetchOptions): Promise<FetchResult> {
   const radius = opts.radius ?? 25;
   const limit = opts.limit ?? 200;
-  const allowedStates: StateCode[] = opts.state ? [opts.state] : ['NSW', 'TAS', 'ACT'];
 
   const wasCached = cacheGet<Station[]>(SNAPSHOT_KEY) !== null;
   const snapshot = await fetchSnapshot();
   const refreshedAt = cacheWrittenAt(SNAPSHOT_KEY, SNAPSHOT_TTL);
 
+  // ACT: select by geography, not the (unreliable) state tag.
+  if (opts.state === 'ACT') {
+    const stations = snapshot
+      .map(s => ({ ...s, distance: distanceKm(CANBERRA.lat, CANBERRA.lng, s.lat, s.lng) }))
+      .filter(s => s.distance! <= ACT_RADIUS_KM)
+      .map(s => ({ ...s, distance: distanceKm(opts.lat, opts.lng, s.lat, s.lng), state: 'ACT' as StateCode }))
+      .filter(s => s.distance! <= radius)
+      .sort((a, b) => a.distance! - b.distance!)
+      .slice(0, limit);
+    return { stations, source: 'nsw-fuelcheck', cached: wasCached, refreshedAt };
+  }
+
+  // TAS is not available on the FuelCheck v1 key (needs the separate v2
+  // product), so return nothing rather than NSW stations mislabelled as TAS.
+  if (opts.state === 'TAS') {
+    return { stations: [], source: 'nsw-fuelcheck', cached: wasCached, refreshedAt };
+  }
+
+  const allowedStates: StateCode[] = opts.state ? [opts.state] : ['NSW', 'ACT'];
   const stations = snapshot
-    .filter(s => allowedStates.includes(s.state))
+    .filter(s => allowedStates.includes(s.state) || (opts.state === undefined &&
+      distanceKm(CANBERRA.lat, CANBERRA.lng, s.lat, s.lng) <= ACT_RADIUS_KM))
     .map(s => ({ ...s, distance: distanceKm(opts.lat, opts.lng, s.lat, s.lng) }))
     .filter(s => s.distance! <= radius)
     .sort((a, b) => a.distance! - b.distance!)
