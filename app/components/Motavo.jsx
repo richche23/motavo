@@ -348,7 +348,22 @@ const SIGNAL_TONES = {
   mid:  { label: 'Mid-cycle',      sub: 'Prices are average', dot: '🟡', color: 'var(--text-2)',  bg: 'var(--surface-2)',  border: 'var(--border)'      },
   high: { label: 'Hold off',       sub: 'Prices climbing',    dot: '🟠', color: 'var(--warn)',    bg: '#fdf0e6',           border: '#f0c090'             },
   peak: { label: 'Avoid if you can', sub: 'Near cycle peak',  dot: '🔴', color: 'var(--danger)',  bg: '#fdeaea',           border: '#f0b0b0'             },
+  pending: { label: 'Data coming soon', sub: 'Feed being added', dot: '○', color: 'var(--text-3)', bg: 'var(--surface-2)', border: 'var(--border)' },
 };
+
+// States without a live cycle feed yet. TAS needs the FuelCheck v2 data
+// product (separate subscription); until then we show an honest "coming soon"
+// chip rather than a blank or a misleading signal. Remove a state from here
+// once its feed is logging.
+const NO_FEED_STATES = ['TAS'];
+
+// Resolve the chip tone for a state: real signal if we have one, else the
+// honest 'pending' placeholder for feed-less states, else nothing.
+function resolveSignal(state, signal) {
+  if (signal && SIGNAL_TONES[signal.tone] && signal.tone !== 'unknown') return signal;
+  if (NO_FEED_STATES.includes(state)) return { tone: 'pending' };
+  return null;
+}
 
 function useCycleSignals(fuelType = 'U91') {
   const [signals, setSignals] = useState({});
@@ -364,8 +379,9 @@ function useCycleSignals(fuelType = 'U91') {
 }
 
 /* Full badge — used in the CitiesIndexView grid cards */
-const SignalBadge = ({ signal }) => {
-  const tone = signal && SIGNAL_TONES[signal.tone];
+const SignalBadge = ({ signal, state }) => {
+  const resolved = resolveSignal(state, signal);
+  const tone = resolved && SIGNAL_TONES[resolved.tone];
   if (!tone) return null;
   return (
     <span className="inline-flex items-center gap-2 px-2.5 py-1.5"
@@ -380,8 +396,9 @@ const SignalBadge = ({ signal }) => {
 };
 
 /* Compact inline chip — used in the HomeView city list */
-const SignalChip = ({ signal }) => {
-  const tone = signal && SIGNAL_TONES[signal.tone];
+const SignalChip = ({ signal, state }) => {
+  const resolved = resolveSignal(state, signal);
+  const tone = resolved && SIGNAL_TONES[resolved.tone];
   if (!tone) return null;
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-1"
@@ -1298,15 +1315,15 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     background:${color};
     color:#fff;
     font-family:'JetBrains Mono',monospace;
-    font-size:11px;
+    font-size:${selected ? 13 : 11}px;
     font-weight:700;
-    padding:3px 7px;
+    padding:${selected ? '5px 10px' : '3px 7px'};
     border-radius:0;
     white-space:nowrap;
-    border:2px solid #fff;
-    box-shadow:${selected
-      ? '0 0 0 2px #fff, 0 0 0 4px ' + color + ', 0 6px 16px rgba(0,0,0,0.35)'
-      : '0 2px 6px rgba(0,0,0,0.25)'};
+    box-shadow:0 ${selected ? 6 : 2}px ${selected ? 16 : 6}px rgba(0,0,0,${selected ? 0.4 : 0.25});
+    border:2px solid ${selected ? 'var(--text,#15120e)' : 'rgba(255,255,255,0.7)'};
+    transform:scale(${selected ? 1.18 : 1});
+    transition:transform .12s ease;
     ${isCheap && !selected ? 'outline:2px solid '+color+';outline-offset:2px;' : ''}
   ">${label}¢</div>`;
 
@@ -3125,7 +3142,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                         )}
                       </div>
                       <span className="inline-flex flex-col items-end gap-1">
-                        <SignalChip signal={signals[c.state]} />
+                        <SignalChip signal={signals[c.state]} state={c.state} />
                         <span className="text-micro font-mono" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
                       </span>
                     </button>
@@ -3414,8 +3431,8 @@ const CitiesIndexView = ({ onNav }) => {
             </div>
             <div>
               <div className="text-micro uppercase track-wide font-medium mb-1" style={{ color: 'var(--text-4)' }}>Right now</div>
-              <SignalBadge signal={signals[c.state]} />
-              {!signals[c.state] && (
+              <SignalBadge signal={signals[c.state]} state={c.state} />
+              {!signals[c.state] && !NO_FEED_STATES.includes(c.state) && (
                 <div className="font-medium text-sm" style={{ color: 'var(--text-3)' }}>{c.cycle}</div>
               )}
             </div>
