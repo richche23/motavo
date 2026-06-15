@@ -1298,15 +1298,15 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     background:${color};
     color:#fff;
     font-family:'JetBrains Mono',monospace;
-    font-size:${selected ? 13 : 11}px;
+    font-size:11px;
     font-weight:700;
-    padding:${selected ? '5px 10px' : '3px 7px'};
+    padding:3px 7px;
     border-radius:0;
     white-space:nowrap;
-    box-shadow:0 ${selected ? 6 : 2}px ${selected ? 16 : 6}px rgba(0,0,0,${selected ? 0.4 : 0.25});
-    border:2px solid ${selected ? 'var(--text,#15120e)' : 'rgba(255,255,255,0.7)'};
-    transform:scale(${selected ? 1.18 : 1});
-    transition:transform .12s ease;
+    border:2px solid #fff;
+    box-shadow:${selected
+      ? '0 0 0 2px #fff, 0 0 0 4px ' + color + ', 0 6px 16px rgba(0,0,0,0.35)'
+      : '0 2px 6px rgba(0,0,0,0.25)'};
     ${isCheap && !selected ? 'outline:2px solid '+color+';outline-offset:2px;' : ''}
   ">${label}¢</div>`;
 
