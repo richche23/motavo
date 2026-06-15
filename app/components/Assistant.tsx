@@ -64,7 +64,7 @@ export default function Assistant() {
           style={{
             position: 'fixed', right: 18, bottom: 18, zIndex: 900,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            background: 'var(--accent, #ff4a17)', color: '#fff',
+            background: 'var(--accent, #0f7a52)', color: '#fff',
             border: 'none', cursor: 'pointer',
             padding: compact ? 0 : '12px 16px',
             width: compact ? 52 : undefined, height: compact ? 52 : undefined,
@@ -109,7 +109,7 @@ export default function Assistant() {
                 style={{
                   alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
                   maxWidth: '85%',
-                  background: m.role === 'user' ? 'var(--accent, #ff4a17)' : 'var(--surface-2, #e7e4dd)',
+                  background: m.role === 'user' ? 'var(--accent, #0f7a52)' : 'var(--surface-2, #e7e4dd)',
                   color: m.role === 'user' ? '#fff' : 'var(--text, #15120e)',
                   border: m.role === 'user' ? 'none' : '1px solid var(--border, #cbc6b9)',
                   padding: '9px 12px', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap',
@@ -148,7 +148,7 @@ export default function Assistant() {
               disabled={busy || !input.trim()}
               aria-label="Send"
               style={{
-                background: 'var(--accent, #ff4a17)', color: '#fff', border: 'none',
+                background: 'var(--accent, #0f7a52)', color: '#fff', border: 'none',
                 padding: '0 14px', cursor: busy || !input.trim() ? 'default' : 'pointer',
                 opacity: busy || !input.trim() ? 0.6 : 1,
               }}
