@@ -153,40 +153,20 @@ export default async function SuburbPage({ params }: { params: { suburb: string 
     },
   ];
 
+  // Only BreadcrumbList — it's valid, shows in results, and never throws
+  // "unnamed item" warnings. WebPage isn't a rich-result type, and Google
+  // stopped showing FAQ rich results for non-gov/health sites in 2023, so
+  // that markup earned nothing while generating validation errors. The FAQ
+  // copy still renders as plain on-page text below for users + crawlers.
   const jsonLd = [
-    {
-      '@context': 'https://schema.org',
-      '@type': 'WebPage',
-      name: `Cheapest Fuel in ${s.name}, ${s.state}`,
-      description: `Live petrol, diesel and LPG prices around ${s.name} ${s.postcode}, ${s.state}.`,
-      url,
-      isPartOf: { '@type': 'WebSite', name: 'Motavo', url: BASE },
-      about: {
-        '@type': 'Service',
-        name: `Fuel price comparison in ${s.name}`,
-        areaServed: {
-          '@type': 'Place',
-          name: `${s.name}, ${s.state} ${s.postcode}`,
-          geo: { '@type': 'GeoCoordinates', latitude: s.lat, longitude: s.lng },
-        },
-      },
-    },
     {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Motavo', item: BASE },
-        { '@type': 'ListItem', position: 2, name: `Fuel prices in ${s.name}`, item: url },
+        { '@type': 'ListItem', position: 2, name: 'Fuel prices', item: `${BASE}/` },
+        { '@type': 'ListItem', position: 3, name: `${s.name}, ${s.state}`, item: url },
       ],
-    },
-    {
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: faqs.map((f) => ({
-        '@type': 'Question',
-        name: f.q,
-        acceptedAnswer: { '@type': 'Answer', text: f.a },
-      })),
     },
   ];
 
