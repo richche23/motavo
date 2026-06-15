@@ -241,7 +241,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
           --bg:#e7e4dd; --bg-2:#ddd9cf; --surface:#f2f0ea; --surface-2:#e7e4dd; --surface-3:#d9d5ca;
           --border:#cbc6b9; --border-strong:#15120e;
           --text:#15120e; --text-2:#4a453d; --text-3:#6a655c; --text-4:#938c81;
-          --accent:#ff4a17; --accent-dark:#d6390e; --accent-soft:#fbe7df; --accent-text:#b32f09;
+          --accent:#0f7a52; --accent-dark:#0b5e3f; --accent-soft:#e4f1ea; --accent-text:#0b5e3f;
           --warn:#b4530a; --danger:#b91c1c;
           min-height:100vh; background:var(--bg); color:var(--text);
           font-family:'Hanken Grotesk',system-ui,sans-serif; letter-spacing:-0.006em;
@@ -250,7 +250,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
           --bg:#14110d; --bg-2:#1b1813; --surface:#1b1813; --surface-2:#221e18; --surface-3:#2c2820;
           --border:#322d25; --border-strong:#4a4338;
           --text:#efe9df; --text-2:#cfc7ba; --text-3:#9a9183; --text-4:#6f675b;
-          --accent:#ff5e30; --accent-dark:#d6390e; --accent-soft:rgba(255,94,48,0.12); --accent-text:#ff7a52;
+          --accent:#34c281; --accent-dark:#0b5e3f; --accent-soft:rgba(52,194,129,0.12); --accent-text:#4fd49a;
         }
         .ev * { box-sizing:border-box; border-radius:0 !important; }
         .ev .wrap { max-width:1152px; margin:0 auto; padding:0 20px; }
@@ -355,8 +355,8 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         /* route planner */
         .ev .route-card { width:100%; display:flex; align-items:center; gap:16px; padding:16px;
                           margin-top:1rem; text-align:left; font:inherit; cursor:pointer;
-                          background:rgba(255,74,23,0.06); border:1px solid var(--accent); color:var(--text); }
-        .ev[data-theme="dark"] .route-card { background:rgba(255,94,48,0.08); }
+                          background:rgba(15, 122, 82,0.06); border:1px solid var(--accent); color:var(--text); }
+        .ev[data-theme="dark"] .route-card { background:rgba(52, 194, 129,0.08); }
         .ev .route-card .ic { flex-shrink:0; width:42px; height:42px; display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; }
         .ev .route-card .t { display:flex; align-items:center; gap:8px; }
         .ev .route-card .t b { font-family:'Anton','Hanken Grotesk',sans-serif; text-transform:uppercase; font-weight:400; font-size:16px; letter-spacing:0.01em; }
