@@ -1218,9 +1218,16 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
                  .setView([lat, lng], 13);
     // Force a size recalculation in case CSS finished loading after init
     setTimeout(() => map.invalidateSize(), 100);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
+    // CARTO Positron — clean, muted basemap that suits the Motavo palette far
+    // better than default OSM, and crucially serves @2x retina tiles. The {r}
+    // placeholder + detectRetina swap in high-DPI tiles on phones/retina
+    // screens, which fixes the blur from stretching 1x tiles across 2-3 device
+    // pixels. {s} cycles a/b/c/d subdomains.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+      detectRetina: true,
     }).addTo(map);
     mapObjRef.current = map;
 
