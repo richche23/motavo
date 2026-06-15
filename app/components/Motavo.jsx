@@ -14,7 +14,6 @@ import {
 import { AlertSignup } from './AlertSignup';
 import EVPanel from './EVPanel';
 import { SUBURBS } from '@/lib/suburbs';
-import AddToHomeScreen from './AddToHomeScreen';
 
 /* =====================================================================
    Large, prominent Fuel / EV mode toggle (home view)
@@ -26,7 +25,7 @@ const ModeToggle = ({ mode, onMode }) => {
     borderRadius: 0, border: 'none', cursor: 'pointer',
     transition: 'all .15s ease', letterSpacing: '-0.01em',
   };
-  const on = { ...base, background: 'var(--text)', color: 'var(--bg)' };
+  const on = { ...base, background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 10px var(--accent-glow)' };
   const off = { ...base, background: 'transparent', color: 'var(--text-2)' };
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 16px 6px' }}>
@@ -93,10 +92,10 @@ const GlobalStyles = () => (
       --text-4: #938c81;
 
       /* Motavo brand — concrete + ink + a single signal-orange accent */
-      --blue: #ff4a17;
-      --blue-dark: #d6390e;
-      --blue-light: #ffd8cb;
-      --blue-soft: #fbe7df;
+      --blue: #0f7a52;
+      --blue-dark: #0b5e3f;
+      --blue-light: #bfe0cf;
+      --blue-soft: #e4f1ea;
       --hero-a: transparent;
       --hero-b: transparent;
       --hero-c: transparent;
@@ -109,9 +108,7 @@ const GlobalStyles = () => (
       /* Functional aliases */
       --accent: var(--blue);
       --accent-dark: var(--blue-dark);
-      /* accent-text: AA-contrast orange for SMALL text on light surfaces */
-      --accent-text: #b32f09;
-      --accent-glow: rgba(255, 74, 23, 0.20);
+      --accent-glow: rgba(15, 122, 82, 0.20);
       --success: var(--green);
       --success-glow: rgba(46, 125, 79, 0.18);
       --warn: #b4530a;
@@ -132,19 +129,18 @@ const GlobalStyles = () => (
       --text-4: #6f675b;
 
       /* signal orange lifts cleanly on charcoal */
-      --blue: #ff5e30;
-      --blue-dark: #d6390e;
-      --blue-light: rgba(255, 94, 48, 0.20);
-      --blue-soft: rgba(255, 94, 48, 0.12);
+      --blue: #34c281;
+      --blue-dark: #0b5e3f;
+      --blue-light: rgba(52, 194, 129, 0.20);
+      --blue-soft: rgba(52, 194, 129, 0.12);
       --hero-a: transparent;
       --hero-b: transparent;
       --hero-c: transparent;
       --green: #4caf7a;
       --green-light: rgba(76, 175, 122, 0.20);
       --green-soft: rgba(76, 175, 122, 0.10);
-      --accent-glow: rgba(255, 94, 48, 0.28);
+      --accent-glow: rgba(52, 194, 129, 0.28);
       --success-glow: rgba(76, 175, 122, 0.22);
-      --accent-text: #ff7a52;
     }
 
     .font-display { font-family: 'Anton', 'Hanken Grotesk', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.004em; font-weight: 400 !important; }
@@ -176,7 +172,7 @@ const GlobalStyles = () => (
 
     .spotlight {
       background:
-        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,74,23,0.06), transparent 70%);
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15, 122, 82,0.06), transparent 70%);
     }
 
     .surface-card { background: var(--surface); border: 1px solid var(--border); border-radius:0; }
@@ -812,7 +808,7 @@ const Pill = ({ children, tone = 'neutral', className = '' }) => {
   const tones = {
     neutral: { bg: 'transparent', border: 'var(--border-strong)', color: 'var(--text-3)' },
     accent:  { bg: 'rgba(46,125,79,0.10)', border: 'rgba(46,125,79,0.30)', color: 'var(--success)' },
-    brand:   { bg: 'rgba(255, 74, 23,0.10)', border: 'rgba(255, 74, 23,0.30)', color: 'var(--blue)' },
+    brand:   { bg: 'rgba(15, 122, 82,0.10)', border: 'rgba(15, 122, 82,0.30)', color: 'var(--blue)' },
     warn:    { bg: 'rgba(180,83,10,0.12)', border: 'rgba(180,83,10,0.32)', color: 'var(--warn)' },
     soft:    { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--text-2)' },
   }[tone];
@@ -928,9 +924,9 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
               style={{
                 padding: '5px 11px', fontSize: 13,
                 border: '1px solid',
-                borderColor: active ? 'var(--text)' : 'var(--border)',
-                background: active ? 'var(--text)' : 'var(--surface)',
-                color: active ? 'var(--bg)' : 'var(--text-2)',
+                borderColor: active ? 'var(--accent)' : 'var(--border)',
+                background: active ? 'var(--accent)' : 'var(--surface)',
+                color: active ? '#ffffff' : 'var(--text-2)',
                 borderRadius: 0,
               }}
               aria-pressed={active}
@@ -983,7 +979,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 borderRadius: 0,
                 letterSpacing: '-0.01em',
                 boxShadow: active
-                  ? '0 0 0 3px rgba(255, 74, 23,0.12)'
+                  ? '0 0 0 3px rgba(15, 122, 82,0.12)'
                   : 'none',
                 transition: 'all 150ms ease',
               }}
@@ -1232,7 +1228,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     if (userLat && userLng) {
       const userIcon = L.divIcon({
         className: '',
-        html: `<div style="width:16px;height:16px;background:#ff4a17;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(255, 74, 23,0.25)"></div>`,
+        html: `<div style="width:16px;height:16px;background:#0f7a52;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(15, 122, 82,0.25)"></div>`,
         iconSize: [16,16], iconAnchor: [8,8],
       });
       L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
@@ -1281,7 +1277,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
           <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${isDailyFeed(s) ? 'updates daily' : (s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago')}</div>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
              target="_blank" rel="noopener noreferrer"
-             style="display:block;text-align:center;padding:7px 12px;background:#ff4a17;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
+             style="display:block;text-align:center;padding:7px 12px;background:#0f7a52;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
             ↗ Directions
           </a>
         </div>
@@ -1839,10 +1835,10 @@ const RoutePromo = ({ onNav }) => (
 const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasError }) => (
   <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
-         style={{ background: 'radial-gradient(circle at 80% 0%, rgba(255,74,23,0.08), transparent 50%)' }} />
+         style={{ background: 'radial-gradient(circle at 80% 0%, rgba(15, 122, 82,0.08), transparent 50%)' }} />
     <div className="p-6 md:p-7 relative">
       <div className="flex items-center gap-2 mb-5">
-        <div className="p-2" style={{ background: 'rgba(255,74,23,0.10)', border: '1px solid rgba(255,74,23,0.25)' }}>
+        <div className="p-2" style={{ background: 'rgba(15, 122, 82,0.10)', border: '1px solid rgba(15, 122, 82,0.25)' }}>
           <Target size={16} style={{ color: 'var(--accent)' }} />
         </div>
         <Pill tone="brand">
@@ -2176,7 +2172,7 @@ const AddressSearch = ({
             borderRadius: sizes.radius,
             outline: 'none',
             transition: 'border-color 200ms, box-shadow 200ms',
-            boxShadow: focused ? '0 0 0 3px rgba(255, 74, 23,0.12)' : 'none',
+            boxShadow: focused ? '0 0 0 3px rgba(15, 122, 82,0.12)' : 'none',
           }}
           aria-label="Search location"
           aria-expanded={showDropdown}
@@ -2888,7 +2884,7 @@ const SuburbDirectory = () => (
       if (!subs.length) return null;
       return (
         <div key={st} className="mb-4 text-sm" style={{ lineHeight: 2 }}>
-          <span className="track-wide" style={{ color: 'var(--accent-text)', fontSize: 11, fontWeight: 600, marginRight: 10 }}>{st}</span>
+          <span className="track-wide" style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, marginRight: 10 }}>{st}</span>
           {subs.map((s, i) => (
             <span key={s.slug}>
               <a href={`/fuel/${s.slug}`} className="ulink" style={{ color: 'var(--text-3)', textDecoration: 'none' }}>{s.name}</a>
@@ -3018,7 +3014,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
                 <button type="button" onClick={() => onNav({ name: 'route' })}
                         className="hover-raise w-full flex items-center gap-4 px-4 py-4 mt-4 text-left transition-colors"
-                        style={{ background: 'rgba(255,74,23,0.06)', border: '1px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
+                        style={{ background: 'rgba(15, 122, 82,0.06)', border: '1px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
                   <span className="shrink-0 inline-flex items-center justify-center"
                         style={{ width: 42, height: 42, background: 'var(--accent)' }}>
                     <Navigation size={19} color="#ffffff" strokeWidth={2.2} />
@@ -3068,7 +3064,7 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                             className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
                             style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
                       <div className="flex items-center gap-3">
-                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent-text)', minWidth: 28 }}>{c.state}</span>
+                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
                         {signals[c.state]?.latest != null && (
                           <span className="font-mono text-tiny tabular-nums" style={{ color: 'var(--text-2)' }}>
@@ -3878,7 +3874,6 @@ export default function App({ initialView, initialLocation } = {}) {
       />
       <main className="flex-1">{renderView()}</main>
       <Footer onNav={setView} />
-      <AddToHomeScreen />
       <SearchModal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
