@@ -100,7 +100,7 @@ fontFamily: "'Hanken Grotesk', system-ui, sans-serif",
 <span aria-hidden="true" style={{
 flexShrink: 0, width: 38, height: 38, display: 'inline-flex',
 alignItems: 'center', justifyContent: 'center',
-background: 'var(--accent, #ff4a17)', color: '#fff',
+background: 'var(--accent, #0f7a52)', color: '#fff',
 }}>
 <svg viewBox="30 30 68 68" width="22" height="22" fill="none">
 <path d="M37 86 L37 43 L64 72.5 L91 43 L91 86" stroke="currentColor"
@@ -116,7 +116,7 @@ strokeWidth="11.5" strokeLinejoin="round" strokeLinecap="round" />
 {mode === 'native' && (
 <button type="button" onClick={install} style={{
 flexShrink: 0, font: 'inherit', fontSize: 13, fontWeight: 700,
-padding: '9px 14px', background: 'var(--accent, #ff4a17)', color: '#fff',
+padding: '9px 14px', background: 'var(--accent, #0f7a52)', color: '#fff',
 border: 'none', cursor: 'pointer',
 }}>Add</button>
 )}
@@ -129,4 +129,3 @@ border: '1px solid var(--border, #cbc6b9)', cursor: 'pointer',
 </div>
 );
 }
-
