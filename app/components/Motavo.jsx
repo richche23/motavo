@@ -1189,10 +1189,11 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, isClosest, onSele
   );
 };
 
-const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor, userLat, userLng, mapHeight }) => {
+const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor, userLat, userLng, mapHeight, selectedId }) => {
   const mapRef       = useRef(null);
   const mapObjRef    = useRef(null);
   const markersRef   = useRef([]);
+  const markerById   = useRef({});   // station.id -> { marker, baseColor, label, isCheap }
   const popupRef     = useRef(null);
   const priceFor     = effectivePriceFor || ((s) => s.prices[fuelType]);
   const visible      = stations.filter(s => priceFor(s) != null && s.lat && s.lng);
@@ -1251,6 +1252,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     if (!map) return;
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
+    markerById.current = {};
 
     visible.forEach((s) => {
       const price = priceFor(s);
@@ -1260,19 +1262,7 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 
       const icon = L.divIcon({
         className: '',
-        html: `<div style="
-          background:${color};
-          color:#fff;
-          font-family:'JetBrains Mono',monospace;
-          font-size:11px;
-          font-weight:700;
-          padding:3px 7px;
-          border-radius:0;
-          white-space:nowrap;
-          box-shadow:0 2px 6px rgba(0,0,0,0.25);
-          border:2px solid rgba(255,255,255,0.7);
-          ${isCheap ? 'outline:2px solid '+color+';outline-offset:2px;' : ''}
-        ">${label}¢</div>`,
+        html: markerHtml(color, label, isCheap, false),
         iconSize: [60,24], iconAnchor: [30,12],
       });
 
@@ -1295,7 +1285,47 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
         .bindPopup(popup)
         .on('click', () => { onSelect && onSelect(s); });
       markersRef.current.push(marker);
+      markerById.current[s.id] = { marker, color, label, isCheap };
     });
+
+    // Re-apply any active selection after markers are rebuilt
+    if (selectedId != null) applySelection(selectedId, false);
+  };
+
+  // Build a marker's HTML at normal or selected size. Selected markers grow,
+  // gain a dark ring, and lift above the rest via zIndexOffset.
+  const markerHtml = (color, label, isCheap, selected) => `<div style="
+    background:${color};
+    color:#fff;
+    font-family:'JetBrains Mono',monospace;
+    font-size:${selected ? 13 : 11}px;
+    font-weight:700;
+    padding:${selected ? '5px 10px' : '3px 7px'};
+    border-radius:0;
+    white-space:nowrap;
+    box-shadow:0 ${selected ? 6 : 2}px ${selected ? 16 : 6}px rgba(0,0,0,${selected ? 0.4 : 0.25});
+    border:2px solid ${selected ? 'var(--text,#15120e)' : 'rgba(255,255,255,0.7)'};
+    transform:scale(${selected ? 1.18 : 1});
+    transition:transform .12s ease;
+    ${isCheap && !selected ? 'outline:2px solid '+color+';outline-offset:2px;' : ''}
+  ">${label}¢</div>`;
+
+  // Highlight one station's marker, optionally panning the map to it.
+  const applySelection = (id, pan) => {
+    const L = window.L;
+    Object.entries(markerById.current).forEach(([sid, rec]) => {
+      const sel = String(sid) === String(id);
+      rec.marker.setIcon(L.divIcon({
+        className: '',
+        html: markerHtml(rec.color, rec.label, rec.isCheap, sel),
+        iconSize: [60, 24], iconAnchor: [30, 12],
+      }));
+      if (sel) rec.marker.setZIndexOffset(900); else rec.marker.setZIndexOffset(0);
+    });
+    if (pan && id != null && markerById.current[id] && mapObjRef.current) {
+      const ll = markerById.current[id].marker.getLatLng();
+      mapObjRef.current.panTo(ll, { animate: true, duration: 0.4 });
+    }
   };
 
   // Load Leaflet CSS + JS, then init map.
@@ -1354,6 +1384,14 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
     if (mapObjRef.current) addMarkers(mapObjRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stations, fuelType, cheapestPrice]);
+
+  // Highlight + pan when the selected station changes (e.g. a card was tapped)
+  useEffect(() => {
+    if (mapObjRef.current && Object.keys(markerById.current).length) {
+      applySelection(selectedId, true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   return (
     <div style={{ position: 'relative', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
@@ -1454,7 +1492,13 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
             rank={i}
             cheapestPrice={cheapestPrice}
             isClosest={sort === 'distance' && i === 0}
-            onSelect={(st) => { setSelectedId(st.id); onSelectStation && onSelectStation(st); }}
+            onSelect={(st) => {
+              setSelectedId(st.id);
+              onSelectStation && onSelectStation(st);
+              if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+                setMobileView('map');
+              }
+            }}
             reports={reportsByStation[s.id] || []}
             confirmedSet={confirmedSet}
             onConfirmReport={onConfirmReport}
@@ -1479,6 +1523,7 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
       userLat={userLat}
       userLng={userLng}
       mapHeight={h}
+      selectedId={selectedId}
     />
   );
 
