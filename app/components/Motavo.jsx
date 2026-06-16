@@ -1311,20 +1311,24 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 
   // Build a marker's HTML at normal or selected size. Selected markers grow,
   // gain a dark ring, and lift above the rest via zIndexOffset.
+  // Every pin is the SAME size. Selection is shown only by a crisp ring drawn
+  // with box-shadow (white gap + the pin's own colour), never by scaling or a
+  // heavy border — that's what caused the big black box on mobile.
   const markerHtml = (color, label, isCheap, selected) => `<div style="
+    display:inline-block;
     background:${color};
     color:#fff;
     font-family:'JetBrains Mono',monospace;
-    font-size:${selected ? 13 : 11}px;
+    font-size:11px;
     font-weight:700;
-    padding:${selected ? '5px 10px' : '3px 7px'};
+    line-height:1;
+    padding:3px 7px;
     border-radius:0;
     white-space:nowrap;
-    box-shadow:0 ${selected ? 6 : 2}px ${selected ? 16 : 6}px rgba(0,0,0,${selected ? 0.4 : 0.25});
-    border:2px solid ${selected ? 'var(--text,#15120e)' : 'rgba(255,255,255,0.7)'};
-    transform:scale(${selected ? 1.18 : 1});
-    transition:transform .12s ease;
-    ${isCheap && !selected ? 'outline:2px solid '+color+';outline-offset:2px;' : ''}
+    border:2px solid #fff;
+    box-shadow:${selected
+      ? '0 0 0 2px ' + color + ', 0 3px 10px rgba(0,0,0,0.35)'
+      : (isCheap ? '0 0 0 2px ' + color + ', 0 2px 5px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.25)')};
   ">${label}¢</div>`;
 
   // Highlight one station's marker, optionally panning the map to it.
@@ -1404,9 +1408,18 @@ const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePric
 
   // Highlight + pan when the selected station changes (e.g. a card was tapped)
   useEffect(() => {
-    if (mapObjRef.current && Object.keys(markerById.current).length) {
-      applySelection(selectedId, true);
-    }
+    if (!mapObjRef.current || !Object.keys(markerById.current).length) return;
+    const map = mapObjRef.current;
+    // Two rAFs: let the (possibly just-revealed) map container paint, then
+    // recalc its size, then apply the selection. Fixes the mobile box-render
+    // glitch when tapping a card flips list->map in the same tick.
+    const raf1 = requestAnimationFrame(() => {
+      map.invalidateSize();
+      const raf2 = requestAnimationFrame(() => applySelection(selectedId, true));
+      cleanup.r2 = raf2;
+    });
+    const cleanup = { r1: raf1, r2: 0 };
+    return () => { cancelAnimationFrame(cleanup.r1); if (cleanup.r2) cancelAnimationFrame(cleanup.r2); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
