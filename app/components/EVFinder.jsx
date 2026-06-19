@@ -191,8 +191,12 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
     const res = await fetch(`https://api.openchargemap.io/v3/poi/?${p}`, {
       headers: { 'Accept': 'application/json' },
     });
-    if (!res.ok) throw new Error('Charger data is temporarily unavailable.');
+    if (!res.ok) {
+      console.warn('[ev fallback] OCM direct status', res.status);
+      throw new Error('Charger data is temporarily unavailable.');
+    }
     const raw = await res.json();
+    console.log('[ev fallback] OCM returned', Array.isArray(raw) ? raw.length : typeof raw, 'POIs');
     const toRad = (d) => (d * Math.PI) / 180;
     const distKm = (la, lo) => {
       const R = 6371, dLa = toRad(la - lat), dLo = toRad(lo - lng);
@@ -201,6 +205,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
     };
     let out = (Array.isArray(raw) ? raw : []).map((poi) => {
       const ai = poi.AddressInfo || {};
+      if (typeof ai.Latitude !== 'number' || typeof ai.Longitude !== 'number') return null;
       const conns = poi.Connections || [];
       const maxKw = conns.reduce((m, c) => Math.max(m, c.PowerKW || 0), 0) || null;
       const isDC = conns.some(c => (c.CurrentType && /DC/i.test(c.CurrentType.Title || '')) || (c.PowerKW || 0) >= 50);
@@ -208,12 +213,16 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         type: (c.ConnectionType && c.ConnectionType.Title) || 'Unknown',
         count: c.Quantity || 1,
       }));
+      // OCM usually includes AddressInfo.Distance already (in the unit we asked
+      // for, KM). Trust it when present; else compute. Avoids dropping rows if
+      // our haversine and theirs disagree at the boundary.
+      const dist = typeof ai.Distance === 'number' ? ai.Distance : distKm(ai.Latitude, ai.Longitude);
       return {
         id: `ocm-${poi.ID}`,
         network: (poi.OperatorInfo && poi.OperatorInfo.Title) || 'Unknown network',
         address: [ai.AddressLine1, ai.Town, ai.StateOrProvince].filter(Boolean).join(', '),
         lat: ai.Latitude, lng: ai.Longitude,
-        distance: ai.Latitude ? Math.round(distKm(ai.Latitude, ai.Longitude) * 10) / 10 : null,
+        distance: Math.round(dist * 10) / 10,
         level: isDC ? 'DC' : 'AC',
         maxPowerKw: maxKw,
         connectors,
@@ -221,8 +230,11 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         tariff: null,
         usageCostRaw: poi.UsageCost || null,
       };
-    }).filter(s => s.lat && s.distance != null && s.distance <= r);
+    }).filter(Boolean);
+    // Generous radius tolerance (OCM's own distance can exceed our exact value)
+    out = out.filter(s => s.distance == null || s.distance <= r + 2);
     if (lvl !== 'ALL') out = out.filter(s => s.level === lvl);
+    console.log('[ev fallback]', out.length, 'after normalize/filter');
     return out.sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9)).slice(0, 40);
   };
 
