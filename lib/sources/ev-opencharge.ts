@@ -18,7 +18,8 @@ import type {
   ChargerLevel, ConnectorType, EVConnector, EVFetchOptions, EVFetchResult, EVStation, StateCode,
 } from '../types';
 
-const BASE = 'https://api.openchargemap.io/v3/poi/';
+export const OCM_BASE = 'https://api.openchargemap.io/v3/poi/';
+const BASE = OCM_BASE;
 const SNAPSHOT_TTL = 60 * 60 * 1000; // 60 min — chargers change slowly; fewer calls avoids rate/bot blocks
 
 type OCMConnection = {
@@ -75,7 +76,7 @@ function stateCode(raw?: string): StateCode | undefined {
   return STATE_MAP[raw.trim().toLowerCase()];
 }
 
-function normalizePoi(poi: OCMPoi, qLat: number, qLng: number): EVStation | null {
+export function normalizePoi(poi: OCMPoi, qLat: number, qLng: number): EVStation | null {
   const a = poi.AddressInfo;
   if (!a || typeof a.Latitude !== 'number' || typeof a.Longitude !== 'number') return null;
 
@@ -171,14 +172,14 @@ export async function fetchStations(opts: EVFetchOptions): Promise<EVFetchResult
       },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) {
-      // Don't leak the provider's HTML error page (e.g. Cloudflare 403) into
-      // our own error message — surface a short, clean status only.
-      throw new Error(`Open Charge Map unavailable (status ${res.status})`);
-    }
-    const ctype = res.headers.get('content-type') || '';
-    if (!ctype.includes('json')) {
-      throw new Error('Open Charge Map returned an unexpected response');
+    if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) {
+      // OCM sits behind Cloudflare, which intermittently blocks cloud/server
+      // IPs (esp. Vercel's shared ranges) with a 403 challenge while letting
+      // ordinary browser IPs through. Tag this so the API route can tell the
+      // client to retry the request directly from the browser.
+      const e: any = new Error(`Open Charge Map unavailable (status ${res.status})`);
+      e.code = 'OCM_BLOCKED';
+      throw e;
     }
     const raw = (await res.json()) as OCMPoi[];
     stations = raw
