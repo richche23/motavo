@@ -179,6 +179,53 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
     });
   };
 
+  // Browser-side OCM fetch + minimal normalize, used only when the server is
+  // Cloudflare-blocked. Mirrors the server's shape closely enough for the UI.
+  const loadDirectFromOCM = async (lat, lng, r, lvl, key) => {
+    const p = new URLSearchParams({
+      output: 'json', countrycode: 'AU',
+      latitude: String(lat), longitude: String(lng),
+      distance: String(r), distanceunit: 'KM', maxresults: '120',
+    });
+    if (key) p.set('key', key);
+    const res = await fetch(`https://api.openchargemap.io/v3/poi/?${p}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) throw new Error('Charger data is temporarily unavailable.');
+    const raw = await res.json();
+    const toRad = (d) => (d * Math.PI) / 180;
+    const distKm = (la, lo) => {
+      const R = 6371, dLa = toRad(la - lat), dLo = toRad(lo - lng);
+      const a = Math.sin(dLa/2)**2 + Math.cos(toRad(lat))*Math.cos(toRad(la))*Math.sin(dLo/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    };
+    let out = (Array.isArray(raw) ? raw : []).map((poi) => {
+      const ai = poi.AddressInfo || {};
+      const conns = poi.Connections || [];
+      const maxKw = conns.reduce((m, c) => Math.max(m, c.PowerKW || 0), 0) || null;
+      const isDC = conns.some(c => (c.CurrentType && /DC/i.test(c.CurrentType.Title || '')) || (c.PowerKW || 0) >= 50);
+      const connectors = conns.map(c => ({
+        type: (c.ConnectionType && c.ConnectionType.Title) || 'Unknown',
+        count: c.Quantity || 1,
+      }));
+      return {
+        id: `ocm-${poi.ID}`,
+        network: (poi.OperatorInfo && poi.OperatorInfo.Title) || 'Unknown network',
+        address: [ai.AddressLine1, ai.Town, ai.StateOrProvince].filter(Boolean).join(', '),
+        lat: ai.Latitude, lng: ai.Longitude,
+        distance: ai.Latitude ? Math.round(distKm(ai.Latitude, ai.Longitude) * 10) / 10 : null,
+        level: isDC ? 'DC' : 'AC',
+        maxPowerKw: maxKw,
+        connectors,
+        operational: poi.StatusType ? poi.StatusType.IsOperational !== false : true,
+        tariff: null,
+        usageCostRaw: poi.UsageCost || null,
+      };
+    }).filter(s => s.lat && s.distance != null && s.distance <= r);
+    if (lvl !== 'ALL') out = out.filter(s => s.level === lvl);
+    return out.sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9)).slice(0, 40);
+  };
+
   const load = useCallback(async (lat, lng, r = radius, lvl = level) => {
     setLoading(true); setError('');
     try {
@@ -186,8 +233,20 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
       if (lvl !== 'ALL') params.set('level', lvl);
       const res = await fetch(`/api/ev?${params}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.details || data?.error || 'Request failed');
-      setStations(data.stations || []);
+
+      // Server reached OCM fine.
+      if (res.ok && data && !data.fallback) {
+        setStations(data.stations || []);
+        return;
+      }
+      // Server's IP was blocked by Cloudflare — fetch OCM directly from the
+      // browser, whose IP generally isn't blocked, then filter client-side.
+      if (data?.fallback === 'client') {
+        const got = await loadDirectFromOCM(lat, lng, r, lvl, data.key);
+        setStations(got);
+        return;
+      }
+      throw new Error(data?.details || data?.error || 'Request failed');
     } catch (e) {
       setError(e.message || 'Could not load chargers');
       setStations([]);
