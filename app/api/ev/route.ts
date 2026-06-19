@@ -45,6 +45,14 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('[api/ev] fetch failed:', err);
+    // Cloudflare blocked the server IP — tell the client to fetch OCM directly
+    // from the browser (whose IP is generally not blocked). We hand over a
+    // public read key for that one call. Falls through to a normal error if
+    // no client key is configured.
+    if (err?.code === 'OCM_BLOCKED') {
+      const clientKey = process.env.NEXT_PUBLIC_OPENCHARGEMAP_KEY || process.env.OPENCHARGEMAP_API_KEY || '';
+      return NextResponse.json({ fallback: 'client', key: clientKey }, { status: 200 });
+    }
     const detail = String(err?.message ?? 'unknown').slice(0, 120);
     return NextResponse.json(
       { error: 'Upstream fetch failed', details: detail.includes('<') ? 'provider unavailable' : detail },
