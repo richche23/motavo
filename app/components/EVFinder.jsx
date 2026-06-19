@@ -474,7 +474,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
 
           <div className="list">
             {loading && <div className="muted">Finding chargers…</div>}
-            {error && !loading && <div className="muted">Couldn’t load chargers: {error}</div>}
+            {error && !loading && <div className="muted">Charger data is temporarily unavailable. Please try again in a moment.</div>}
             {!loading && !error && stations.length === 0 && (
               <div className="muted">No chargers found here. Try a wider radius or a different area.</div>
             )}
