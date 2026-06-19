@@ -19,7 +19,7 @@ import type {
 } from '../types';
 
 const BASE = 'https://api.openchargemap.io/v3/poi/';
-const SNAPSHOT_TTL = 30 * 60 * 1000; // 30 min
+const SNAPSHOT_TTL = 60 * 60 * 1000; // 60 min — chargers change slowly; fewer calls avoids rate/bot blocks
 
 type OCMConnection = {
   ConnectionType?: { Title?: string } | null;
@@ -163,9 +163,22 @@ export async function fetchStations(opts: EVFetchOptions): Promise<EVFetchResult
       maxresults: '120',
       key,
     });
-    const res = await fetch(`${BASE}?${params}`, { headers: { 'X-API-Key': key } });
+    const res = await fetch(`${BASE}?${params}`, {
+      headers: {
+        'X-API-Key': key,
+        'User-Agent': 'Motavo/1.0 (https://motavo.au; EV charger map)',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
     if (!res.ok) {
-      throw new Error(`Open Charge Map fetch failed: ${res.status} ${await res.text()}`);
+      // Don't leak the provider's HTML error page (e.g. Cloudflare 403) into
+      // our own error message — surface a short, clean status only.
+      throw new Error(`Open Charge Map unavailable (status ${res.status})`);
+    }
+    const ctype = res.headers.get('content-type') || '';
+    if (!ctype.includes('json')) {
+      throw new Error('Open Charge Map returned an unexpected response');
     }
     const raw = (await res.json()) as OCMPoi[];
     stations = raw
