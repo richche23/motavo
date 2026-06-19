@@ -45,8 +45,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('[api/ev] fetch failed:', err);
+    const detail = String(err?.message ?? 'unknown').slice(0, 120);
     return NextResponse.json(
-      { error: 'Upstream fetch failed', details: err?.message ?? 'unknown' },
+      { error: 'Upstream fetch failed', details: detail.includes('<') ? 'provider unavailable' : detail },
       { status: 502 }
     );
   }
