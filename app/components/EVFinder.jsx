@@ -3,7 +3,7 @@
 // browse-by-city on the right. Hero shows until a location is chosen.
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { SUBURBS } from '@/lib/suburbs';
 import AddToHomeScreen from './AddToHomeScreen';
 
