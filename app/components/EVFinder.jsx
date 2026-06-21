@@ -140,6 +140,13 @@ function priceLabel(s) {
 }
 
 export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
+  // Mount gate: this is a purely interactive client component (the page's SEO
+  // text lives in a separate static div), so we render nothing until mounted.
+  // That eliminates the server/client hydration mismatch (#418/#423/#425) that
+  // was crashing the tree and discarding the fetched charger results.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const [dark, setDark] = useState(false);
   const [coords, setCoords] = useState(initialCoords); // null = hero showing
   const [locLabel, setLocLabel] = useState(initialLabel);
@@ -303,6 +310,13 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
       setRouteLoading(false);
     }
   };
+
+  // Until mounted on the client, render an empty themed shell. The server and
+  // the client's first paint both produce this exact markup, so there is no
+  // hydration mismatch; the real UI appears on the next tick.
+  if (!mounted) {
+    return <div className="ev" data-theme="light" style={{ minHeight: '100vh' }} />;
+  }
 
   return (
     <div className="ev" data-theme={dark ? 'dark' : 'light'}>
