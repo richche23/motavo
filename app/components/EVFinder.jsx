@@ -245,13 +245,21 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
     return out.sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9)).slice(0, 40);
   };
 
+  // Monotonic request id: only the most recent load may write state. This
+  // prevents an earlier in-flight request (e.g. from a rapid filter change)
+  // from landing after a newer one and wiping the results.
+  const reqIdRef = useRef(0);
+
   const load = useCallback(async (lat, lng, r = radius, lvl = level) => {
+    const myReq = ++reqIdRef.current;
     setLoading(true); setError('');
+    const isStale = () => myReq !== reqIdRef.current;
     try {
       const params = new URLSearchParams({ lat: String(lat), lng: String(lng), radius: String(r), limit: '40' });
       if (lvl !== 'ALL') params.set('level', lvl);
       const res = await fetch(`/api/ev?${params}`);
       const data = await res.json();
+      if (isStale()) return;
 
       // Server reached OCM fine.
       if (res.ok && data && !data.fallback) {
@@ -262,28 +270,61 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
       // browser, whose IP generally isn't blocked, then filter client-side.
       if (data?.fallback === 'client') {
         const got = await loadDirectFromOCM(lat, lng, r, lvl, data.key);
+        if (isStale()) return;
         setStations(got);
         return;
       }
       throw new Error(data?.details || data?.error || 'Request failed');
     } catch (e) {
+      if (isStale()) return;
       setError(e.message || 'Could not load chargers');
       setStations([]);
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [radius, level]);
 
   // (re)load whenever coords/radius/level change
   useEffect(() => { if (coords) load(coords.lat, coords.lng, radius, level); }, [coords, radius, level, load]);
 
+  // IP-based location fallback, used when GPS is denied, times out, or is
+  // unavailable (common on desktop, locked-down phones, or when the user
+  // dismisses the permission prompt). Keeps "near me" working for everyone.
+  const locateByIp = async () => {
+    try {
+      const r = await fetch('https://ipapi.co/json/');
+      if (!r.ok) throw new Error('ip lookup failed');
+      const j = await r.json();
+      if (typeof j.latitude === 'number' && typeof j.longitude === 'number') {
+        setCoords({ lat: j.latitude, lng: j.longitude });
+        setLocLabel(j.city ? `near ${j.city}` : 'your area');
+        setLocError(false);
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
   const useMyLocation = () => {
-    if (!navigator.geolocation) { setLocError(true); return; }
     setLocating(true); setLocError(false);
+    if (!navigator.geolocation) {
+      // No GPS API at all — go straight to IP.
+      locateByIp().then(ok => { if (!ok) setLocError(true); setLocating(false); });
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      pos => { setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocLabel('your location'); setLocating(false); },
-      () => { setLocError(true); setLocating(false); },
-      { timeout: 8000 }
+      pos => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocLabel('your location');
+        setLocating(false);
+      },
+      async () => {
+        // GPS denied or timed out — fall back to IP rather than giving up.
+        const ok = await locateByIp();
+        if (!ok) setLocError(true);
+        setLocating(false);
+      },
+      { timeout: 12000, maximumAge: 600000, enableHighAccuracy: false }
     );
   };
 
