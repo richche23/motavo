@@ -269,11 +269,13 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
       // Server's IP was blocked by Cloudflare — fetch OCM directly from the
       // browser, whose IP generally isn't blocked, then filter client-side.
       if (data?.fallback === 'client') {
-        const got = await loadDirectFromOCM(lat, lng, r, lvl, data.key);
-        if (isStale()) return;
-        setStations(got);
-        return;
-      }
+  console.log('SERVER FALLBACK TRIGGERED');
+  const got = await loadDirectFromOCM(lat, lng, r, lvl, data.key);
+  console.log('OCM RESULT:', got);
+  if (isStale()) return;
+  setStations(got);
+  return;
+}
       throw new Error(data?.details || data?.error || 'Request failed');
     } catch (e) {
       if (isStale()) return;
