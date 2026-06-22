@@ -1,248 +1,830 @@
+// app/components/EVFinder.jsx — standalone /ev page (Direction B / industrial)
+// Mirrors the homepage hero pattern: orange CTA → search → trust line, with
+// browse-by-city on the right. Hero shows until a location is chosen.
+'use client';
+
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { SUBURBS } from '@/lib/suburbs';
+import AddToHomeScreen from './AddToHomeScreen';
+
+const INDICATIVE_NOTE =
+  'Indicative network rates (verified June 2026) — not live per-charger prices. Check the operator’s app for the exact cost before charging.';
+
+const EV_CITIES = [
+  { slug: 'sydney',    name: 'Sydney',    state: 'NSW', lat: -33.8688, lng: 151.2093 },
+  { slug: 'melbourne', name: 'Melbourne', state: 'VIC', lat: -37.8136, lng: 144.9631 },
+  { slug: 'brisbane',  name: 'Brisbane',  state: 'QLD', lat: -27.4698, lng: 153.0251 },
+  { slug: 'perth',     name: 'Perth',     state: 'WA',  lat: -31.9523, lng: 115.8613 },
+  { slug: 'adelaide',  name: 'Adelaide',  state: 'SA',  lat: -34.9285, lng: 138.6007 },
+  { slug: 'canberra',  name: 'Canberra',  state: 'ACT', lat: -35.2809, lng: 149.1300 },
+  { slug: 'hobart',    name: 'Hobart',    state: 'TAS', lat: -42.8821, lng: 147.3272 },
+  { slug: 'darwin',    name: 'Darwin',    state: 'NT',  lat: -12.4634, lng: 130.8456 },
+];
+
+const MotavoMark = ({ size = 30 }) => (
+  <svg viewBox="30 30 68 68" width={size} height={size} fill="none" aria-hidden="true">
+    <path d="M37 86 L37 43 L64 72.5 L91 43 L91 86" fill="none" stroke="currentColor"
+      strokeWidth="11.5" strokeLinejoin="round" strokeLinecap="round" />
+  </svg>
+);
+
+const MotavoWordmark = ({ size = 20 }) => (
+  <svg viewBox="0 0 3499 667" height={size} width={size * 5.246} fill="currentColor"
+       aria-hidden="true" style={{ display: 'block' }}>
+    <g transform="translate(-73,653) scale(1,-1)"><path d="M73.0 0V494H186.0V439H203.0Q216.0 464 246.5 483.5Q277.0 503 328.0 503Q382.0 503 415.0 481.0Q448.0 459 465.0 425H481.0Q498.0 459 530.0 481.0Q562.0 503 621.0 503Q667.0 503 704.5 483.0Q742.0 463 764.5 424.0Q787.0 385 787.0 327V0H672.0V319Q672.0 362 649.0 384.5Q626.0 407 585.0 407Q540.0 407 513.5 377.5Q487.0 348 487.0 293V0H373.0V319Q373.0 362 350.0 384.5Q327.0 407 286.0 407Q240.0 407 214.0 377.5Q188.0 348 188.0 293V0Z M1154.0 -14Q1080.0 -14 1021.5 16.5Q963.0 47 929.5 103.5Q896.0 160 896.0 239V255Q896.0 334 929.5 391.0Q963.0 448 1021.5 478.0Q1080.0 508 1154.0 508Q1228.0 508 1286.0 478.0Q1344.0 448 1377.5 391.0Q1411.0 334 1411.0 255V239Q1411.0 160 1377.5 103.5Q1344.0 47 1286.0 16.5Q1228.0 -14 1154.0 -14ZM1154.0 88Q1217.0 88 1257.0 128.5Q1297.0 169 1297.0 242V252Q1297.0 325 1257.0 365.5Q1217.0 406 1154.0 406Q1091.0 406 1051.0 365.5Q1011.0 325 1011.0 252V242Q1011.0 169 1051.0 128.5Q1091.0 88 1154.0 88Z M1713.0 0Q1665.0 0 1636.5 28.5Q1608.0 57 1608.0 106V399H1479.0V494H1608.0V653H1723.0V494H1865.0V399H1723.0V125Q1723.0 95 1751.0 95H1850.0V0Z M2127.0 -14Q2075.0 -14 2033.0 4.5Q1991.0 23 1966.5 58.0Q1942.0 93 1942.0 144Q1942.0 194 1966.5 228.0Q1991.0 262 2034.0 279.5Q2077.0 297 2132.0 297H2275.0V327Q2275.0 366 2251.0 390.5Q2227.0 415 2176.0 415Q2126.0 415 2100.5 391.5Q2075.0 368 2067.0 331L1961.0 366Q1973.0 405 1999.5 437.0Q2026.0 469 2070.0 488.5Q2114.0 508 2178.0 508Q2275.0 508 2330.5 459.5Q2386.0 411 2386.0 319V125Q2386.0 95 2414.0 95H2456.0V0H2375.0Q2339.0 0 2316.0 18.0Q2293.0 36 2293.0 67V69H2276.0Q2270.0 55 2255.0 35.0Q2240.0 15 2209.5 0.5Q2179.0 -14 2127.0 -14ZM2146.0 80Q2203.0 80 2239.0 112.5Q2275.0 145 2275.0 200V210H2139.0Q2102.0 210 2079.0 194.0Q2056.0 178 2056.0 147Q2056.0 117 2080.0 98.5Q2104.0 80 2146.0 80Z M2652.0 0 2490.0 494H2612.0L2734.0 84H2751.0L2874.0 494H2996.0L2834.0 0Z M3315.0 -14Q3241.0 -14 3182.5 16.5Q3124.0 47 3090.5 103.5Q3057.0 160 3057.0 239V255Q3057.0 334 3090.5 391.0Q3124.0 448 3182.5 478.0Q3241.0 508 3315.0 508Q3389.0 508 3447.0 478.0Q3505.0 448 3538.5 391.0Q3572.0 334 3572.0 255V239Q3572.0 160 3538.5 103.5Q3505.0 47 3447.0 16.5Q3389.0 -14 3315.0 -14ZM3315.0 88Q3378.0 88 3418.0 128.5Q3458.0 169 3458.0 242V252Q3458.0 325 3418.0 365.5Q3378.0 406 3315.0 406Q3252.0 406 3212.0 365.5Q3172.0 325 3172.0 252V242Q3172.0 169 3212.0 128.5Q3252.0 88 3315.0 88Z"/></g>
+  </svg>
+);
+
+const STATE_NAMES = {
+  'New South Wales': 'NSW', 'Victoria': 'VIC', 'Queensland': 'QLD',
+  'Western Australia': 'WA', 'South Australia': 'SA', 'Tasmania': 'TAS',
+  'Australian Capital Territory': 'ACT', 'Northern Territory': 'NT',
+};
+
+function shortenAddress(displayName) {
+  const parts = displayName.split(',').map(p => p.trim());
+  return parts.slice(0, 3).join(', ');
+}
+
 /**
- * GET /api/ev-route?fromLat=..&fromLng=..&toLat=..&toLng=..&level=DC&minPower=50
- *
- * "Chargers along my route." Same skeleton as /api/route (fuel): driving
- * geometry from the public OSRM server, sample points along it, pull chargers
- * near each sample from Open Charge Map, dedupe, compute each charger's
- * detour from the route — then return them in TRIP ORDER (alongKm), not by
- * price, because that's how EV stops are planned.
- *
- * Also returns gap analysis: the longest stretch of the route without a
- * charger within the detour band — the "is this trip viable?" number.
+ * GeoSearch — free-text location search. Local suburb matches first (instant),
+ * then Nominatim (debounced 300ms, AU-only) for any address or postcode.
+ * onSelect receives { label, lat, lng }.
  */
-import { NextRequest, NextResponse } from 'next/server';
-import { cacheGet, cacheSet } from '@/lib/cache';
-import { fetchStations } from '@/lib/sources/ev-opencharge';
-import type { ChargerLevel } from '@/lib/types';
+function GeoSearch({ placeholder, onSelect, value = '' }) {
+  const [q, setQ] = useState(value);
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const blurTimer = useState({ t: null })[0];
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
-export const runtime = 'nodejs';
+  const localMatches = useCallback((needle) => {
+    const n = needle.toLowerCase();
+    return SUBURBS
+      .filter(su => su.name.toLowerCase().includes(n) || String(su.postcode || '').startsWith(needle))
+      .slice(0, 5)
+      .map(su => ({ id: `local-${su.slug}`, label: `${su.name}, ${su.state}`, sublabel: su.postcode ? String(su.postcode) : '', lat: su.lat, lng: su.lng }));
+  }, []);
 
-/** Max distance a charger can sit off the route to count as "along" it. */
-const MAX_DETOUR_KM = 7;
-const MAX_RESULTS = 40;
-const MAX_SAMPLES = 10;
-const MAX_ROUTE_KM = 1200;
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 2) { setResults([]); setLoading(false); return; }
 
-type LatLng = [number, number];
+    const local = localMatches(needle);
+    setResults(local);
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
+    const strong = local.filter(r => r.label.toLowerCase().startsWith(needle.toLowerCase())).length;
+    if (strong >= 4) { setLoading(false); return; }
 
-async function fetchOsrmRoute(
-  fromLat: number, fromLng: number, toLat: number, toLng: number
-): Promise<{ points: LatLng[]; distanceKm: number; durationMin: number } | null> {
-  try {
-    const url =
-      `https://router.project-osrm.org/route/v1/driving/` +
-      `${fromLng},${fromLat};${toLng},${toLat}` +
-      `?overview=full&geometries=geojson&alternatives=false&steps=false`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Motavo/1.0 (motavo.au)' },
-      signal: AbortSignal.timeout(7000),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const route = data?.routes?.[0];
-    if (!route?.geometry?.coordinates?.length) return null;
-    const points: LatLng[] = route.geometry.coordinates.map(
-      (c: [number, number]) => [c[1], c[0]] as LatLng
-    );
-    return { points, distanceKm: route.distance / 1000, durationMin: route.duration / 60 };
-  } catch {
-    return null;
-  }
-}
+    const ctrl = new AbortController();
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(needle)}&format=json&countrycodes=au&limit=5&addressdetails=1`;
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) throw new Error('geocode failed');
+        const data = await res.json();
+        const remote = data
+          .filter(r => r.lat && r.lon)
+          .map(r => ({
+            id: `addr-${r.place_id}`,
+            label: shortenAddress(r.display_name),
+            sublabel: [STATE_NAMES[r.address?.state] || r.address?.state || '', r.address?.postcode || ''].filter(Boolean).join(' '),
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lon),
+          }));
+        const seen = new Set(local.map(l => l.label.toLowerCase()));
+        setResults([...local, ...remote.filter(r => !seen.has(r.label.toLowerCase()))]);
+      } catch { /* local results still showing */ }
+      finally { setLoading(false); }
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [q, localMatches]);
 
-function straightLine(fromLat: number, fromLng: number, toLat: number, toLng: number) {
-  const points: LatLng[] = [];
-  const n = 40;
-  for (let i = 0; i <= n; i++) {
-    points.push([fromLat + ((toLat - fromLat) * i) / n, fromLng + ((toLng - fromLng) * i) / n]);
-  }
-  return { points, distanceKm: haversineKm(fromLat, fromLng, toLat, toLng), durationMin: 0 };
-}
-
-function cumulativeKm(points: LatLng[]): number[] {
-  const out = [0];
-  for (let i = 1; i < points.length; i++) {
-    out.push(out[i - 1] + haversineKm(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]));
-  }
-  return out;
-}
-
-function samplePoints(points: LatLng[], cumKm: number[], totalKm: number): LatLng[] {
-  // Charger queries hit an external API — sample sparser than fuel but widen
-  // each sample's radius so the corridor still overlaps (see radius calc below).
-  const count = Math.min(MAX_SAMPLES, Math.max(3, Math.ceil(totalKm / 40)));
-  const out: LatLng[] = [];
-  for (let i = 0; i < count; i++) {
-    const target = (totalKm * i) / (count - 1);
-    let idx = cumKm.findIndex(d => d >= target);
-    if (idx === -1) idx = points.length - 1;
-    out.push(points[idx]);
-  }
-  return out;
-}
-
-function downsample(points: LatLng[], maxPoints = 200): LatLng[] {
-  if (points.length <= maxPoints) return points;
-  const step = points.length / maxPoints;
-  const out: LatLng[] = [];
-  for (let i = 0; i < points.length; i += step) out.push(points[Math.floor(i)]);
-  if (out[out.length - 1] !== points[points.length - 1]) out.push(points[points.length - 1]);
-  return out.map(p => [Math.round(p[0] * 1e5) / 1e5, Math.round(p[1] * 1e5) / 1e5] as LatLng);
-}
-
-export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams;
-  const fromLat = parseFloat(sp.get('fromLat') || '');
-  const fromLng = parseFloat(sp.get('fromLng') || '');
-  const toLat = parseFloat(sp.get('toLat') || '');
-  const toLng = parseFloat(sp.get('toLng') || '');
-
-  if ([fromLat, fromLng, toLat, toLng].some(isNaN)) {
-    return NextResponse.json(
-      { error: 'fromLat, fromLng, toLat and toLng are required numeric query parameters.' },
-      { status: 400 }
-    );
-  }
-
-  const crowKm = haversineKm(fromLat, fromLng, toLat, toLng);
-  if (crowKm < 1) {
-    return NextResponse.json({ error: 'Origin and destination are the same place.' }, { status: 400 });
-  }
-  if (crowKm > MAX_ROUTE_KM) {
-    return NextResponse.json(
-      { error: `Route too long — keep it under ${MAX_ROUTE_KM} km for now.` },
-      { status: 400 }
-    );
-  }
-
-  const rawLevel = sp.get('level');
-  const level = rawLevel === 'AC' || rawLevel === 'DC' ? (rawLevel as ChargerLevel) : undefined;
-  const minPowerKw = sp.get('minPower') ? parseFloat(sp.get('minPower')!) : undefined;
-
-  const cacheKey = `ev-route:${fromLat.toFixed(3)},${fromLng.toFixed(3)}:${toLat.toFixed(3)},${toLng.toFixed(3)}:${level || 'ALL'}:${minPowerKw || 0}`;
-  const cached = cacheGet<object>(cacheKey);
-  if (cached) {
-    return NextResponse.json({ ...cached, cached: true });
-  }
-
-  // 1. Route geometry.
-  const osrm = await fetchOsrmRoute(fromLat, fromLng, toLat, toLng);
-  const geo = osrm || straightLine(fromLat, fromLng, toLat, toLng);
-  const cumKm = cumulativeKm(geo.points);
-  const totalKm = cumKm[cumKm.length - 1];
-
-  // 2. Sample along the route, fetch chargers near each sample.
-  const samples = samplePoints(geo.points, cumKm, totalKm);
-  // Radius covers half the gap between samples so the corridor has no holes,
-  // bounded to keep OCM result sets sane.
-  const sampleGapKm = totalKm / Math.max(1, samples.length - 1);
-  const radius = Math.min(35, Math.max(MAX_DETOUR_KM + 3, Math.ceil(sampleGapKm / 2) + MAX_DETOUR_KM));
-
-  const results = await Promise.allSettled(
-    samples.map(([lat, lng]) =>
-      fetchStations({ lat, lng, radius, limit: 60, level, minPowerKw })
-    )
-  );
-
-  // Detect a total Cloudflare block: every sample rejected with OCM_BLOCKED and
-  // none returned stations. In that case the server can't reach OCM (its IP is
-  // blocked), so hand the client everything it needs to query OCM directly from
-  // the browser — same fallback strategy the near-me endpoint uses.
-  const anyFulfilled = results.some(r => r.status === 'fulfilled' && (r.value?.stations?.length || 0) >= 0 && r.value !== undefined);
-  const anyStations = results.some(r => r.status === 'fulfilled' && (r.value?.stations?.length || 0) > 0);
-  const allBlocked = results.every(r => r.status === 'rejected' && (r.reason?.code === 'OCM_BLOCKED'));
-  if (!anyStations && allBlocked) {
-    const clientKey = process.env.NEXT_PUBLIC_OPENCHARGEMAP_KEY || process.env.OPENCHARGEMAP_API_KEY || '';
-    const payload = {
-      fallback: 'client',
-      key: clientKey,
-      radius,
-      samples: samples.map(([lat, lng]) => ({ lat, lng })),
-      route: {
-        distanceKm: Math.round(totalKm),
-        durationMin: Math.round(geo.durationMin),
-        source: osrm ? 'osrm' : 'straight-line',
-        points: downsample(geo.points),
-        // Full geometry + cumulative distances so the client can compute
-        // detour and along-route position exactly as the server would.
-        fullPoints: geo.points,
-        cumKm,
-      },
-      detourKm: MAX_DETOUR_KM,
-      maxResults: MAX_RESULTS,
-    };
-    return NextResponse.json(payload);
-  }
-
-  // 3. Dedupe and compute detour + along-route position per charger.
-  const byId = new Map<string, any>();
-  for (const r of results) {
-    if (r.status !== 'fulfilled') continue;
-    for (const st of r.value?.stations || []) {
-      if (st?.id != null && !byId.has(String(st.id))) byId.set(String(st.id), st);
-    }
-  }
-
-  const chargers = Array.from(byId.values())
-    .map(st => {
-      let best = Infinity;
-      let bestIdx = 0;
-      for (let i = 0; i < geo.points.length; i++) {
-        const d = haversineKm(st.lat, st.lng, geo.points[i][0], geo.points[i][1]);
-        if (d < best) { best = d; bestIdx = i; }
-      }
-      return { ...st, detourKm: Math.round(best * 10) / 10, alongKm: Math.round(cumKm[bestIdx]) };
-    })
-    .filter(st => st.detourKm <= MAX_DETOUR_KM)
-    .sort((a, b) => a.alongKm - b.alongKm)   // trip order, not price
-    .slice(0, MAX_RESULTS);
-
-  // 4. Gap analysis — longest stretch without a charger stop, including the
-  //    runs from the start to the first charger and last charger to the end.
-  let longestGapKm = 0;
-  let gapFrom = 'Start';
-  let gapTo = 'Destination';
-  if (chargers.length === 0) {
-    longestGapKm = Math.round(totalKm);
-  } else {
-    const stops = [
-      { alongKm: 0, name: 'Start' },
-      ...chargers.map(c => ({ alongKm: c.alongKm, name: c.network || 'Charger' })),
-      { alongKm: totalKm, name: 'Destination' },
-    ];
-    for (let i = 1; i < stops.length; i++) {
-      const gap = stops[i].alongKm - stops[i - 1].alongKm;
-      if (gap > longestGapKm) {
-        longestGapKm = Math.round(gap);
-        gapFrom = stops[i - 1].name;
-        gapTo = stops[i].name;
-      }
-    }
-  }
-
-  const payload = {
-    route: {
-      distanceKm: Math.round(totalKm),
-      durationMin: Math.round(geo.durationMin),
-      source: osrm ? 'osrm' : 'straight-line',
-      points: downsample(geo.points),
-    },
-    chargers,
-    gaps: { longestGapKm, from: gapFrom, to: gapTo },
+  const pick = (r) => {
+    setQ(r.label);
+    setOpen(false);
+    onSelect(r);
   };
 
-  cacheSet(cacheKey, payload, 10 * 60 * 1000);
-  return NextResponse.json(payload);
+  return (
+    <div className="gs" onFocus={() => { clearTimeout(blurTimer.t); setOpen(true); }}
+         onBlur={() => { blurTimer.t = setTimeout(() => setOpen(false), 150); }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input value={q} onChange={e => { setQ(e.target.value); setOpen(true); }} placeholder={placeholder} />
+      {open && q.trim().length >= 2 && (
+        <div className="gs-drop">
+          {results.map(r => (
+            <button key={r.id} type="button" onMouseDown={e => e.preventDefault()} onClick={() => pick(r)}>
+              <span className="gs-label">{r.label}</span>
+              {r.sublabel && <span className="gs-sub">{r.sublabel}</span>}
+            </button>
+          ))}
+          {loading && <div className="gs-hint">Searching…</div>}
+          {!loading && results.length === 0 && <div className="gs-hint">No matches — try a suburb, postcode or address.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function priceLabel(s) {
+  if (s.tariff && (s.tariff.dcPerKwh != null || s.tariff.acPerKwh != null)) {
+    const parts = [];
+    if (s.tariff.dcPerKwh != null) parts.push(`${s.tariff.dcPerKwh}c/kWh DC`);
+    if (s.tariff.acPerKwh != null) parts.push(`${s.tariff.acPerKwh}c/kWh AC`);
+    return parts.join(' · ');
+  }
+  if (s.usageCostRaw) return s.usageCostRaw.length > 40 ? s.usageCostRaw.slice(0, 38) + '…' : s.usageCostRaw;
+  return 'Price varies';
+}
+
+export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
+  // Mount gate: this is a purely interactive client component (the page's SEO
+  // text lives in a separate static div), so we render nothing until mounted.
+  // That eliminates the server/client hydration mismatch (#418/#423/#425) that
+  // was crashing the tree and discarding the fetched charger results.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const [dark, setDark] = useState(false);
+  const [coords, setCoords] = useState(initialCoords); // null = hero showing
+  const [locLabel, setLocLabel] = useState(initialLabel);
+  const [locating, setLocating] = useState(false);
+  const [locError, setLocError] = useState(false);
+  const [radius, setRadius] = useState(10);
+  const [level, setLevel] = useState('ALL');        // ALL | AC | DC
+  const [stations, setStations] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // route planner
+  const [mode, setMode] = useState('finder');        // 'finder' | 'route'
+  const [fromPick, setFromPick] = useState(null);    // { label, lat, lng }
+  const [toPick, setToPick] = useState(null);
+  const [routeData, setRouteData] = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState('');
+  const [routeLevel, setRouteLevel] = useState('DC');  // road trips default to DC
+
+  // theme — shares the main app's localStorage key
+  useEffect(() => {
+    try {
+      // Match the homepage: light by default, dark only if explicitly chosen.
+      setDark(localStorage.getItem('fm:color-scheme') === 'dark');
+    } catch {}
+    // deep link: /ev?route=1 opens the route planner directly
+    try {
+      if (new URLSearchParams(window.location.search).get('route') === '1') setMode('route');
+    } catch {}
+  }, []);
+  const toggleTheme = () => {
+    setDark(d => {
+      const next = !d;
+      try { localStorage.setItem('fm:color-scheme', next ? 'dark' : 'light'); } catch {}
+      return next;
+    });
+  };
+
+  // Browser-side OCM fetch + minimal normalize, used only when the server is
+  // Cloudflare-blocked. Mirrors the server's shape closely enough for the UI.
+  // Browser-side route corridor builder, used when the route API reports the
+  // server was Cloudflare-blocked. Queries OCM directly for each sample point
+  // (the user's IP isn't blocked), dedupes, then computes detour + along-route
+  // position against the full geometry — exactly as the server would.
+  const buildRouteFromOCM = async (data, lvl) => {
+    const { key, radius, samples, route, detourKm, maxResults } = data;
+    const full = route.fullPoints || route.points || [];
+    const cumKm = route.cumKm || [];
+    const totalKm = route.distanceKm;
+    const hav = (la1, lo1, la2, lo2) => {
+      const R = 6371, toRad = (d) => (d * Math.PI) / 180;
+      const dLa = toRad(la2 - la1), dLo = toRad(lo2 - lo1);
+      const a = Math.sin(dLa/2)**2 + Math.cos(toRad(la1))*Math.cos(toRad(la2))*Math.sin(dLo/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    };
+    const isDC = (poi) => {
+      const c = poi.Connections || [];
+      return c.some(x => (x.CurrentType && /DC/i.test(x.CurrentType.Title || '')) || (x.PowerKW || 0) >= 50);
+    };
+    // Query all samples in parallel; tolerate individual failures.
+    const settled = await Promise.allSettled(samples.map(({ lat, lng }) => {
+      const p = new URLSearchParams({
+        output: 'json', countrycode: 'AU', latitude: String(lat), longitude: String(lng),
+        distance: String(radius), distanceunit: 'KM', maxresults: '60',
+      });
+      if (key) p.set('key', key);
+      return fetch(`https://api.openchargemap.io/v3/poi/?${p}`, { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : []);
+    }));
+    // Dedupe by OCM id.
+    const byId = new Map();
+    for (const r of settled) {
+      if (r.status !== 'fulfilled' || !Array.isArray(r.value)) continue;
+      for (const poi of r.value) {
+        const ai = poi.AddressInfo || {};
+        if (typeof ai.Latitude !== 'number') continue;
+        if (lvl === 'DC' && !isDC(poi)) continue;
+        if (lvl === 'AC' && isDC(poi)) continue;
+        if (!byId.has(poi.ID)) {
+          byId.set(poi.ID, {
+            id: `ocm-${poi.ID}`,
+            network: (poi.OperatorInfo && poi.OperatorInfo.Title) || 'Unknown network',
+            address: [ai.AddressLine1, ai.Town, ai.StateOrProvince].filter(Boolean).join(', '),
+            lat: ai.Latitude, lng: ai.Longitude,
+            level: isDC(poi) ? 'DC' : 'AC',
+            maxPowerKw: (poi.Connections || []).reduce((m, c) => Math.max(m, c.PowerKW || 0), 0) || null,
+            tariff: null,
+          });
+        }
+      }
+    }
+    // Detour + along-route position against full geometry.
+    const chargers = Array.from(byId.values()).map(st => {
+      let best = Infinity, bestIdx = 0;
+      for (let i = 0; i < full.length; i++) {
+        const d = hav(st.lat, st.lng, full[i][0], full[i][1]);
+        if (d < best) { best = d; bestIdx = i; }
+      }
+      return { ...st, detourKm: Math.round(best * 10) / 10, alongKm: Math.round(cumKm[bestIdx] || 0) };
+    })
+      .filter(st => st.detourKm <= (detourKm || 7))
+      .sort((a, b) => a.alongKm - b.alongKm)
+      .slice(0, maxResults || 60);
+    // Gap analysis.
+    let longestGapKm = 0, gapFrom = 'Start', gapTo = 'Destination';
+    if (chargers.length === 0) {
+      longestGapKm = Math.round(totalKm);
+    } else {
+      const stops = [{ alongKm: 0, name: 'Start' }, ...chargers.map(c => ({ alongKm: c.alongKm, name: c.network || 'Charger' })), { alongKm: totalKm, name: 'Destination' }];
+      for (let i = 1; i < stops.length; i++) {
+        const gap = stops[i].alongKm - stops[i - 1].alongKm;
+        if (gap > longestGapKm) { longestGapKm = Math.round(gap); gapFrom = stops[i - 1].name; gapTo = stops[i].name; }
+      }
+    }
+    return {
+      route: { distanceKm: totalKm, durationMin: route.durationMin, source: route.source, points: route.points },
+      chargers,
+      gaps: { longestGapKm, from: gapFrom, to: gapTo },
+    };
+  };
+
+  const loadDirectFromOCM = async (lat, lng, r, lvl, key) => {
+    const p = new URLSearchParams({
+      output: 'json', countrycode: 'AU',
+      latitude: String(lat), longitude: String(lng),
+      distance: String(r), distanceunit: 'KM', maxresults: '120',
+    });
+    if (key) p.set('key', key);
+    const res = await fetch(`https://api.openchargemap.io/v3/poi/?${p}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) {
+      console.warn('[ev fallback] OCM direct status', res.status);
+      throw new Error('Charger data is temporarily unavailable.');
+    }
+    const raw = await res.json();
+    console.log('[ev fallback] OCM returned', Array.isArray(raw) ? raw.length : typeof raw, 'POIs');
+    const toRad = (d) => (d * Math.PI) / 180;
+    const distKm = (la, lo) => {
+      const R = 6371, dLa = toRad(la - lat), dLo = toRad(lo - lng);
+      const a = Math.sin(dLa/2)**2 + Math.cos(toRad(lat))*Math.cos(toRad(la))*Math.sin(dLo/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    };
+    let out = (Array.isArray(raw) ? raw : []).map((poi) => {
+      const ai = poi.AddressInfo || {};
+      if (typeof ai.Latitude !== 'number' || typeof ai.Longitude !== 'number') return null;
+      const conns = poi.Connections || [];
+      const maxKw = conns.reduce((m, c) => Math.max(m, c.PowerKW || 0), 0) || null;
+      const isDC = conns.some(c => (c.CurrentType && /DC/i.test(c.CurrentType.Title || '')) || (c.PowerKW || 0) >= 50);
+      const connectors = conns.map(c => ({
+        type: (c.ConnectionType && c.ConnectionType.Title) || 'Unknown',
+        count: c.Quantity || 1,
+      }));
+      // OCM usually includes AddressInfo.Distance already (in the unit we asked
+      // for, KM). Trust it when present; else compute. Avoids dropping rows if
+      // our haversine and theirs disagree at the boundary.
+      const dist = typeof ai.Distance === 'number' ? ai.Distance : distKm(ai.Latitude, ai.Longitude);
+      return {
+        id: `ocm-${poi.ID}`,
+        network: (poi.OperatorInfo && poi.OperatorInfo.Title) || 'Unknown network',
+        address: [ai.AddressLine1, ai.Town, ai.StateOrProvince].filter(Boolean).join(', '),
+        lat: ai.Latitude, lng: ai.Longitude,
+        distance: Math.round(dist * 10) / 10,
+        level: isDC ? 'DC' : 'AC',
+        maxPowerKw: maxKw,
+        connectors,
+        operational: poi.StatusType ? poi.StatusType.IsOperational !== false : true,
+        tariff: null,
+        usageCostRaw: poi.UsageCost || null,
+      };
+    }).filter(Boolean);
+    // Generous radius tolerance (OCM's own distance can exceed our exact value)
+    out = out.filter(s => s.distance == null || s.distance <= r + 2);
+    if (lvl !== 'ALL') out = out.filter(s => s.level === lvl);
+    console.log('[ev fallback]', out.length, 'after normalize/filter');
+    return out.sort((a, b) => (a.distance ?? 1e9) - (b.distance ?? 1e9)).slice(0, 40);
+  };
+
+  // Monotonic request id: only the most recent load may write state. This
+  // prevents an earlier in-flight request (e.g. from a rapid filter change)
+  // from landing after a newer one and wiping the results.
+  const reqIdRef = useRef(0);
+
+  const load = useCallback(async (lat, lng, r = radius, lvl = level) => {
+    const myReq = ++reqIdRef.current;
+    setLoading(true); setError('');
+    const isStale = () => myReq !== reqIdRef.current;
+    try {
+      const params = new URLSearchParams({ lat: String(lat), lng: String(lng), radius: String(r), limit: '40' });
+      if (lvl !== 'ALL') params.set('level', lvl);
+      const res = await fetch(`/api/ev?${params}`);
+      const data = await res.json();
+      if (isStale()) return;
+
+      // Server reached OCM fine.
+      if (res.ok && data && !data.fallback) {
+        setStations(data.stations || []);
+        return;
+      }
+      // Server's IP was blocked by Cloudflare — fetch OCM directly from the
+      // browser, whose IP generally isn't blocked, then filter client-side.
+      if (data?.fallback === 'client') {
+        const got = await loadDirectFromOCM(lat, lng, r, lvl, data.key);
+        if (isStale()) return;
+        setStations(got);
+        return;
+      }
+      throw new Error(data?.details || data?.error || 'Request failed');
+    } catch (e) {
+      if (isStale()) return;
+      setError(e.message || 'Could not load chargers');
+      setStations([]);
+    } finally {
+      if (!isStale()) setLoading(false);
+    }
+  }, [radius, level]);
+
+  // (re)load whenever coords/radius/level change
+  useEffect(() => { if (coords) load(coords.lat, coords.lng, radius, level); }, [coords, radius, level, load]);
+
+  // IP-based location fallback, used when GPS is denied, times out, or is
+  // unavailable (common on desktop, locked-down phones, or when the user
+  // dismisses the permission prompt). Keeps "near me" working for everyone.
+  const locateByIp = async () => {
+    try {
+      const r = await fetch('https://ipapi.co/json/');
+      if (!r.ok) throw new Error('ip lookup failed');
+      const j = await r.json();
+      if (typeof j.latitude === 'number' && typeof j.longitude === 'number') {
+        setCoords({ lat: j.latitude, lng: j.longitude });
+        setLocLabel(j.city ? `near ${j.city}` : 'your area');
+        setLocError(false);
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
+  const useMyLocation = () => {
+    setLocating(true); setLocError(false);
+    if (!navigator.geolocation) {
+      // No GPS API at all — go straight to IP.
+      locateByIp().then(ok => { if (!ok) setLocError(true); setLocating(false); });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocLabel('your location');
+        setLocating(false);
+      },
+      async () => {
+        // GPS denied or timed out — fall back to IP rather than giving up.
+        const ok = await locateByIp();
+        if (!ok) setLocError(true);
+        setLocating(false);
+      },
+      { timeout: 12000, maximumAge: 600000, enableHighAccuracy: false }
+    );
+  };
+
+  const reset = () => { setCoords(null); setLocLabel(''); setStations([]); setMode('finder'); setRouteData(null); setRouteError(''); setFromPick(null); setToPick(null); };
+
+  const planRoute = async () => {
+    const from = fromPick;
+    const to = toPick;
+    if (!from || !to) { setRouteError('Pick a start and destination from the suggestions.'); return; }
+    setRouteLoading(true); setRouteError(''); setRouteData(null);
+    try {
+      const params = new URLSearchParams({
+        fromLat: String(from.lat), fromLng: String(from.lng),
+        toLat: String(to.lat), toLng: String(to.lng),
+      });
+      if (routeLevel !== 'ALL') params.set('level', routeLevel);
+      const res = await fetch(`/api/ev-route?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Request failed');
+
+      // Server reached OCM fine — use its result directly.
+      if (!data.fallback) {
+        setRouteData({ ...data, fromLabel: from.label, toLabel: to.label });
+        return;
+      }
+      // Server's IP was Cloudflare-blocked. Query OCM directly from the browser
+      // for each corridor sample, then dedupe + compute detour/along-route here,
+      // mirroring what the server would have done.
+      const built = await buildRouteFromOCM(data, routeLevel);
+      setRouteData({ ...built, fromLabel: from.label, toLabel: to.label });
+    } catch (e) {
+      setRouteError(e.message || 'Could not plan route');
+    } finally {
+      setRouteLoading(false);
+    }
+  };
+
+  // Until mounted on the client, render an empty themed shell. The server and
+  // the client's first paint both produce this exact markup, so there is no
+  // hydration mismatch; the real UI appears on the next tick.
+  if (!mounted) {
+    return <div className="ev" data-theme="light" style={{ minHeight: '100vh' }} />;
+  }
+
+  return (
+    <div className="ev" data-theme={dark ? 'dark' : 'light'}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        .ev {
+          --bg:#e7e4dd; --bg-2:#ddd9cf; --surface:#f2f0ea; --surface-2:#e7e4dd; --surface-3:#d9d5ca;
+          --border:#cbc6b9; --border-strong:#15120e;
+          --text:#15120e; --text-2:#4a453d; --text-3:#6a655c; --text-4:#938c81;
+          --accent:#0f7a52; --accent-dark:#0b5e3f; --accent-soft:#e4f1ea; --accent-text:#0b5e3f;
+          --warn:#b4530a; --danger:#b91c1c;
+          min-height:100vh; background:var(--bg); color:var(--text);
+          font-family:'Hanken Grotesk',system-ui,sans-serif; letter-spacing:-0.006em;
+        }
+        .ev[data-theme="dark"] {
+          --bg:#14110d; --bg-2:#1b1813; --surface:#1b1813; --surface-2:#221e18; --surface-3:#2c2820;
+          --border:#322d25; --border-strong:#4a4338;
+          --text:#efe9df; --text-2:#cfc7ba; --text-3:#9a9183; --text-4:#6f675b;
+          --accent:#34c281; --accent-dark:#0b5e3f; --accent-soft:rgba(52,194,129,0.12); --accent-text:#4fd49a;
+        }
+        .ev * { box-sizing:border-box; border-radius:0 !important; }
+        .ev .wrap { max-width:1152px; margin:0 auto; padding:0 20px; }
+        .ev .display { font-family:'Anton','Hanken Grotesk',system-ui,sans-serif; text-transform:uppercase; letter-spacing:0.005em; font-weight:400; }
+        .ev .mono { font-family:'JetBrains Mono',ui-monospace,monospace; font-feature-settings:'tnum' on; letter-spacing:-0.01em; }
+        .ev .track { font-family:'JetBrains Mono',ui-monospace,monospace; letter-spacing:0.16em; text-transform:uppercase; }
+
+        .ev header { border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:5; }
+        .ev .bar { display:flex; align-items:center; gap:16px; height:58px; }
+        .ev .logo { display:inline-flex; align-items:center; gap:10px; color:var(--text); text-decoration:none; }
+        .ev .spacer { flex:1; }
+        .ev .navlink { color:var(--text-2); text-decoration:none; font-weight:500; font-size:14px; padding:7px 12px; }
+        .ev .navlink:hover { background:var(--surface); color:var(--text); }
+        .ev .navlink.active { color:var(--text); background:var(--surface); border:1px solid var(--border); }
+        .ev .icon-btn { border:1px solid var(--border); background:var(--surface); color:var(--text-2); width:34px; height:34px; cursor:pointer; font-size:14px; display:inline-flex; align-items:center; justify-content:center; }
+        .ev .icon-btn:hover { color:var(--text); }
+
+        /* HERO — two columns, mirrors homepage */
+        .ev .hero { padding-top:clamp(3rem,8vw,5.5rem); padding-bottom:clamp(3rem,6vw,5rem); }
+        .ev .hero-grid { display:grid; grid-template-columns:1fr; gap:2.5rem; align-items:start; }
+        @media (min-width:768px) { .ev .hero-grid { grid-template-columns:1fr 1fr; gap:4rem; } }
+        .ev h1 { font-size:clamp(3rem,7vw,5.2rem); line-height:0.84; letter-spacing:0.005em; margin:0 0 1.1rem; }
+        .ev h1 .a { color:var(--accent); }
+        .ev .sub { color:var(--text-3); font-size:1.05rem; line-height:1.6; max-width:440px; margin:0 0 2rem; }
+
+        .ev .cta { width:100%; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+                   padding:14px 20px; font:inherit; font-weight:600; font-size:14px;
+                   background:var(--accent); color:#fff; border:none; cursor:pointer; margin-bottom:0.75rem; }
+        .ev .cta:hover { opacity:0.92; }
+        .ev .cta:disabled { opacity:0.6; cursor:default; }
+
+        .ev .ev-search { position:relative; margin-bottom:0.5rem; }
+        .ev .ev-search svg { position:absolute; left:18px; top:50%; transform:translateY(-50%); color:var(--text-4); }
+        .ev .ev-search input { width:100%; padding:18px 18px 18px 48px; font:inherit; font-size:1.05rem; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+        .ev .ev-search input::placeholder { color:var(--text-4); }
+        .ev .ev-search input:focus { outline:none; border-color:var(--border-strong); }
+
+        .ev .locerr { font-size:12px; color:var(--warn); margin-top:6px; }
+        .ev .trust { margin-top:2rem; padding-top:1.25rem; border-top:1px solid var(--border); color:var(--text-3); font-size:14px; line-height:1.6; }
+
+        .ev .browse-label { font-size:11px; font-weight:500; color:var(--text-4); margin-bottom:12px; }
+        .ev .cities { display:flex; flex-direction:column; gap:6px; }
+        .ev .city { display:flex; align-items:center; justify-content:space-between; width:100%;
+                    padding:12px 16px; background:var(--surface); border:1px solid var(--border);
+                    font:inherit; cursor:pointer; color:var(--text); }
+        .ev .city:hover { border-color:var(--border-strong); }
+        .ev .city .st { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--accent-text); min-width:34px; text-align:left; }
+        .ev .city .nm { font-weight:500; font-size:14px; }
+        .ev .city .go { font-size:12px; color:var(--text-4); }
+
+        /* RESULTS */
+        .ev .results { padding-top:1.5rem; padding-bottom:4rem; }
+        .ev .rhead { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:1.25rem; }
+        .ev .rkicker { font-size:10px; font-weight:500; color:var(--text-4); margin-bottom:8px; }
+        .ev h2 { font-size:clamp(1.8rem,4vw,2.4rem); line-height:1.05; margin:0; }
+        .ev h2 .a { color:var(--accent); }
+        .ev .rsub { color:var(--text-3); font-size:14px; margin-top:6px; }
+        .ev .reset { font:inherit; font-size:13px; font-weight:600; padding:9px 14px; background:var(--surface); color:var(--text-2); border:1px solid var(--border); cursor:pointer; }
+        .ev .reset:hover { color:var(--text); border-color:var(--border-strong); }
+
+        .ev .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; margin-bottom:14px; }
+        .ev .seg { display:inline-flex; border:1px solid var(--border); }
+        .ev .seg button { font:inherit; font-weight:600; font-size:13px; padding:10px 16px; border:0; background:var(--surface); color:var(--text-2); cursor:pointer; }
+        .ev .seg button + button { border-left:1px solid var(--border); }
+        .ev .seg button.on { background:var(--text); color:var(--bg); }
+        .ev select { font:inherit; font-size:14px; padding:10px 12px; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+
+        .ev .banner { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); padding:11px 14px; font-size:13.5px; color:var(--text-2); margin:6px 0 18px; }
+
+        .ev .list { display:flex; flex-direction:column; border-top:1px solid var(--border); }
+        .ev .card { border:1px solid var(--border); border-top:0; background:var(--surface); padding:16px 18px; }
+        .ev .card:hover { border-color:var(--border-strong); }
+        .ev .ctop { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
+        .ev .net { font-weight:700; font-size:16px; letter-spacing:-0.01em; }
+        .ev .addr { color:var(--text-3); font-size:13.5px; margin-top:2px; }
+        .ev .price { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--accent-text); white-space:nowrap; text-align:right; }
+        .ev .dist { color:var(--text-3); font-size:12px; font-weight:500; margin-top:3px; text-align:right; font-family:'JetBrains Mono',monospace; }
+        .ev .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+        .ev .chip { font-size:11px; font-weight:600; color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); padding:4px 9px; font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; text-transform:uppercase; }
+        .ev .chip.dc { color:var(--accent-text); border-color:var(--accent); background:var(--accent-soft); }
+        .ev .crow { display:flex; align-items:center; gap:14px; margin-top:13px; }
+        .ev .dir { color:var(--text); text-decoration:none; font-weight:700; font-size:13.5px; border-bottom:2px solid var(--accent); padding-bottom:1px; }
+        .ev .dir:hover { color:var(--accent); }
+        .ev .off { font-size:11px; font-weight:700; color:var(--danger); font-family:'JetBrains Mono',monospace; letter-spacing:0.08em; text-transform:uppercase; }
+        .ev .muted { color:var(--text-3); font-size:14px; padding:34px 0; text-align:center; border:1px solid var(--border); border-top:0; background:var(--surface); }
+        .ev footer { border-top:1px solid var(--border); color:var(--text-3); font-size:12.5px; padding:24px 0; text-align:center; }
+
+        /* geo search */
+        .ev .gs { position:relative; }
+        .ev .gs > svg { position:absolute; left:18px; top:29px; transform:translateY(-50%); color:var(--text-4); pointer-events:none; z-index:1; }
+        .ev .gs input { width:100%; padding:18px 18px 18px 48px; font:inherit; font-size:1.05rem; border:1px solid var(--border); background:var(--surface); color:var(--text); }
+        .ev .gs input::placeholder { color:var(--text-4); }
+        .ev .gs input:focus { outline:none; border-color:var(--border-strong); }
+        .ev .gs-drop { position:absolute; left:0; right:0; top:100%; z-index:20; background:var(--surface); border:1px solid var(--border-strong); border-top:0; max-height:280px; overflow-y:auto; }
+        .ev .gs-drop button { display:flex; align-items:baseline; justify-content:space-between; gap:12px; width:100%; padding:12px 16px; font:inherit; font-size:14px; text-align:left; background:none; border:0; border-bottom:1px solid var(--border); color:var(--text); cursor:pointer; }
+        .ev .gs-drop button:last-of-type { border-bottom:0; }
+        .ev .gs-drop button:hover { background:var(--surface-2); }
+        .ev .gs-label { font-weight:500; }
+        .ev .gs-sub { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-4); flex-shrink:0; }
+        .ev .gs-hint { padding:12px 16px; font-size:13px; color:var(--text-3); }
+
+        /* route planner */
+        .ev .route-card { width:100%; display:flex; align-items:center; gap:16px; padding:16px;
+                          margin-top:1rem; text-align:left; font:inherit; cursor:pointer;
+                          background:rgba(15, 122, 82,0.06); border:1px solid var(--accent); color:var(--text); }
+        .ev[data-theme="dark"] .route-card { background:rgba(52, 194, 129,0.08); }
+        .ev .route-card .ic { flex-shrink:0; width:42px; height:42px; display:inline-flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; }
+        .ev .route-card .t { display:flex; align-items:center; gap:8px; }
+        .ev .route-card .t b { font-family:'Anton','Hanken Grotesk',sans-serif; text-transform:uppercase; font-weight:400; font-size:16px; letter-spacing:0.01em; }
+        .ev .route-card .new { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.16em; background:var(--accent); color:#fff; padding:2px 6px; }
+        .ev .route-card .d { color:var(--text-3); font-size:14px; margin-top:2px; }
+        .ev .route-card .ch { margin-left:auto; color:var(--accent); flex-shrink:0; }
+
+        .ev .rform { display:flex; flex-direction:column; gap:10px; max-width:560px; margin-bottom:1rem; }
+        .ev .rform .lbl { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-4); margin-bottom:4px; }
+        .ev .gap { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; font-size:13.5px; margin:14px 0;
+                   background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--accent); color:var(--text-2); }
+        .ev .gap.bad { border-left-color:var(--danger); }
+        .ev .gap b { font-family:'JetBrains Mono',monospace; }
+        .ev .stop-km { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--bg); background:var(--text); padding:3px 7px; flex-shrink:0; }
+        .ev .detour { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-3); }
+      `}</style>
+
+      <header>
+        <div className="wrap bar">
+          <a className="logo" href="/"><MotavoMark size={28} /><MotavoWordmark size={18} /></a>
+          <span className="spacer" />
+          <a className="navlink" href="/">Fuel</a>
+          <a className="navlink active" href="/ev">EV charging</a>
+          <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle theme">{dark ? '☀' : '☾'}</button>
+        </div>
+      </header>
+
+      {/* HERO — until a location is chosen */}
+      {!coords && mode === 'finder' && (
+        <section className="hero">
+          <div className="wrap">
+            <div className="hero-grid">
+              <div>
+                <h1 className="display">Stop guessing<br /><span className="a">where to charge.</span></h1>
+                <p className="sub">Live charger locations from Open Charge Map, with indicative network pricing. Free, independent, no sponsored results.</p>
+
+                <button type="button" className="cta" onClick={useMyLocation} disabled={locating}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                  {locating ? 'Finding chargers near you…' : 'Find chargers near me'}
+                </button>
+
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <GeoSearch placeholder="Or search a suburb, postcode or address…"
+                             onSelect={r => { setCoords({ lat: r.lat, lng: r.lng }); setLocLabel(r.label); setLocError(false); }} />
+                </div>
+                {locError && <p className="locerr">Couldn&rsquo;t get your location — try searching instead.</p>}
+
+                <button type="button" className="route-card" onClick={() => { setMode('route'); setRouteData(null); setRouteError(''); }}>
+                  <span className="ic">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+                  </span>
+                  <span>
+                    <span className="t"><b>EV route planner</b><span className="new">New</span></span>
+                    <span className="d" style={{ display: 'block' }}>Chargers along your whole trip — and the longest gap between them.</span>
+                  </span>
+                  <span className="ch">›</span>
+                </button>
+
+                <div className="trust">
+                  Live charger locations across Australia from Open Charge Map.
+                  No network pays for placement — and it&rsquo;s free, always.
+                </div>
+              </div>
+
+              <div>
+                <div className="browse-label track">Browse by city</div>
+                <div className="cities">
+                  {EV_CITIES.map(c => (
+                    <button key={c.slug} type="button" className="city"
+                            onClick={() => { setCoords({ lat: c.lat, lng: c.lng }); setLocLabel(`${c.name}, ${c.state}`); setLocError(false); }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <span className="st">{c.state}</span>
+                        <span className="nm">{c.name}</span>
+                      </span>
+                      <span className="go">Chargers →</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* RESULTS */}
+      {coords && mode === 'finder' && (
+        <main className="wrap results">
+          <div className="rhead">
+            <div>
+              <div className="rkicker track">Now showing</div>
+              <h2 className="display">Chargers near <span className="a">{locLabel}</span></h2>
+              <p className="rsub">{loading ? 'Finding chargers…' : `${stations.length} chargers · within ${radius} km`}</p>
+            </div>
+            <button type="button" className="reset" onClick={reset}>Change location</button>
+          </div>
+
+          <div className="controls">
+            <div className="seg" role="group" aria-label="Charger type">
+              {['ALL', 'AC', 'DC'].map(l => (
+                <button key={l} className={level === l ? 'on' : ''} onClick={() => setLevel(l)}>{l === 'ALL' ? 'All' : l}</button>
+              ))}
+            </div>
+            <select value={radius} onChange={e => setRadius(Number(e.target.value))} aria-label="Radius">
+              <option value={5}>5 km</option>
+              <option value={10}>10 km</option>
+              <option value={25}>25 km</option>
+              <option value={50}>50 km</option>
+            </select>
+          </div>
+
+          <div className="banner">
+            <span aria-hidden="true">ⓘ</span>
+            <span>{INDICATIVE_NOTE}</span>
+          </div>
+
+          <div className="list">
+            {loading && <div className="muted">Finding chargers…</div>}
+            {error && !loading && <div className="muted">Charger data is temporarily unavailable. Please try again in a moment.</div>}
+            {!loading && !error && stations.length === 0 && (
+              <div className="muted">No chargers found here. Try a wider radius or a different area.</div>
+            )}
+            {!loading && stations.map(s => (
+              <div className="card" key={s.id}>
+                <div className="ctop">
+                  <div>
+                    <div className="net">{s.network}</div>
+                    {s.address && <div className="addr">{s.address}</div>}
+                  </div>
+                  <div>
+                    <div className="price">{priceLabel(s)}</div>
+                    {s.distance != null && <div className="dist">{s.distance} km</div>}
+                  </div>
+                </div>
+                <div className="chips">
+                  {s.level && <span className={`chip ${s.level === 'DC' ? 'dc' : ''}`}>{s.level}</span>}
+                  {s.maxPowerKw != null && <span className="chip">up to {s.maxPowerKw} kW</span>}
+                  {s.connectors.map((c, i) => (
+                    <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
+                  ))}
+                </div>
+                <div className="crow">
+                  <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
+                  {s.operational === false && <span className="off">May be offline</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      )}
+
+      {/* ROUTE PLANNER */}
+      {mode === 'route' && (
+        <main className="wrap results">
+          <div className="rhead">
+            <div>
+              <div className="rkicker track">EV route planner</div>
+              <h2 className="display">Chargers along <span className="a">your trip.</span></h2>
+              <p className="rsub">Pick a start and end suburb — we&rsquo;ll find every charger within 7&nbsp;km of the route, in trip order.</p>
+            </div>
+            <button type="button" className="reset" onClick={reset}>‹ Back</button>
+          </div>
+
+          <div className="rform">
+            <div>
+              <div className="lbl">From</div>
+              <GeoSearch placeholder="Start — suburb, postcode or address…" onSelect={setFromPick} />
+            </div>
+            <div>
+              <div className="lbl">To</div>
+              <GeoSearch placeholder="Destination — suburb, postcode or address…" onSelect={setToPick} />
+            </div>
+            <div className="controls" style={{ marginBottom: 0 }}>
+              <div className="seg" role="group" aria-label="Charger type">
+                {['DC', 'ALL'].map(l => (
+                  <button key={l} className={routeLevel === l ? 'on' : ''} onClick={() => setRouteLevel(l)}>{l === 'ALL' ? 'All chargers' : 'DC fast only'}</button>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="cta" onClick={planRoute} disabled={routeLoading} style={{ marginBottom: 0 }}>
+              {routeLoading ? 'Planning your route…' : 'Find chargers along route'}
+            </button>
+            {routeError && <p className="locerr">{routeError}</p>}
+          </div>
+
+          {routeData && (
+            <>
+              <div className="rhead" style={{ marginTop: '1.5rem' }}>
+                <div>
+                  <div className="rkicker track">{routeData.fromLabel} → {routeData.toLabel}</div>
+                  <p className="rsub" style={{ marginTop: 0 }}>
+                    {routeData.route.distanceKm} km
+                    {routeData.route.durationMin ? ` · about ${Math.floor(routeData.route.durationMin / 60)}h ${routeData.route.durationMin % 60}m drive` : ''}
+                    {` · ${routeData.chargers.length} chargers within 7 km of the route`}
+                  </p>
+                </div>
+              </div>
+
+              <div className={`gap ${routeData.gaps.longestGapKm > 200 ? 'bad' : ''}`}>
+                <span aria-hidden="true">{routeData.gaps.longestGapKm > 200 ? '⚠' : 'ⓘ'}</span>
+                <span>
+                  Longest stretch without a charger: <b>{routeData.gaps.longestGapKm} km</b>
+                  {routeData.chargers.length > 0 ? <> ({routeData.gaps.from} → {routeData.gaps.to})</> : null}
+                  {routeData.gaps.longestGapKm > 200 ? ' — plan this leg carefully.' : ''}
+                </span>
+              </div>
+
+              <div className="banner">
+                <span aria-hidden="true">ⓘ</span>
+                <span>{INDICATIVE_NOTE}</span>
+              </div>
+
+              <div className="list">
+                {routeData.chargers.length === 0 && (
+                  <div className="muted">No chargers found within 7 km of this route{routeLevel === 'DC' ? ' — try including AC chargers.' : '.'}</div>
+                )}
+                {routeData.chargers.map(s2 => (
+                  <div className="card" key={s2.id}>
+                    <div className="ctop">
+                      <div className="who" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        <span className="stop-km">{s2.alongKm} km</span>
+                        <div>
+                          <div className="net">{s2.network}</div>
+                          {s2.address && <div className="addr">{s2.address}</div>}
+                          <div className="detour" style={{ marginTop: 3 }}>{s2.detourKm <= 0.5 ? 'on route' : `${s2.detourKm} km off route`}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="price">{priceLabel(s2)}</div>
+                      </div>
+                    </div>
+                    <div className="chips">
+                      {s2.level && <span className={`chip ${s2.level === 'DC' ? 'dc' : ''}`}>{s2.level}</span>}
+                      {s2.maxPowerKw != null && <span className="chip">up to {s2.maxPowerKw} kW</span>}
+                      {s2.connectors.map((c, i) => (
+                        <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
+                      ))}
+                    </div>
+                    <div className="crow">
+                      <a className="dir" href={`https://www.google.com/maps/dir/?api=1&destination=${s2.lat},${s2.lng}`} target="_blank" rel="noopener noreferrer">Directions →</a>
+                      {s2.operational === false && <span className="off">May be offline</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </main>
+      )}
+
+      <footer className="wrap">Charger data © Open Charge Map contributors. Pricing indicative — verify with the operator.</footer>
+      <AddToHomeScreen />
+    </div>
+  );
 }
