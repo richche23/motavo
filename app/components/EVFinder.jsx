@@ -227,13 +227,18 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
         if (lvl === 'DC' && !isDC(poi)) continue;
         if (lvl === 'AC' && isDC(poi)) continue;
         if (!byId.has(poi.ID)) {
+          const conns = poi.Connections || [];
           byId.set(poi.ID, {
             id: `ocm-${poi.ID}`,
             network: (poi.OperatorInfo && poi.OperatorInfo.Title) || 'Unknown network',
             address: [ai.AddressLine1, ai.Town, ai.StateOrProvince].filter(Boolean).join(', '),
             lat: ai.Latitude, lng: ai.Longitude,
             level: isDC(poi) ? 'DC' : 'AC',
-            maxPowerKw: (poi.Connections || []).reduce((m, c) => Math.max(m, c.PowerKW || 0), 0) || null,
+            maxPowerKw: conns.reduce((m, c) => Math.max(m, c.PowerKW || 0), 0) || null,
+            connectors: conns.map(c => ({
+              type: (c.ConnectionType && c.ConnectionType.Title) || 'Unknown',
+              count: c.Quantity || 1,
+            })),
             tariff: null,
           });
         }
@@ -710,7 +715,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
                 <div className="chips">
                   {s.level && <span className={`chip ${s.level === 'DC' ? 'dc' : ''}`}>{s.level}</span>}
                   {s.maxPowerKw != null && <span className="chip">up to {s.maxPowerKw} kW</span>}
-                  {s.connectors.map((c, i) => (
+                  {(s.connectors || []).map((c, i) => (
                     <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
                   ))}
                 </div>
@@ -807,7 +812,7 @@ export default function EVFinder({ initialCoords = null, initialLabel = '' }) {
                     <div className="chips">
                       {s2.level && <span className={`chip ${s2.level === 'DC' ? 'dc' : ''}`}>{s2.level}</span>}
                       {s2.maxPowerKw != null && <span className="chip">up to {s2.maxPowerKw} kW</span>}
-                      {s2.connectors.map((c, i) => (
+                      {(s2.connectors || []).map((c, i) => (
                         <span className="chip" key={i}>{c.type}{c.count > 1 ? ` ×${c.count}` : ''}</span>
                       ))}
                     </div>
