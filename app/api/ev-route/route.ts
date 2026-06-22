@@ -156,6 +156,36 @@ export async function GET(req: NextRequest) {
     )
   );
 
+  // Detect a total Cloudflare block: every sample rejected with OCM_BLOCKED and
+  // none returned stations. In that case the server can't reach OCM (its IP is
+  // blocked), so hand the client everything it needs to query OCM directly from
+  // the browser — same fallback strategy the near-me endpoint uses.
+  const anyFulfilled = results.some(r => r.status === 'fulfilled' && (r.value?.stations?.length || 0) >= 0 && r.value !== undefined);
+  const anyStations = results.some(r => r.status === 'fulfilled' && (r.value?.stations?.length || 0) > 0);
+  const allBlocked = results.every(r => r.status === 'rejected' && (r.reason?.code === 'OCM_BLOCKED'));
+  if (!anyStations && allBlocked) {
+    const clientKey = process.env.NEXT_PUBLIC_OPENCHARGEMAP_KEY || process.env.OPENCHARGEMAP_API_KEY || '';
+    const payload = {
+      fallback: 'client',
+      key: clientKey,
+      radius,
+      samples: samples.map(([lat, lng]) => ({ lat, lng })),
+      route: {
+        distanceKm: Math.round(totalKm),
+        durationMin: Math.round(geo.durationMin),
+        source: osrm ? 'osrm' : 'straight-line',
+        points: downsample(geo.points),
+        // Full geometry + cumulative distances so the client can compute
+        // detour and along-route position exactly as the server would.
+        fullPoints: geo.points,
+        cumKm,
+      },
+      detourKm: MAX_DETOUR_KM,
+      maxResults: MAX_RESULTS,
+    };
+    return NextResponse.json(payload);
+  }
+
   // 3. Dedupe and compute detour + along-route position per charger.
   const byId = new Map<string, any>();
   for (const r of results) {
