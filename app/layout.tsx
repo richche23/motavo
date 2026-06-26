@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import Assistant from './components/Assistant';
 
@@ -99,7 +100,11 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
-      <body>{children}<Assistant /></body>
+<body>
+          {children}
+          <Assistant />
+          <Analytics />
+        </body>
     </html>
   );
 }
