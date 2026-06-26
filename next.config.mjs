@@ -1,11 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Allow station-logo favicons from Google's S2 service
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'www.google.com', pathname: '/s2/favicons/**' },
-    ],
+
+  async headers() {
+    return [
+      {
+        // Allow Google + other crawlers to index the whole site.
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'index, follow' },
+        ],
+      },
+    ];
   },
 };
 

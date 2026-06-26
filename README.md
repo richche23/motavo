@@ -1,4 +1,4 @@
-# FuelMate — Deploy Guide
+# Motavo — Deploy Guide
 
 This folder is a complete Next.js project ready to deploy. Follow the steps
 below in order. Total time: about 60–90 minutes of clicking, spread over a
@@ -8,7 +8,7 @@ few days as API approvals come in.
 
 ## What you'll end up with
 
-- A live FuelMate website at a `fuelmate-something.vercel.app` URL (free)
+- A live Motavo website at a `motavo-something.vercel.app` URL (free)
 - NSW fuel prices live from day one (your existing API key, rotated)
 - WA fuel prices live from day one (no key needed)
 - VIC, QLD, SA, NT showing mock data until each API is approved (typically 1–4 weeks)
@@ -21,7 +21,7 @@ few days as API approvals come in.
 Your previous NSW key appeared in a screenshot, so treat it as compromised.
 
 1. Go to https://api.nsw.gov.au and sign in
-2. Open **My Apps** → click your FuelMate app
+2. Open **My Apps** → click your Motavo app
 3. Look for a **Regenerate** or **Rotate** button next to the API Key/Secret
 4. Save the new Key and Secret somewhere private (a password manager is ideal)
 5. **Don't** paste them into chat, email, or screenshots from now on
@@ -54,8 +54,8 @@ You're going to upload this folder to a new GitHub repo using the web interface.
 No terminal required.
 
 1. On GitHub, click the **+** icon top-right → **New repository**
-2. **Repository name**: `fuelmate` (lowercase)
-3. **Description**: "FuelMate — Australian fuel price comparison"
+2. **Repository name**: `motavo` (lowercase)
+3. **Description**: "Motavo — Australian fuel price comparison"
 4. Select **Private** (you can make it public later if you want)
 5. **Don't** tick "Add a README" or any other init options
 6. Click **Create repository**
@@ -63,7 +63,7 @@ No terminal required.
 You'll see a page that says "Quick setup". On that page:
 
 7. Click the link **uploading an existing file** (in the middle of the page)
-8. On the upload page, drag this **entire `fuelmate-app` folder's contents**
+8. On the upload page, drag this **entire `motavo-app` folder's contents**
    into the upload area. Important: open the folder first and select the
    files inside — don't drag the folder itself.
 9. Scroll down — at the bottom, "Commit changes" — leave default message
@@ -77,10 +77,10 @@ GitHub will upload all the files and show your repo with `app/`, `lib/`,
 ## STEP 4 — Deploy to Vercel (5 minutes)
 
 1. Go to https://vercel.com/new
-2. You should see your `fuelmate` repo listed under "Import Git Repository"
+2. You should see your `motavo` repo listed under "Import Git Repository"
 3. Click **Import** next to it
 4. On the configure screen:
-   - **Project Name**: `fuelmate` (or anything you like)
+   - **Project Name**: `motavo` (or anything you like)
    - **Framework Preset**: Next.js (should auto-detect)
    - **Root Directory**: leave as `./`
    - Don't click Deploy yet — go to the **Environment Variables** section
@@ -141,7 +141,7 @@ Each one is a separate application. Do them in any order. Most are free.
 When each API is approved and you've added the env var, you also need to flip
 its status from `mock` to `live` in the code. This is a one-line change.
 
-1. In your GitHub repo, open `app/components/FuelMate.jsx`
+1. In your GitHub repo, open `app/components/Motavo.jsx`
 2. Click the pencil (Edit) icon
 3. Use Ctrl+F to find `DATA_SOURCES`
 4. In the line for the state you're activating, change `status: 'mock'` to
@@ -155,7 +155,7 @@ That's it. Your site is now serving real data for that state.
 
 ## Domain (optional, $10–20/year)
 
-To use `fuelmate.com.au` instead of the `vercel.app` URL:
+To use `motavo.com.au` instead of the `vercel.app` URL:
 
 1. Buy the domain at https://www.crazydomains.com.au or https://www.namecheap.com
 2. In Vercel → your project → Settings → Domains → Add
@@ -195,12 +195,12 @@ that's well past the point where AdSense revenue covers it.
 ## Files in this project (for reference)
 
 ```
-fuelmate-app/
+motavo-app/
 ├── app/
-│   ├── components/FuelMate.jsx       Your full frontend
+│   ├── components/Motavo.jsx       Your full frontend
 │   ├── api/fuel/[state]/route.ts     Single API endpoint, dispatches by state
 │   ├── layout.tsx                    HTML wrapper, fonts
-│   ├── page.tsx                      Home page (renders FuelMate)
+│   ├── page.tsx                      Home page (renders Motavo)
 │   └── globals.css                   Tailwind + minimal resets
 ├── lib/
 │   ├── types.ts                      Canonical Station / FetchOptions types

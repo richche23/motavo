@@ -30,42 +30,133 @@ const SEARCH_FUEL_CODE = 'ALLU';
 
 // NT site fuel codes → canonical FuelType.
 const NT_CODE_MAP: Record<string, FuelType> = {
-  U91: 'U91',
-  LAF: 'U91',   // Low Aromatic Fuel — NT-mandated U91 substitute
-  P95: 'P95',
-  P98: 'P98',
-  E10: 'E10',
-  DL:  'DSL',
-  PD:  'PRDSL',
-  LPG: 'LPG',
+  U91:  'U91',
+  LAF:  'U91',   // Low Aromatic Fuel — NT-mandated U91 substitute
+  ALLU: 'U91',   // "Equivalent Unleaded" — appears as a top-level code in search results
+  P95:  'P95',
+  P98:  'P98',
+  E10:  'E10',
+  DL:   'DSL',
+  DSL:  'DSL',
+  PD:   'PRDSL',
+  PRDSL:'PRDSL',
+  LPG:  'LPG',
 };
 
+/**
+ * Parse one NT price entry into the prices record. Deliberately tolerant:
+ * the NT site has no versioned API (we scrape), so field drift must degrade
+ * gracefully, not silently null every price.
+ *  - IsAvailable: only an explicit `false` excludes — a missing/renamed
+ *    field must not zero out the whole territory.
+ *  - FuelCode: trimmed + uppercased before mapping.
+ *  - Price: accepts number or string.
+ */
+function applyNtPrice(
+  prices: Record<FuelType, number | null>,
+  rawCode: unknown,
+  rawPrice: unknown,
+  isAvailable: unknown
+) {
+  if (isAvailable === false) return;
+  const code = String(rawCode ?? '').trim().toUpperCase();
+  const ft = NT_CODE_MAP[code];
+  if (!ft) return;
+  const p = parseFloat(String(rawPrice));
+  if (isNaN(p) || p <= 0) return;
+  // NT site prices are decimal cents per litre (e.g. "235.9"), which is
+  // already the app's canonical format — QLD/SA receive tenths from their
+  // APIs and divide by 10 to reach this same format. (A stale comment here
+  // previously claimed the canonical format was tenths, and NT multiplied
+  // by 10 — making it the only source storing 2359 for 235.9¢/L.)
+  const val = Math.round(p * 10) / 10;
+  const existing = prices[ft];
+  // Keep the lower price if multiple NT codes map to the same FuelType (e.g. U91 + LAF).
+  if (existing === null || val < existing) prices[ft] = val;
+}
+
 // ── Raw types from serverJson ─────────────────────────────────────────────────
+// MyFuel NT restructured this payload (observed June 2026): the prices array
+// is now `AvailableFuels` (was `AllFuels`), entry availability is lowercase
+// `isAvailable`, outlet id is `FuelOutletId`, name is `OutletName`, brand is
+// `OutletBrandIdentifier`. We read new names first and fall back to old ones.
 
 interface NTFuelEntry {
-  FuelCode:  string;
-  Price:     string;  // decimal cents, e.g. "235.9"
-  IsAvailable: boolean;
+  FuelCode:     string;
+  Price:        number | string;   // decimal cents, e.g. 198 or "235.9"
+  isAvailable?: boolean;           // current shape (lowercase i)
+  IsAvailable?: boolean;           // legacy shape
 }
 
 interface NTOutlet {
-  OutletId:    number;
-  Name:        string;
-  FullAddress: string;
-  Address:     string;
-  Suburb:      string;
-  Postcode:    string;
-  Latitude:    number;
-  Longitude:   number;
-  BrandId:     string;
-  FuelCode:    string;
-  FuelPrice:   string;
-  IsActive:    boolean;
-  AllFuels:    NTFuelEntry[];
+  FuelOutletId?: number;           // current
+  OutletId?:     number;           // legacy
+  OutletName?:   string;           // current
+  Name?:         string;           // legacy
+  FullAddress?:  string;
+  Address?:      string;
+  Suburb:        string;
+  Postcode:      string;
+  Latitude:      number;
+  Longitude:     number;
+  OutletBrandIdentifier?: string;  // current
+  FuelBrandIdentifier?:   string;  // current (per-fuel brand)
+  BrandId?:      string;           // legacy
+  FuelCode?:     string | null;
+  FuelPrice?:    number | string;            // legacy top-level price
+  FuelPriceForSelectedCode?: number | string;// current top-level price
+  IsActive?:     boolean;
+  AvailableFuels?: NTFuelEntry[];  // current
+  AllFuels?:       NTFuelEntry[];  // legacy
 }
 
 interface NTServerJson {
   FuelOutlet: NTOutlet[];
+}
+
+/**
+ * Map raw NT outlets → canonical Stations. Exported for unit testing against
+ * captured payloads.
+ */
+export function parseNtOutlets(outlets: NTOutlet[], refreshedAt: number): Station[] {
+  return outlets
+    .filter(o => o.IsActive !== false && o.Latitude && o.Longitude)
+    .map(o => {
+      const prices: Record<FuelType, number | null> = {
+        U91: null, P95: null, P98: null,
+        E10: null, DSL: null, PRDSL: null, LPG: null,
+      };
+
+      const fuelEntries = o.AvailableFuels ?? o.AllFuels ?? [];
+      for (const f of fuelEntries) {
+        applyNtPrice(prices, f.FuelCode, f.Price, f.isAvailable ?? f.IsAvailable);
+      }
+
+      // Fallback: the searched fuel's price also appears top-level.
+      if (Object.values(prices).every(p => p === null)) {
+        applyNtPrice(prices, o.FuelCode, o.FuelPriceForSelectedCode ?? o.FuelPrice, undefined);
+      }
+
+      const id    = o.FuelOutletId ?? o.OutletId;
+      const name  = o.OutletName ?? o.Name ?? 'Unknown';
+      const brand = o.OutletBrandIdentifier || o.FuelBrandIdentifier || o.BrandId || name;
+
+      return {
+        id:               `nt-${id}`,
+        brand:            normalizeBrand(brand),
+        name,
+        address:          o.FullAddress || [o.Address, o.Suburb, 'NT', o.Postcode].filter(Boolean).join(', '),
+        suburb:           (o.Suburb || '').trim(),
+        state:            'NT' as const,
+        postcode:         o.Postcode,
+        lat:              o.Latitude,
+        lng:              o.Longitude,
+        prices,
+        updatedAt:        refreshedAt,
+        updatedMinutesAgo: 0,
+        source:           'nt-myfuelnt',
+      } satisfies Station;
+    });
 }
 
 // ── Snapshot ──────────────────────────────────────────────────────────────────
@@ -79,7 +170,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const cached = cacheGet<Snapshot>(SNAPSHOT_KEY);
   if (cached) return cached;
 
-  const ua = 'Mozilla/5.0 (compatible; FuelMate/1.0; +https://fuelmate.app)';
+  const ua = 'Mozilla/5.0 (compatible; Motavo/1.0; +https://motavo.au)';
 
   // Step 1: GET homepage for CSRF token + session cookie.
   const homeRes = await fetch(`${BASE_URL}/`, {
@@ -138,45 +229,20 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const outlets  = server.FuelOutlet ?? [];
 
   const refreshedAt = Date.now();
-  const stations    = outlets
-    .filter(o => o.IsActive && o.Latitude && o.Longitude)
-    .map(o => {
-      const prices: Record<FuelType, number | null> = {
-        U91: null, P95: null, P98: null,
-        E10: null, DSL: null, PRDSL: null, LPG: null,
-      };
+  const stations    = parseNtOutlets(outlets, refreshedAt);
 
-      for (const f of (o.AllFuels ?? [])) {
-        const ft = NT_CODE_MAP[f.FuelCode];
-        if (!ft || !f.IsAvailable) continue;
-        const p = parseFloat(f.Price);
-        if (isNaN(p) || p <= 0) continue;
-        // NT prices are decimal cents (e.g. 235.9 c/L).
-        // Store as integer tenths-of-a-cent to match SA/QLD format (e.g. 2359).
-        const existing = prices[ft];
-        const val      = Math.round(p * 10);
-        // Keep the lower price if multiple NT codes map to the same FuelType (e.g. U91 + LAF).
-        if (existing === null || val < existing) {
-          prices[ft] = val;
-        }
-      }
-
-      return {
-        id:               `nt-${o.OutletId}`,
-        brand:            normalizeBrand(o.BrandId || o.Name),
-        name:             o.Name,
-        address:          o.FullAddress || `${o.Address}, ${o.Suburb}, NT ${o.Postcode}`,
-        suburb:           o.Suburb,
-        state:            'NT' as const,
-        postcode:         o.Postcode,
-        lat:              o.Latitude,
-        lng:              o.Longitude,
-        prices,
-        updatedAt:        refreshedAt,
-        updatedMinutesAgo: 0,
-        source:           'nt-myfuelnt',
-      } satisfies Station;
-    });
+  // Self-diagnosing log: stations without prices is exactly the failure mode
+  // that hides behind a green status page. If it happens, say so loudly and
+  // include a payload sample so the fix is obvious from Vercel logs alone.
+  const priced = stations.filter(s => Object.values(s.prices).some(p => p !== null)).length;
+  if (stations.length > 0 && priced === 0) {
+    const sample = outlets[0] ?? {};
+    console.error(
+      `[NT] DEGRADED: ${stations.length} stations parsed but 0 have prices — ` +
+      `payload shape likely changed. Outlet keys: [${Object.keys(sample).join(', ')}]. ` +
+      `AllFuels sample: ${JSON.stringify((sample as any).AllFuels?.slice?.(0, 2) ?? null)}`
+    );
+  }
 
   const snapshot: Snapshot = { stations, refreshedAt };
   cacheSet(SNAPSHOT_KEY, snapshot, SNAPSHOT_TTL);

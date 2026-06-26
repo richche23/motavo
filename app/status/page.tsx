@@ -35,18 +35,23 @@ async function checkState(code: string) {
       next: { revalidate: 60 },
     });
     if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}`, stations: 0, refreshedAt: 0 };
+      return { ok: false, error: `HTTP ${res.status}`, stations: 0, priced: 0, refreshedAt: 0 };
     }
     const data = await res.json();
+    const stationsArr = Array.isArray(data.stations) ? data.stations : [];
+    const priced = stationsArr.filter(
+      (s: any) => s?.prices && Object.values(s.prices).some(p => p != null)
+    ).length;
     return {
       ok: true,
       error: null,
-      stations: data.stations?.length ?? 0,
+      stations: stationsArr.length,
+      priced,
       refreshedAt: data.refreshedAt ?? 0,
       source: data.source,
     };
   } catch (e: any) {
-    return { ok: false, error: e?.message ?? 'unknown', stations: 0, refreshedAt: 0 };
+    return { ok: false, error: e?.message ?? 'unknown', stations: 0, priced: 0, refreshedAt: 0 };
   }
 }
 
@@ -57,19 +62,21 @@ export default async function StatusPage() {
 
   return (
     <main style={{ maxWidth: 720, margin: '40px auto', padding: '0 24px', fontFamily: 'ui-sans-serif, system-ui' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>FuelMate API status</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>Motavo API status</h1>
       <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>
         Live diagnostic. Each row hits the corresponding state API with a sample lat/lng.
       </p>
 
       <div style={{ display: 'grid', gap: 8 }}>
         {checks.map(c => {
-          const live = c.ok && c.stations > 0;
+          const priced = (c as any).priced ?? 0;
+          const live = c.ok && c.stations > 0 && priced > 0;
+          const degraded = c.ok && c.stations > 0 && priced === 0;
           const stub = c.ok && c.stations === 0;
           const broken = !c.ok;
-          const colorBg = live ? '#e6f7f3' : stub ? '#fef3c7' : '#fee2e2';
-          const colorBorder = live ? '#16a085' : stub ? '#f59e0b' : '#dc2626';
-          const label = live ? 'Live' : stub ? 'Stub (mock fallback)' : 'Error';
+          const colorBg = live ? '#e6f7f3' : (stub || degraded) ? '#fef3c7' : '#fee2e2';
+          const colorBorder = live ? '#0e7c6b' : (stub || degraded) ? '#f59e0b' : '#dc2626';
+          const label = live ? 'Live' : degraded ? 'Degraded (no prices)' : stub ? 'Stub (mock fallback)' : 'Error';
           const refreshedLabel = c.refreshedAt
             ? new Date(c.refreshedAt).toLocaleString('en-AU')
             : '—';
@@ -82,7 +89,7 @@ export default async function StatusPage() {
               <div>
                 <div style={{ fontWeight: 600, fontSize: 15 }}>{c.name} <span style={{ color: '#94a3b8', fontWeight: 400 }}>· {c.code.toUpperCase()}</span></div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  {c.expected} · {c.stations} stations · refreshed {refreshedLabel}
+                  {c.expected} · {c.stations} stations ({priced} priced) · refreshed {refreshedLabel}
                 </div>
                 {c.error && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 2 }}>Error: {c.error}</div>}
               </div>

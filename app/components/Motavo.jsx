@@ -1,86 +1,155 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { DirectionsMenu } from '@/lib/directions';
 import {
   Menu, X, ArrowRight, ArrowUpRight, Navigation,
   ChevronRight, TrendingDown, TrendingUp, AlertCircle,
-  Map as MapIcon, List, Mail, Shield, Info,
+  Map as MapIcon, List, Shield, Info,
   Loader2, Zap, Target, Compass, MoveRight,
   Search, MapPin, Building2, Home, Command,
   ThumbsUp, CheckCircle2, Users, Edit3, Check,
-  Sun, Moon
+  Sun, Moon, Gauge, Fuel
 } from 'lucide-react';
+import { AlertSignup } from './AlertSignup';
+import EVPanel from './EVPanel';
+import { SUBURBS } from '@/lib/suburbs';
 
 /* =====================================================================
-   FuelMate — Australian fuel price comparison
+   Large, prominent Fuel / EV mode toggle (home view)
+   ===================================================================== */
+const ModeToggle = ({ mode, onMode }) => {
+  const base = {
+    display: 'inline-flex', alignItems: 'center', gap: 10,
+    padding: '14px 30px', fontSize: 16, fontWeight: 700,
+    borderRadius: 0, border: 'none', cursor: 'pointer',
+    transition: 'all .15s ease', letterSpacing: '-0.01em',
+  };
+  const on = { ...base, background: 'var(--accent)', color: '#fff', boxShadow: '0 2px 10px var(--accent-glow)' };
+  const off = { ...base, background: 'transparent', color: 'var(--text-2)' };
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 16px 6px' }}>
+      <div
+        role="tablist"
+        aria-label="Choose Fuel or EV"
+        style={{ display: 'inline-flex', gap: 6, padding: 6, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 0 }}
+      >
+        <button type="button" role="tab" aria-selected={mode === 'fuel'} style={mode === 'fuel' ? on : off} onClick={() => onMode('fuel')}>
+          <Fuel size={20} /> Fuel
+        </button>
+        <button type="button" role="tab" aria-selected={mode === 'ev'} style={mode === 'ev' ? on : off} onClick={() => onMode('ev')}>
+          <Zap size={20} /> EV charging
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* =====================================================================
+   Motavo — Australian fuel price comparison
    Sleek dark aesthetic — Linear / Arc / Vercel-influenced
    ===================================================================== */
 
 const GlobalStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Anton&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    /* Soft brand-coloured mesh behind the hero, fading to the page bg below.
+       Pure CSS — no image, no load cost. Tuned for both light and dark mode
+       via the --hero-* variables defined per theme. */
+    .hero-mesh {
+      position: relative;
+      isolation: isolate;
+      background:
+        radial-gradient(60% 70% at 12% 8%,  var(--hero-a) 0%, transparent 60%),
+        radial-gradient(55% 65% at 88% 0%,  var(--hero-b) 0%, transparent 58%),
+        radial-gradient(70% 60% at 70% 35%, var(--hero-c) 0%, transparent 65%),
+        var(--bg);
+    }
+    /* Fade the mesh out toward the bottom so it blends into the plain page */
+    .hero-mesh::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 45%;
+      background: linear-gradient(to bottom, transparent, var(--bg));
+      pointer-events: none;
+      z-index: -1;
+    }
+    .hero-mesh > * { position: relative; z-index: 0; }
 
     :root {
-      --bg: #f7f9fc;
-      --bg-2: #eef2f8;
-      --surface: #ffffff;
-      --surface-2: #f4f6fa;
-      --surface-3: #e8edf5;
-      --border: #e1e7f0;
-      --border-strong: #c8d2e1;
-      --text: #0f172a;
-      --text-2: #334155;
-      --text-3: #64748b;
-      --text-4: #94a3b8;
+      --bg: #e7e4dd;
+      --bg-2: #ddd9cf;
+      --surface: #f2f0ea;
+      --surface-2: #e7e4dd;
+      --surface-3: #d9d5ca;
+      --border: #cbc6b9;
+      --border-strong: #15120e;
+      --text: #15120e;
+      --text-2: #4a453d;
+      --text-3: #6a655c;
+      --text-4: #938c81;
 
-      /* FuelMate brand */
-      --blue: #1e5fe0;
-      --blue-dark: #1648b0;
-      --blue-light: #d6e4ff;
-      --blue-soft: #ebf2ff;
-      --green: #16a085;
-      --green-dark: #0f7d68;
-      --green-light: #c8efe5;
-      --green-soft: #e6f7f3;
+      /* Motavo brand — concrete + ink + a single signal-orange accent */
+      --blue: #0f7a52;
+      --blue-dark: #0b5e3f;
+      --blue-light: #bfe0cf;
+      --blue-soft: #e4f1ea;
+      --hero-a: transparent;
+      --hero-b: transparent;
+      --hero-c: transparent;
+      /* green kept ONLY as the functional "this price is cheap" signal */
+      --green: #2e7d4f;
+      --green-dark: #226039;
+      --green-light: #cfe6d8;
+      --green-soft: #e8f2ec;
 
       /* Functional aliases */
       --accent: var(--blue);
       --accent-dark: var(--blue-dark);
-      --accent-glow: rgba(30, 95, 224, 0.22);
+      --accent-glow: rgba(15, 122, 82, 0.20);
       --success: var(--green);
-      --success-glow: rgba(22, 160, 133, 0.20);
-      --warn: #ea580c;
-      --danger: #dc2626;
+      --success-glow: rgba(46, 125, 79, 0.18);
+      --warn: #b4530a;
+      --danger: #b91c1c;
     }
 
     .fm-app[data-theme="dark"] {
-      --bg: #0f1117;
-      --bg-2: #161b27;
-      --surface: #1e2433;
-      --surface-2: #252d3d;
-      --surface-3: #2d3650;
-      --border: #2d3650;
-      --border-strong: #3d4a68;
-      --text: #f0f4ff;
-      --text-2: #c8d4ee;
-      --text-3: #7e90b8;
-      --text-4: #4e6080;
+      --bg: #14110d;
+      --bg-2: #1b1813;
+      --surface: #1b1813;
+      --surface-2: #221e18;
+      --surface-3: #2c2820;
+      --border: #322d25;
+      --border-strong: #4a4338;
+      --text: #efe9df;
+      --text-2: #cfc7ba;
+      --text-3: #9a9183;
+      --text-4: #6f675b;
 
-      --blue-light: rgba(30, 95, 224, 0.20);
-      --blue-soft: rgba(30, 95, 224, 0.12);
-      --green-light: rgba(22, 160, 133, 0.20);
-      --green-soft: rgba(22, 160, 133, 0.10);
-      --accent-glow: rgba(30, 95, 224, 0.30);
-      --success-glow: rgba(22, 160, 133, 0.25);
+      /* signal orange lifts cleanly on charcoal */
+      --blue: #34c281;
+      --blue-dark: #0b5e3f;
+      --blue-light: rgba(52, 194, 129, 0.20);
+      --blue-soft: rgba(52, 194, 129, 0.12);
+      --hero-a: transparent;
+      --hero-b: transparent;
+      --hero-c: transparent;
+      --green: #4caf7a;
+      --green-light: rgba(76, 175, 122, 0.20);
+      --green-soft: rgba(76, 175, 122, 0.10);
+      --accent-glow: rgba(52, 194, 129, 0.28);
+      --success-glow: rgba(76, 175, 122, 0.22);
     }
 
-    .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; letter-spacing: -0.022em; }
-    .font-body { font-family: 'DM Sans', system-ui, sans-serif; letter-spacing: -0.008em; }
+    .font-display { font-family: 'Anton', 'Hanken Grotesk', system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.004em; font-weight: 400 !important; }
+    .font-body { font-family: 'Hanken Grotesk', system-ui, sans-serif; letter-spacing: -0.006em; }
     .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'tnum' on, 'ss01' on; letter-spacing: -0.01em; }
 
     .fm-app, .fm-app * { box-sizing: border-box; }
     .fm-app {
-      font-family: 'DM Sans', system-ui, sans-serif;
+      font-family: 'Hanken Grotesk', system-ui, sans-serif;
       color: var(--text);
       background: var(--bg);
       -webkit-font-smoothing: antialiased;
@@ -103,11 +172,10 @@ const GlobalStyles = () => (
 
     .spotlight {
       background:
-        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30,95,224,0.08), transparent 70%),
-        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(22,160,133,0.06), transparent 70%);
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15, 122, 82,0.06), transparent 70%);
     }
 
-    .surface-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .surface-card { background: var(--surface); border: 1px solid var(--border); border-radius:0; }
 
     @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 0 0 var(--success-glow); } 50% { box-shadow: 0 0 0 6px transparent; } }
     .pulse-glow { animation: pulse-glow 2.2s ease-in-out infinite; }
@@ -118,25 +186,42 @@ const GlobalStyles = () => (
     @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .fade-up { animation: fadeUp 420ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-    /* Brand gradient — blue → green, mirroring the wordmark */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2, var(--border)) 50%, var(--surface) 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+
+    /* iOS Safari auto-zooms (and stays zoomed) when focusing any input with
+       font-size < 16px. Enforce the floor on touch-sized screens so no
+       current or future input can trigger it. Overrides inline styles. */
+    @media (max-width: 767px) {
+      input, select, textarea { font-size: 16px !important; }
+    }
+
+    /* Headline accent — flat signal orange (no gradient) */
     .brand-gradient {
-      background: linear-gradient(95deg, var(--blue) 0%, var(--blue) 38%, var(--green) 70%, var(--green) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
+      background: none;
+      -webkit-background-clip: border-box;
+      background-clip: border-box;
+      color: var(--accent);
     }
 
     .hover-raise { transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms, background 200ms, box-shadow 200ms; }
     .hover-raise:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: 0 6px 20px -8px rgba(15,23,42,0.10); }
 
     .glass {
-      background: rgba(255,255,255,0.78);
-      backdrop-filter: saturate(160%) blur(14px);
-      -webkit-backdrop-filter: saturate(160%) blur(14px);
+      background: rgba(231,228,221,0.82);
+      backdrop-filter: saturate(140%) blur(12px);
+      -webkit-backdrop-filter: saturate(140%) blur(12px);
     }
 
     .fm-app[data-theme="dark"] .glass {
-      background: rgba(15, 17, 23, 0.85);
+      background: rgba(20, 17, 13, 0.86);
     }
 
     .fm-app input:focus, .fm-app button:focus-visible, .fm-app a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -150,16 +235,16 @@ const GlobalStyles = () => (
     }
     .ulink:hover::after { transform: scaleX(0); transform-origin: right; }
 
-    .fm-app ::selection { background: var(--blue); color: #ffffff; }
+    .fm-app ::selection { background: var(--accent); color: #ffffff; }
 
     .scroller::-webkit-scrollbar { height: 4px; }
     .scroller::-webkit-scrollbar-track { background: transparent; }
-    .scroller::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+    .scroller::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius:0; }
 
     .text-micro { font-size: 10.5px; line-height: 1.4; }
     .text-tiny  { font-size: 11.5px; line-height: 1.4; }
     .lead-tight { line-height: 0.94; }
-    .track-wide { letter-spacing: 0.16em; }
+    .track-wide { letter-spacing: 0.16em; font-family: 'JetBrains Mono', ui-monospace, monospace; }
     .track-wider { letter-spacing: 0.22em; }
   `}</style>
 );
@@ -176,21 +261,35 @@ const FUEL_TYPES = [
 ];
 
 const BRANDS = {
-  '7-Eleven':         { color: '#00833C', short: '7E', domain: '7eleven.com.au' },
-  'Ampol':            { color: '#1d4ed8', short: 'AM', domain: 'ampol.com.au' },
-  'BP':               { color: '#16a34a', short: 'BP', domain: 'bp.com' },
-  'Caltex Woolworths':{ color: '#dc2626', short: 'CW', domain: 'caltex.com.au' },
-  'Coles Express':    { color: '#ef4444', short: 'CE', domain: 'colesexpress.com.au' },
-  'Costco':           { color: '#2563eb', short: 'CO', domain: 'costco.com.au' },
-  'EG Ampol':         { color: '#0ea5e9', short: 'EA', domain: 'egaustralia.com' },
-  'Liberty':          { color: '#e11d48', short: 'LI', domain: 'libertyoil.com.au' },
-  'Metro Petroleum':  { color: '#0284c7', short: 'MP', domain: 'metropetroleum.com.au' },
-  'Mobil':            { color: '#f43f5e', short: 'MO', domain: 'mobil.com.au' },
-  'Puma':             { color: '#fbbf24', short: 'PU', domain: 'pumaenergy.com' },
-  'Shell':            { color: '#facc15', short: 'SH', domain: 'shell.com.au' },
-  'United':           { color: '#3b82f6', short: 'UN', domain: 'unitedpetroleum.com.au' },
-  'Vibe':             { color: '#a855f7', short: 'VI', domain: 'vibepetroleum.com.au' },
-  'Independent':      { color: '#52525b', short: 'IN', domain: null },
+  // Major national chains
+  '7-Eleven':          { color: '#008837', short: '7E', domain: '7eleven.com.au' },
+  'Ampol':             { color: '#1d4ed8', short: 'AM', domain: 'ampol.com.au' },
+  'BP':                { color: '#16a34a', short: 'BP', domain: 'bp.com' },
+  'Caltex':            { color: '#dc2626', short: 'CX', domain: 'caltex.com.au' },
+  'Caltex Woolworths': { color: '#dc2626', short: 'CW', domain: 'woolworthspetrol.com.au' },
+  'Coles Express':     { color: '#ef4444', short: 'CE', domain: 'colesexpress.com.au' },
+  'Costco':            { color: '#2563eb', short: 'CO', domain: 'costco.com.au' },
+  'EG':                { color: '#0369a1', short: 'EG', domain: 'eg.group' },
+  'EG Ampol':          { color: '#0369a1', short: 'EG', domain: 'eg.group' },
+  'Liberty':           { color: '#e11d48', short: 'LI', domain: 'libertyoil.com.au' },
+  'Metro Petroleum':   { color: '#0284c7', short: 'MP', domain: 'metropetroleum.com.au' },
+  'Mobil':             { color: '#c2001e', short: 'MO', domain: 'mobil.com' },
+  'Puma':              { color: '#d97706', short: 'PU', domain: 'pumaenergy.com.au' },
+  'Shell':             { color: '#e8a800', short: 'SH', domain: 'shell.com.au' },
+  'United':            { color: '#3b82f6', short: 'UN', domain: 'unitedpetroleum.com.au' },
+  'Vibe':              { color: '#a855f7', short: 'VI', domain: 'vibepetroleum.com.au' },
+  // Australian independents
+  'Reddy Express':     { color: '#dc2626', short: 'RE', domain: 'reddyexpress.com.au' },
+  'Astron':            { color: '#1e3a8a', short: 'AS', domain: 'astronpetroleum.com.au' },
+  'Eagle':             { color: '#b45309', short: 'EA', domain: 'eagleboysgas.com.au' },
+  'Eagle Group':       { color: '#b45309', short: 'EA', domain: 'eagleboysgas.com.au' },
+  'On The Run':        { color: '#dc2626', short: 'OT', domain: 'ontherun.com.au' },
+  'Lowes Petroleum':   { color: '#1d4ed8', short: 'LP', domain: 'lowespetroleum.com.au' },
+  'Speedway':          { color: '#b91c1c', short: 'SW', domain: null },
+  'Night Owl':         { color: '#4f46e5', short: 'NO', domain: 'nightowl.com.au' },
+  'IGA':               { color: '#dc2626', short: 'IG', domain: 'iga.com.au' },
+  // Fallback
+  'Independent':       { color: '#52525b', short: '··', domain: null },
 };
 const BRAND_NAMES = Object.keys(BRANDS);
 
@@ -204,9 +303,24 @@ const BRAND_NAMES = Object.keys(BRANDS);
 //
 // Production note: for higher-fidelity logos, swap this for a paid service
 // like logo.dev (requires API key and a backend proxy to keep the key server-side).
-function brandLogoUrl(domain) {
-  if (!domain) return null;
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+// Brandfetch Logo Link is the professional source for official, full-colour brand
+// logos resolved by domain (favicon scraping returns generic globes, so it's gone).
+// Set NEXT_PUBLIC_BRANDFETCH_CLIENT_ID (free key) to enable real logos. A self-hosted
+// file at /public/brands/<slug>.svg overrides any brand and wins over everything.
+// When nothing resolves, BrandMark shows a branded monogram — never a broken globe.
+const BRANDFETCH_ID = (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID) || '';
+function brandLogoUrls(domain, slug) {
+  const urls = [];
+  if (slug)   urls.push(`/brands/${slug}.svg`);
+  if (domain && BRANDFETCH_ID) urls.push(`https://cdn.brandfetch.io/${domain}/w/128/h/128/fallback/404/type/icon?c=${BRANDFETCH_ID}`);
+  if (domain) {
+    urls.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+    urls.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+  }
+  return urls;
+}
+function brandSlug(name) {
+  return name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null;
 }
 
 const CITIES = [
@@ -220,10 +334,85 @@ const CITIES = [
   { slug: 'darwin',    name: 'Darwin',    state: 'NT',  live: true, pop: '150K', cycle: 'Stable',            center: { lat: -12.4634, lng: 130.8456 } },
 ];
 
+// Map a state code to its representative capital-city entry (for cycle labels)
+const cityForState = (state) => CITIES.find(c => c.state === state) || null;
+
+/* ── Live cycle signals (city-grid chips) ─────────────────────────────────
+   One fetch pulls the server-logged cycle position for every state
+   (/api/cycle/summary — single Redis MGET behind it) and renders a compact
+   verdict chip on each city card. Chips only appear once the daily cron has
+   logged enough history for that state (>= 4 days, >= 3c/L spread) — no
+   false precision while it's still learning. */
+const SIGNAL_TONES = {
+  low:  { label: 'Fill up now',    sub: 'Near cycle bottom',  dot: '🟢', color: 'var(--success)', bg: 'var(--green-soft)',  border: 'var(--green-light)' },
+  mid:  { label: 'Mid-cycle',      sub: 'Prices are average', dot: '🟡', color: 'var(--text-2)',  bg: 'var(--surface-2)',  border: 'var(--border)'      },
+  high: { label: 'Hold off',       sub: 'Prices climbing',    dot: '🟠', color: 'var(--warn)',    bg: '#fdf0e6',           border: '#f0c090'             },
+  peak: { label: 'Avoid if you can', sub: 'Near cycle peak',  dot: '🔴', color: 'var(--danger)',  bg: '#fdeaea',           border: '#f0b0b0'             },
+  pending: { label: 'Data coming soon', sub: 'Feed being added', dot: '○', color: 'var(--text-3)', bg: 'var(--surface-2)', border: 'var(--border)' },
+};
+
+// States without a live cycle feed yet. TAS needs the FuelCheck v2 data
+// product (separate subscription); until then we show an honest "coming soon"
+// chip rather than a blank or a misleading signal. Remove a state from here
+// once its feed is logging.
+const NO_FEED_STATES = ['TAS'];
+
+// Resolve the chip tone for a state: real signal if we have one, else the
+// honest 'pending' placeholder for feed-less states, else nothing.
+function resolveSignal(state, signal) {
+  if (signal && SIGNAL_TONES[signal.tone] && signal.tone !== 'unknown') return signal;
+  if (NO_FEED_STATES.includes(state)) return { tone: 'pending' };
+  return null;
+}
+
+function useCycleSignals(fuelType = 'U91') {
+  const [signals, setSignals] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/cycle/summary?fuel=${fuelType}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && d?.signals) setSignals(d.signals); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [fuelType]);
+  return signals;
+}
+
+/* Full badge — used in the CitiesIndexView grid cards */
+const SignalBadge = ({ signal, state }) => {
+  const resolved = resolveSignal(state, signal);
+  const tone = resolved && SIGNAL_TONES[resolved.tone];
+  if (!tone) return null;
+  return (
+    <span className="inline-flex items-center gap-2 px-2.5 py-1.5"
+          style={{ background: tone.bg, border: `1px solid ${tone.border}`, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, lineHeight: 1 }}>{tone.dot}</span>
+      <span>
+        <span className="block font-mono text-xs font-bold uppercase track-wide" style={{ color: tone.color, lineHeight: 1.2 }}>{tone.label}</span>
+        <span className="block font-mono text-micro" style={{ color: 'var(--text-3)', lineHeight: 1.3 }}>{tone.sub}</span>
+      </span>
+    </span>
+  );
+};
+
+/* Compact inline chip — used in the HomeView city list */
+const SignalChip = ({ signal, state }) => {
+  const resolved = resolveSignal(state, signal);
+  const tone = resolved && SIGNAL_TONES[resolved.tone];
+  if (!tone) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-1"
+          style={{ background: tone.bg, border: `1px solid ${tone.border}`, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 10, lineHeight: 1 }}>{tone.dot}</span>
+      <span className="font-mono text-micro font-bold uppercase track-wide" style={{ color: tone.color }}>{tone.label}</span>
+    </span>
+  );
+};
+
 /**
  * Government fuel price data sources by state. All Australian states now
  * mandate real-time price reporting; each source provides a free API for
- * authorised "data publishers" (which FuelMate registers as on launch).
+ * authorised "data publishers" (which Motavo registers as on launch).
  *
  * Status values:
  *   'mock'     — currently using generateStations() with seeded RNG
@@ -248,217 +437,6 @@ const STATE_TO_SOURCE = Object.entries(DATA_SOURCES).reduce((acc, [key, src]) =>
   return acc;
 }, {});
 
-// Major Australian suburbs across all states. Not exhaustive (AU has ~15,000
-// suburbs total) — focused on the most-searched ~170 across each capital and
-// notable regional centres. For coverage beyond this list, we fall back to
-// Nominatim (OpenStreetMap) geocoding at runtime.
-const SUBURBS = [
-  /* ===== NSW · Greater Sydney ===== */
-  // CBD + Inner
-  { slug: 'sydney-cbd',      name: 'Sydney CBD',      city: 'sydney', state: 'NSW', postcode: '2000', center: { lat: -33.8688, lng: 151.2093 } },
-  { slug: 'pyrmont',         name: 'Pyrmont',         city: 'sydney', state: 'NSW', postcode: '2009', center: { lat: -33.8688, lng: 151.1947 } },
-  { slug: 'ultimo',          name: 'Ultimo',          city: 'sydney', state: 'NSW', postcode: '2007', center: { lat: -33.8835, lng: 151.1972 } },
-  { slug: 'surry-hills',     name: 'Surry Hills',     city: 'sydney', state: 'NSW', postcode: '2010', center: { lat: -33.8839, lng: 151.2103 } },
-  { slug: 'darlinghurst',    name: 'Darlinghurst',    city: 'sydney', state: 'NSW', postcode: '2010', center: { lat: -33.8794, lng: 151.2189 } },
-  { slug: 'paddington',      name: 'Paddington',      city: 'sydney', state: 'NSW', postcode: '2021', center: { lat: -33.8836, lng: 151.2299 } },
-  { slug: 'woollahra',       name: 'Woollahra',       city: 'sydney', state: 'NSW', postcode: '2025', center: { lat: -33.8861, lng: 151.2422 } },
-  { slug: 'double-bay',      name: 'Double Bay',      city: 'sydney', state: 'NSW', postcode: '2028', center: { lat: -33.8780, lng: 151.2444 } },
-  { slug: 'bondi-junction',  name: 'Bondi Junction',  city: 'sydney', state: 'NSW', postcode: '2022', center: { lat: -33.8920, lng: 151.2484 } },
-  { slug: 'bondi',           name: 'Bondi',           city: 'sydney', state: 'NSW', postcode: '2026', center: { lat: -33.8915, lng: 151.2767 } },
-  { slug: 'coogee',          name: 'Coogee',          city: 'sydney', state: 'NSW', postcode: '2034', center: { lat: -33.9203, lng: 151.2589 } },
-  { slug: 'maroubra',        name: 'Maroubra',        city: 'sydney', state: 'NSW', postcode: '2035', center: { lat: -33.9501, lng: 151.2421 } },
-  { slug: 'randwick',        name: 'Randwick',        city: 'sydney', state: 'NSW', postcode: '2031', center: { lat: -33.9173, lng: 151.2412 } },
-  { slug: 'kensington',      name: 'Kensington',      city: 'sydney', state: 'NSW', postcode: '2033', center: { lat: -33.9145, lng: 151.2240 } },
-  { slug: 'redfern',         name: 'Redfern',         city: 'sydney', state: 'NSW', postcode: '2016', center: { lat: -33.8923, lng: 151.2046 } },
-  { slug: 'alexandria',      name: 'Alexandria',      city: 'sydney', state: 'NSW', postcode: '2015', center: { lat: -33.9119, lng: 151.1939 } },
-  { slug: 'mascot',          name: 'Mascot',          city: 'sydney', state: 'NSW', postcode: '2020', center: { lat: -33.9304, lng: 151.1936 } },
-  // Inner West
-  { slug: 'glebe',           name: 'Glebe',           city: 'sydney', state: 'NSW', postcode: '2037', center: { lat: -33.8800, lng: 151.1860 } },
-  { slug: 'newtown',         name: 'Newtown',         city: 'sydney', state: 'NSW', postcode: '2042', center: { lat: -33.8983, lng: 151.1789 } },
-  { slug: 'marrickville',    name: 'Marrickville',    city: 'sydney', state: 'NSW', postcode: '2204', center: { lat: -33.9106, lng: 151.1539 } },
-  { slug: 'leichhardt',      name: 'Leichhardt',      city: 'sydney', state: 'NSW', postcode: '2040', center: { lat: -33.8838, lng: 151.1568 } },
-  { slug: 'balmain',         name: 'Balmain',         city: 'sydney', state: 'NSW', postcode: '2041', center: { lat: -33.8580, lng: 151.1790 } },
-  { slug: 'rozelle',         name: 'Rozelle',         city: 'sydney', state: 'NSW', postcode: '2039', center: { lat: -33.8617, lng: 151.1731 } },
-  { slug: 'annandale',       name: 'Annandale',       city: 'sydney', state: 'NSW', postcode: '2038', center: { lat: -33.8786, lng: 151.1722 } },
-  { slug: 'camperdown',      name: 'Camperdown',      city: 'sydney', state: 'NSW', postcode: '2050', center: { lat: -33.8889, lng: 151.1781 } },
-  { slug: 'ashfield',        name: 'Ashfield',        city: 'sydney', state: 'NSW', postcode: '2131', center: { lat: -33.8895, lng: 151.1240 } },
-  { slug: 'burwood',         name: 'Burwood',         city: 'sydney', state: 'NSW', postcode: '2134', center: { lat: -33.8775, lng: 151.1042 } },
-  { slug: 'strathfield',     name: 'Strathfield',     city: 'sydney', state: 'NSW', postcode: '2135', center: { lat: -33.8786, lng: 151.0809 } },
-  { slug: 'concord',         name: 'Concord',         city: 'sydney', state: 'NSW', postcode: '2137', center: { lat: -33.8589, lng: 151.0989 } },
-  // North / Lower North Shore / Northern Beaches
-  { slug: 'north-sydney',    name: 'North Sydney',    city: 'sydney', state: 'NSW', postcode: '2060', center: { lat: -33.8389, lng: 151.2070 } },
-  { slug: 'crows-nest',      name: 'Crows Nest',      city: 'sydney', state: 'NSW', postcode: '2065', center: { lat: -33.8264, lng: 151.2014 } },
-  { slug: 'st-leonards',     name: 'St Leonards',     city: 'sydney', state: 'NSW', postcode: '2065', center: { lat: -33.8233, lng: 151.1948 } },
-  { slug: 'mosman',          name: 'Mosman',          city: 'sydney', state: 'NSW', postcode: '2088', center: { lat: -33.8281, lng: 151.2417 } },
-  { slug: 'neutral-bay',     name: 'Neutral Bay',     city: 'sydney', state: 'NSW', postcode: '2089', center: { lat: -33.8307, lng: 151.2186 } },
-  { slug: 'manly',           name: 'Manly',           city: 'sydney', state: 'NSW', postcode: '2095', center: { lat: -33.7969, lng: 151.2855 } },
-  { slug: 'dee-why',         name: 'Dee Why',         city: 'sydney', state: 'NSW', postcode: '2099', center: { lat: -33.7547, lng: 151.2856 } },
-  { slug: 'brookvale',       name: 'Brookvale',       city: 'sydney', state: 'NSW', postcode: '2100', center: { lat: -33.7637, lng: 151.2683 } },
-  { slug: 'chatswood',       name: 'Chatswood',       city: 'sydney', state: 'NSW', postcode: '2067', center: { lat: -33.7975, lng: 151.1830 } },
-  { slug: 'lane-cove',       name: 'Lane Cove',       city: 'sydney', state: 'NSW', postcode: '2066', center: { lat: -33.8141, lng: 151.1697 } },
-  { slug: 'ryde',            name: 'Ryde',            city: 'sydney', state: 'NSW', postcode: '2112', center: { lat: -33.8161, lng: 151.1056 } },
-  { slug: 'epping',          name: 'Epping',          city: 'sydney', state: 'NSW', postcode: '2121', center: { lat: -33.7728, lng: 151.0820 } },
-  // Hills + North West
-  { slug: 'castle-hill',     name: 'Castle Hill',     city: 'sydney', state: 'NSW', postcode: '2154', center: { lat: -33.7295, lng: 151.0001 } },
-  { slug: 'baulkham-hills',  name: 'Baulkham Hills',  city: 'sydney', state: 'NSW', postcode: '2153', center: { lat: -33.7615, lng: 150.9928 } },
-  { slug: 'hornsby',         name: 'Hornsby',         city: 'sydney', state: 'NSW', postcode: '2077', center: { lat: -33.7050, lng: 151.0992 } },
-  // West / South West
-  { slug: 'parramatta',      name: 'Parramatta',      city: 'sydney', state: 'NSW', postcode: '2150', center: { lat: -33.8150, lng: 151.0011 } },
-  { slug: 'blacktown',       name: 'Blacktown',       city: 'sydney', state: 'NSW', postcode: '2148', center: { lat: -33.7689, lng: 150.9067 } },
-  { slug: 'penrith',         name: 'Penrith',         city: 'sydney', state: 'NSW', postcode: '2750', center: { lat: -33.7510, lng: 150.6943 } },
-  { slug: 'liverpool',       name: 'Liverpool',       city: 'sydney', state: 'NSW', postcode: '2170', center: { lat: -33.9200, lng: 150.9239 } },
-  { slug: 'bankstown',       name: 'Bankstown',       city: 'sydney', state: 'NSW', postcode: '2200', center: { lat: -33.9166, lng: 151.0344 } },
-  { slug: 'campbelltown',    name: 'Campbelltown',    city: 'sydney', state: 'NSW', postcode: '2560', center: { lat: -34.0667, lng: 150.8169 } },
-  { slug: 'auburn',          name: 'Auburn',          city: 'sydney', state: 'NSW', postcode: '2144', center: { lat: -33.8497, lng: 151.0327 } },
-  // Southern Sydney
-  { slug: 'cronulla',        name: 'Cronulla',        city: 'sydney', state: 'NSW', postcode: '2230', center: { lat: -34.0556, lng: 151.1530 } },
-  { slug: 'miranda',         name: 'Miranda',         city: 'sydney', state: 'NSW', postcode: '2228', center: { lat: -34.0337, lng: 151.1006 } },
-  { slug: 'hurstville',      name: 'Hurstville',      city: 'sydney', state: 'NSW', postcode: '2220', center: { lat: -33.9670, lng: 151.1019 } },
-  { slug: 'sutherland',      name: 'Sutherland',      city: 'sydney', state: 'NSW', postcode: '2232', center: { lat: -34.0317, lng: 151.0573 } },
-
-  /* ===== NSW · Regional ===== */
-  { slug: 'newcastle',       name: 'Newcastle',       city: null,     state: 'NSW', postcode: '2300', center: { lat: -32.9283, lng: 151.7817 } },
-  { slug: 'wollongong',      name: 'Wollongong',      city: null,     state: 'NSW', postcode: '2500', center: { lat: -34.4278, lng: 150.8931 } },
-  { slug: 'maitland',        name: 'Maitland',        city: null,     state: 'NSW', postcode: '2320', center: { lat: -32.7339, lng: 151.5586 } },
-  { slug: 'central-coast',   name: 'Central Coast',   city: null,     state: 'NSW', postcode: '2250', center: { lat: -33.4279, lng: 151.3409 } },
-  { slug: 'wagga-wagga',     name: 'Wagga Wagga',     city: null,     state: 'NSW', postcode: '2650', center: { lat: -35.1170, lng: 147.3560 } },
-  { slug: 'tamworth',        name: 'Tamworth',        city: null,     state: 'NSW', postcode: '2340', center: { lat: -31.0900, lng: 150.9300 } },
-  { slug: 'orange',          name: 'Orange',          city: null,     state: 'NSW', postcode: '2800', center: { lat: -33.2840, lng: 149.1014 } },
-  { slug: 'dubbo',           name: 'Dubbo',           city: null,     state: 'NSW', postcode: '2830', center: { lat: -32.2569, lng: 148.6011 } },
-
-  /* ===== QLD · Greater Brisbane ===== */
-  { slug: 'south-brisbane',  name: 'South Brisbane',  city: 'brisbane', state: 'QLD', postcode: '4101', center: { lat: -27.4810, lng: 153.0211 } },
-  { slug: 'fortitude-valley',name: 'Fortitude Valley',city: 'brisbane', state: 'QLD', postcode: '4006', center: { lat: -27.4571, lng: 153.0345 } },
-  { slug: 'new-farm',        name: 'New Farm',        city: 'brisbane', state: 'QLD', postcode: '4005', center: { lat: -27.4669, lng: 153.0492 } },
-  { slug: 'west-end',        name: 'West End',        city: 'brisbane', state: 'QLD', postcode: '4101', center: { lat: -27.4814, lng: 153.0067 } },
-  { slug: 'toowong',         name: 'Toowong',         city: 'brisbane', state: 'QLD', postcode: '4066', center: { lat: -27.4842, lng: 152.9883 } },
-  { slug: 'st-lucia',        name: 'St Lucia',        city: 'brisbane', state: 'QLD', postcode: '4067', center: { lat: -27.4983, lng: 153.0150 } },
-  { slug: 'indooroopilly',   name: 'Indooroopilly',   city: 'brisbane', state: 'QLD', postcode: '4068', center: { lat: -27.4988, lng: 152.9737 } },
-  { slug: 'chermside',       name: 'Chermside',       city: 'brisbane', state: 'QLD', postcode: '4032', center: { lat: -27.3848, lng: 153.0317 } },
-  { slug: 'mount-gravatt',   name: 'Mount Gravatt',   city: 'brisbane', state: 'QLD', postcode: '4122', center: { lat: -27.5413, lng: 153.0700 } },
-  { slug: 'carindale',       name: 'Carindale',       city: 'brisbane', state: 'QLD', postcode: '4152', center: { lat: -27.5108, lng: 153.1058 } },
-  { slug: 'wynnum',          name: 'Wynnum',          city: 'brisbane', state: 'QLD', postcode: '4178', center: { lat: -27.4400, lng: 153.1717 } },
-  { slug: 'aspley',          name: 'Aspley',          city: 'brisbane', state: 'QLD', postcode: '4034', center: { lat: -27.3700, lng: 153.0167 } },
-  { slug: 'logan-central',   name: 'Logan Central',   city: 'brisbane', state: 'QLD', postcode: '4114', center: { lat: -27.6383, lng: 153.1100 } },
-  { slug: 'caboolture',      name: 'Caboolture',      city: 'brisbane', state: 'QLD', postcode: '4510', center: { lat: -27.0850, lng: 152.9522 } },
-  { slug: 'ipswich',         name: 'Ipswich',         city: 'brisbane', state: 'QLD', postcode: '4305', center: { lat: -27.6171, lng: 152.7619 } },
-
-  /* ===== QLD · Coast + Regional ===== */
-  { slug: 'gold-coast',      name: 'Gold Coast',      city: null,     state: 'QLD', postcode: '4217', center: { lat: -28.0167, lng: 153.4000 } },
-  { slug: 'surfers-paradise',name: 'Surfers Paradise',city: null,     state: 'QLD', postcode: '4217', center: { lat: -28.0028, lng: 153.4308 } },
-  { slug: 'broadbeach',      name: 'Broadbeach',      city: null,     state: 'QLD', postcode: '4218', center: { lat: -28.0294, lng: 153.4350 } },
-  { slug: 'burleigh-heads',  name: 'Burleigh Heads',  city: null,     state: 'QLD', postcode: '4220', center: { lat: -28.0917, lng: 153.4498 } },
-  { slug: 'southport',       name: 'Southport',       city: null,     state: 'QLD', postcode: '4215', center: { lat: -27.9650, lng: 153.4047 } },
-  { slug: 'coolangatta',     name: 'Coolangatta',     city: null,     state: 'QLD', postcode: '4225', center: { lat: -28.1697, lng: 153.5350 } },
-  { slug: 'maroochydore',    name: 'Maroochydore',    city: null,     state: 'QLD', postcode: '4558', center: { lat: -26.6594, lng: 153.0931 } },
-  { slug: 'noosa-heads',     name: 'Noosa Heads',     city: null,     state: 'QLD', postcode: '4567', center: { lat: -26.3961, lng: 153.0939 } },
-  { slug: 'cairns',          name: 'Cairns',          city: null,     state: 'QLD', postcode: '4870', center: { lat: -16.9203, lng: 145.7710 } },
-  { slug: 'townsville',      name: 'Townsville',      city: null,     state: 'QLD', postcode: '4810', center: { lat: -19.2576, lng: 146.8178 } },
-  { slug: 'toowoomba',       name: 'Toowoomba',       city: null,     state: 'QLD', postcode: '4350', center: { lat: -27.5598, lng: 151.9507 } },
-  { slug: 'mackay',          name: 'Mackay',          city: null,     state: 'QLD', postcode: '4740', center: { lat: -21.1411, lng: 149.1862 } },
-  { slug: 'bundaberg',       name: 'Bundaberg',       city: null,     state: 'QLD', postcode: '4670', center: { lat: -24.8661, lng: 152.3489 } },
-
-  /* ===== WA · Greater Perth ===== */
-  { slug: 'east-perth',      name: 'East Perth',      city: 'perth',  state: 'WA',  postcode: '6004', center: { lat: -31.9544, lng: 115.8742 } },
-  { slug: 'west-perth',      name: 'West Perth',      city: 'perth',  state: 'WA',  postcode: '6005', center: { lat: -31.9469, lng: 115.8408 } },
-  { slug: 'northbridge',     name: 'Northbridge',     city: 'perth',  state: 'WA',  postcode: '6003', center: { lat: -31.9469, lng: 115.8581 } },
-  { slug: 'leederville',     name: 'Leederville',     city: 'perth',  state: 'WA',  postcode: '6007', center: { lat: -31.9311, lng: 115.8408 } },
-  { slug: 'mount-lawley',    name: 'Mount Lawley',    city: 'perth',  state: 'WA',  postcode: '6050', center: { lat: -31.9355, lng: 115.8669 } },
-  { slug: 'joondalup',       name: 'Joondalup',       city: 'perth',  state: 'WA',  postcode: '6027', center: { lat: -31.7448, lng: 115.7661 } },
-  { slug: 'fremantle',       name: 'Fremantle',       city: 'perth',  state: 'WA',  postcode: '6160', center: { lat: -32.0569, lng: 115.7470 } },
-  { slug: 'subiaco',         name: 'Subiaco',         city: 'perth',  state: 'WA',  postcode: '6008', center: { lat: -31.9479, lng: 115.8273 } },
-  { slug: 'cottesloe',       name: 'Cottesloe',       city: 'perth',  state: 'WA',  postcode: '6011', center: { lat: -32.0019, lng: 115.7593 } },
-  { slug: 'scarborough',     name: 'Scarborough',     city: 'perth',  state: 'WA',  postcode: '6019', center: { lat: -31.8939, lng: 115.7569 } },
-  { slug: 'claremont',       name: 'Claremont',       city: 'perth',  state: 'WA',  postcode: '6010', center: { lat: -31.9831, lng: 115.7833 } },
-  { slug: 'victoria-park',   name: 'Victoria Park',   city: 'perth',  state: 'WA',  postcode: '6100', center: { lat: -31.9744, lng: 115.9006 } },
-  { slug: 'midland',         name: 'Midland',         city: 'perth',  state: 'WA',  postcode: '6056', center: { lat: -31.8881, lng: 116.0103 } },
-  { slug: 'armadale-wa',     name: 'Armadale',        city: 'perth',  state: 'WA',  postcode: '6112', center: { lat: -32.1500, lng: 116.0142 } },
-  { slug: 'rockingham',      name: 'Rockingham',      city: 'perth',  state: 'WA',  postcode: '6168', center: { lat: -32.2767, lng: 115.7297 } },
-
-  /* ===== WA · Regional ===== */
-  { slug: 'mandurah',        name: 'Mandurah',        city: null,     state: 'WA',  postcode: '6210', center: { lat: -32.5269, lng: 115.7217 } },
-  { slug: 'bunbury',         name: 'Bunbury',         city: null,     state: 'WA',  postcode: '6230', center: { lat: -33.3267, lng: 115.6411 } },
-  { slug: 'geraldton',       name: 'Geraldton',       city: null,     state: 'WA',  postcode: '6530', center: { lat: -28.7741, lng: 114.6093 } },
-  { slug: 'kalgoorlie',      name: 'Kalgoorlie',      city: null,     state: 'WA',  postcode: '6430', center: { lat: -30.7489, lng: 121.4655 } },
-
-  /* ===== VIC · Greater Melbourne ===== */
-  { slug: 'melbourne-cbd',   name: 'Melbourne CBD',   city: 'melbourne', state: 'VIC', postcode: '3000', center: { lat: -37.8136, lng: 144.9631 } },
-  { slug: 'south-melbourne', name: 'South Melbourne', city: 'melbourne', state: 'VIC', postcode: '3205', center: { lat: -37.8333, lng: 144.9583 } },
-  { slug: 'southbank',       name: 'Southbank',       city: 'melbourne', state: 'VIC', postcode: '3006', center: { lat: -37.8232, lng: 144.9645 } },
-  { slug: 'docklands',       name: 'Docklands',       city: 'melbourne', state: 'VIC', postcode: '3008', center: { lat: -37.8167, lng: 144.9457 } },
-  { slug: 'north-melbourne', name: 'North Melbourne', city: 'melbourne', state: 'VIC', postcode: '3051', center: { lat: -37.8000, lng: 144.9500 } },
-  { slug: 'carlton',         name: 'Carlton',         city: 'melbourne', state: 'VIC', postcode: '3053', center: { lat: -37.7986, lng: 144.9667 } },
-  { slug: 'fitzroy',         name: 'Fitzroy',         city: 'melbourne', state: 'VIC', postcode: '3065', center: { lat: -37.7958, lng: 144.9789 } },
-  { slug: 'collingwood',     name: 'Collingwood',     city: 'melbourne', state: 'VIC', postcode: '3066', center: { lat: -37.8029, lng: 144.9836 } },
-  { slug: 'richmond-vic',    name: 'Richmond',        city: 'melbourne', state: 'VIC', postcode: '3121', center: { lat: -37.8233, lng: 144.9981 } },
-  { slug: 'st-kilda',        name: 'St Kilda',        city: 'melbourne', state: 'VIC', postcode: '3182', center: { lat: -37.8676, lng: 144.9810 } },
-  { slug: 'south-yarra',     name: 'South Yarra',     city: 'melbourne', state: 'VIC', postcode: '3141', center: { lat: -37.8389, lng: 144.9925 } },
-  { slug: 'prahran',         name: 'Prahran',         city: 'melbourne', state: 'VIC', postcode: '3181', center: { lat: -37.8514, lng: 144.9919 } },
-  { slug: 'toorak',          name: 'Toorak',          city: 'melbourne', state: 'VIC', postcode: '3142', center: { lat: -37.8417, lng: 145.0083 } },
-  { slug: 'hawthorn',        name: 'Hawthorn',        city: 'melbourne', state: 'VIC', postcode: '3122', center: { lat: -37.8222, lng: 145.0353 } },
-  { slug: 'camberwell',      name: 'Camberwell',      city: 'melbourne', state: 'VIC', postcode: '3124', center: { lat: -37.8333, lng: 145.0606 } },
-  { slug: 'box-hill',        name: 'Box Hill',        city: 'melbourne', state: 'VIC', postcode: '3128', center: { lat: -37.8194, lng: 145.1264 } },
-  { slug: 'footscray',       name: 'Footscray',       city: 'melbourne', state: 'VIC', postcode: '3011', center: { lat: -37.8000, lng: 144.8983 } },
-  { slug: 'williamstown',    name: 'Williamstown',    city: 'melbourne', state: 'VIC', postcode: '3016', center: { lat: -37.8717, lng: 144.8950 } },
-  { slug: 'brunswick',       name: 'Brunswick',       city: 'melbourne', state: 'VIC', postcode: '3056', center: { lat: -37.7667, lng: 144.9667 } },
-  { slug: 'coburg',          name: 'Coburg',          city: 'melbourne', state: 'VIC', postcode: '3058', center: { lat: -37.7464, lng: 144.9647 } },
-  { slug: 'northcote',       name: 'Northcote',       city: 'melbourne', state: 'VIC', postcode: '3070', center: { lat: -37.7686, lng: 144.9978 } },
-  { slug: 'preston',         name: 'Preston',         city: 'melbourne', state: 'VIC', postcode: '3072', center: { lat: -37.7414, lng: 144.9939 } },
-  { slug: 'essendon',        name: 'Essendon',        city: 'melbourne', state: 'VIC', postcode: '3040', center: { lat: -37.7517, lng: 144.9192 } },
-  { slug: 'frankston',       name: 'Frankston',       city: 'melbourne', state: 'VIC', postcode: '3199', center: { lat: -38.1450, lng: 145.1244 } },
-  { slug: 'dandenong',       name: 'Dandenong',       city: 'melbourne', state: 'VIC', postcode: '3175', center: { lat: -37.9889, lng: 145.2156 } },
-  { slug: 'geelong',         name: 'Geelong',         city: 'melbourne', state: 'VIC', postcode: '3220', center: { lat: -38.1499, lng: 144.3617 } },
-  { slug: 'ballarat',        name: 'Ballarat',        city: 'melbourne', state: 'VIC', postcode: '3350', center: { lat: -37.5622, lng: 143.8503 } },
-  { slug: 'bendigo',         name: 'Bendigo',         city: 'melbourne', state: 'VIC', postcode: '3550', center: { lat: -36.7570, lng: 144.2784 } },
-
-  /* ===== SA · Greater Adelaide ===== */
-  { slug: 'adelaide-cbd',    name: 'Adelaide CBD',    city: 'adelaide', state: 'SA', postcode: '5000', center: { lat: -34.9285, lng: 138.6007 } },
-  { slug: 'north-adelaide',  name: 'North Adelaide',  city: 'adelaide', state: 'SA', postcode: '5006', center: { lat: -34.9067, lng: 138.5944 } },
-  { slug: 'glenelg',         name: 'Glenelg',         city: 'adelaide', state: 'SA', postcode: '5045', center: { lat: -34.9817, lng: 138.5111 } },
-  { slug: 'norwood-sa',      name: 'Norwood',         city: 'adelaide', state: 'SA', postcode: '5067', center: { lat: -34.9217, lng: 138.6322 } },
-  { slug: 'unley',           name: 'Unley',           city: 'adelaide', state: 'SA', postcode: '5061', center: { lat: -34.9528, lng: 138.5972 } },
-  { slug: 'burnside',        name: 'Burnside',        city: 'adelaide', state: 'SA', postcode: '5066', center: { lat: -34.9300, lng: 138.6500 } },
-  { slug: 'prospect',        name: 'Prospect',        city: 'adelaide', state: 'SA', postcode: '5082', center: { lat: -34.8867, lng: 138.5944 } },
-  { slug: 'salisbury',       name: 'Salisbury',       city: 'adelaide', state: 'SA', postcode: '5108', center: { lat: -34.7589, lng: 138.6411 } },
-  { slug: 'modbury',         name: 'Modbury',         city: 'adelaide', state: 'SA', postcode: '5092', center: { lat: -34.8400, lng: 138.6889 } },
-  { slug: 'port-adelaide',   name: 'Port Adelaide',   city: 'adelaide', state: 'SA', postcode: '5015', center: { lat: -34.8472, lng: 138.5083 } },
-  { slug: 'marion',          name: 'Marion',          city: 'adelaide', state: 'SA', postcode: '5043', center: { lat: -35.0028, lng: 138.5589 } },
-  { slug: 'henley-beach',    name: 'Henley Beach',    city: 'adelaide', state: 'SA', postcode: '5022', center: { lat: -34.9189, lng: 138.4944 } },
-  { slug: 'mount-barker',    name: 'Mount Barker',    city: 'adelaide', state: 'SA', postcode: '5251', center: { lat: -35.0667, lng: 138.8583 } },
-  { slug: 'mount-gambier',   name: 'Mount Gambier',   city: null,       state: 'SA', postcode: '5290', center: { lat: -37.8243, lng: 140.7822 } },
-
-  /* ===== TAS · Greater Hobart + Regional ===== */
-  { slug: 'glenorchy',       name: 'Glenorchy',       city: 'hobart', state: 'TAS', postcode: '7010', center: { lat: -42.8333, lng: 147.2750 } },
-  { slug: 'sandy-bay',       name: 'Sandy Bay',       city: 'hobart', state: 'TAS', postcode: '7005', center: { lat: -42.8956, lng: 147.3286 } },
-  { slug: 'battery-point',   name: 'Battery Point',   city: 'hobart', state: 'TAS', postcode: '7004', center: { lat: -42.8867, lng: 147.3361 } },
-  { slug: 'north-hobart',    name: 'North Hobart',    city: 'hobart', state: 'TAS', postcode: '7000', center: { lat: -42.8794, lng: 147.3164 } },
-  { slug: 'bellerive',       name: 'Bellerive',       city: 'hobart', state: 'TAS', postcode: '7018', center: { lat: -42.8769, lng: 147.3725 } },
-  { slug: 'kingston-tas',    name: 'Kingston',        city: 'hobart', state: 'TAS', postcode: '7050', center: { lat: -42.9744, lng: 147.3061 } },
-  { slug: 'new-town',        name: 'New Town',        city: 'hobart', state: 'TAS', postcode: '7008', center: { lat: -42.8589, lng: 147.3000 } },
-  { slug: 'launceston',      name: 'Launceston',      city: null,     state: 'TAS', postcode: '7250', center: { lat: -41.4391, lng: 147.1358 } },
-  { slug: 'devonport',       name: 'Devonport',       city: null,     state: 'TAS', postcode: '7310', center: { lat: -41.1810, lng: 146.3500 } },
-  { slug: 'burnie',          name: 'Burnie',          city: null,     state: 'TAS', postcode: '7320', center: { lat: -41.0500, lng: 145.9000 } },
-
-  /* ===== NT · Greater Darwin + Regional ===== */
-  { slug: 'palmerston',      name: 'Palmerston',      city: 'darwin', state: 'NT',  postcode: '0830', center: { lat: -12.4862, lng: 130.9831 } },
-  { slug: 'casuarina',       name: 'Casuarina',       city: 'darwin', state: 'NT',  postcode: '0810', center: { lat: -12.3819, lng: 130.8825 } },
-  { slug: 'nightcliff',      name: 'Nightcliff',      city: 'darwin', state: 'NT',  postcode: '0810', center: { lat: -12.3911, lng: 130.8542 } },
-  { slug: 'stuart-park',     name: 'Stuart Park',     city: 'darwin', state: 'NT',  postcode: '0820', center: { lat: -12.4500, lng: 130.8358 } },
-  { slug: 'fannie-bay',      name: 'Fannie Bay',      city: 'darwin', state: 'NT',  postcode: '0820', center: { lat: -12.4283, lng: 130.8350 } },
-  { slug: 'alice-springs',   name: 'Alice Springs',   city: null,     state: 'NT',  postcode: '0870', center: { lat: -23.6980, lng: 133.8807 } },
-  { slug: 'katherine',       name: 'Katherine',       city: null,     state: 'NT',  postcode: '0850', center: { lat: -14.4654, lng: 132.2635 } },
-
-  /* ===== ACT · Canberra suburbs ===== */
-  { slug: 'civic',           name: 'Civic',           city: 'canberra', state: 'ACT', postcode: '2601', center: { lat: -35.2820, lng: 149.1287 } },
-  { slug: 'belconnen',       name: 'Belconnen',       city: 'canberra', state: 'ACT', postcode: '2617', center: { lat: -35.2380, lng: 149.0670 } },
-  { slug: 'tuggeranong',     name: 'Tuggeranong',     city: 'canberra', state: 'ACT', postcode: '2900', center: { lat: -35.4180, lng: 149.0840 } },
-  { slug: 'gungahlin',       name: 'Gungahlin',       city: 'canberra', state: 'ACT', postcode: '2912', center: { lat: -35.1880, lng: 149.1340 } },
-  { slug: 'woden',           name: 'Woden',           city: 'canberra', state: 'ACT', postcode: '2606', center: { lat: -35.3450, lng: 149.0820 } },
-  { slug: 'dickson',         name: 'Dickson',         city: 'canberra', state: 'ACT', postcode: '2602', center: { lat: -35.2510, lng: 149.1390 } },
-  { slug: 'manuka',          name: 'Manuka',          city: 'canberra', state: 'ACT', postcode: '2603', center: { lat: -35.3170, lng: 149.1330 } },
-  { slug: 'kingston-act',    name: 'Kingston',        city: 'canberra', state: 'ACT', postcode: '2604', center: { lat: -35.3160, lng: 149.1410 } },
-  { slug: 'braddon',         name: 'Braddon',         city: 'canberra', state: 'ACT', postcode: '2612', center: { lat: -35.2740, lng: 149.1320 } },
-];
 
 function mulberry32(seed) {
   return function () {
@@ -544,7 +522,7 @@ function generateStations(centerLat, centerLng, locationKey, stateCode, count = 
    when the backend is unreachable (artifact preview, offline, etc.)
 
    The backend lives at /api/fuel/[state] and is built from the files in
-   /fuelmate-backend/. See its README for setup. Until you wire up Vercel
+   /motavo-backend/. See its README for setup. Until you wire up Vercel
    + state APIs, this function will always fall back to generateStations()
    below — meaning the app keeps working with seeded mock data.
 
@@ -557,6 +535,36 @@ const STATE_API_PATH = {
   NSW: 'nsw', VIC: 'vic', QLD: 'qld', WA: 'wa',
   SA:  'sa',  TAS: 'tas', NT:  'nt',  ACT: 'act',
 };
+
+// Approximate AU state from coordinates, for current-location lookups.
+// Boxes are ordered so border overlaps resolve sensibly; falls back to the
+// nearest capital so a result is always returned.
+const CAPITAL_STATES = [
+  { state: 'NSW', lat: -33.8688, lng: 151.2093 },
+  { state: 'VIC', lat: -37.8136, lng: 144.9631 },
+  { state: 'QLD', lat: -27.4698, lng: 153.0251 },
+  { state: 'WA',  lat: -31.9523, lng: 115.8613 },
+  { state: 'SA',  lat: -34.9285, lng: 138.6007 },
+  { state: 'TAS', lat: -42.8821, lng: 147.3272 },
+  { state: 'NT',  lat: -12.4634, lng: 130.8456 },
+  { state: 'ACT', lat: -35.2809, lng: 149.1300 },
+];
+function stateFromCoords(lat, lng) {
+  if (lat <= -35.1 && lat >= -35.95 && lng >= 148.75 && lng <= 149.45) return 'ACT';
+  if (lat <= -39.2 && lng >= 143.5 && lng <= 149.2) return 'TAS';
+  if (lat <= -33.9 && lat >= -39.3 && lng >= 140.8 && lng <= 150.2) return 'VIC';
+  if (lat <= -28.0 && lat >= -37.6 && lng >= 140.9 && lng <= 153.7) return 'NSW';
+  if (lat <= -9.5  && lat >= -29.2 && lng >= 137.9 && lng <= 153.6) return 'QLD';
+  if (lat <= -25.9 && lat >= -38.2 && lng >= 128.9 && lng <= 141.1) return 'SA';
+  if (lat <= -10.9 && lat >= -26.1 && lng >= 128.9 && lng <= 138.1) return 'NT';
+  if (lng <= 129.1) return 'WA';
+  let best = 'NSW', bestD = Infinity;
+  for (const c of CAPITAL_STATES) {
+    const d = (lat - c.lat) ** 2 + (lng - c.lng) ** 2;
+    if (d < bestD) { bestD = d; best = c.state; }
+  }
+  return best;
+}
 
 async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25, limit = 200, locationKey, count = 18 }) {
   const path = STATE_API_PATH[state];
@@ -579,23 +587,31 @@ async function fetchStationsForLocation({ lat, lng, state, fuelType, radius = 25
     if (!res.ok) throw new Error(`API ${res.status}`);
     const data = await res.json();
 
-    if (!data?.stations?.length) {
-      // No live data yet (e.g. stub source) → fall back to mock
-      return generateStations(lat, lng, locationKey, state, count);
-    }
+    // API responded successfully. If it returned no stations, that's a REAL
+    // "no data for this area" result — show an honest empty state rather than
+    // fabricated prices. Serving mock data on a live site erodes trust and
+    // could send someone to a station with a made-up price.
+    if (!data?.stations?.length) return [];
     // Backend already filters by radius/limit and sorts by distance.
     return data.stations;
   } catch {
-    // Network unreachable, artifact iframe, or backend not deployed yet.
+    // Genuine fetch failure (offline, or the artifact-preview iframe where
+    // /api isn't reachable). Mock data only here so the preview still demos.
+    const PROD_DOMAINS = ['motavo.au', 'motavo.com.au', 'fuelmate.au'];
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (PROD_DOMAINS.some(d => host === d || host.endsWith('.' + d))) {
+      return []; // production: never show fabricated data
+    }
     return generateStations(lat, lng, locationKey, state, count);
   }
 }
 
 function formatPriceCents(c) {
   if (c == null) return '—';
-  const whole = Math.floor(c);
-  const dec = String(Math.round((c - whole) * 10));
-  return { whole: String(whole), dec };
+  let whole = Math.floor(c);
+  let dec   = Math.round((c - whole) * 10);
+  if (dec >= 10) { whole += 1; dec = 0; } // handle rounding up at boundary
+  return { whole: String(whole), dec: String(dec) };
 }
 
 function timeAgoLabel(min) {
@@ -616,10 +632,16 @@ function timeAgoFromTimestamp(ts) {
  * Drives the coloured dot next to each station's "X min ago" label.
  */
 function freshness(updatedMinutesAgo) {
-  if (updatedMinutesAgo < 30)  return { tone: 'fresh', color: '#16a085', label: 'Fresh' };
-  if (updatedMinutesAgo < 240) return { tone: 'stale', color: '#ea580c', label: 'Stale' };
-  return { tone: 'old', color: '#dc2626', label: 'Old' };
+  if (updatedMinutesAgo < 30)  return { tone: 'fresh', color: '#2e7d4f', label: 'Fresh' };
+  if (updatedMinutesAgo < 240) return { tone: 'stale', color: '#b4530a', label: 'Stale' };
+  return { tone: 'old', color: '#b91c1c', label: 'Old' };
 }
+
+// Sources that publish a once-daily snapshot rather than near-real-time prices.
+// For these, a relative "Xd ago" stamp is misleading — the data is meant to be
+// ~24h old — so we show "Updates daily" and suppress the "may be outdated" flag.
+const DAILY_FEEDS = new Set(['vic-servosaver']);
+const isDailyFeed = (station) => DAILY_FEEDS.has(station?.source);
 
 /**
  * Rough urban driving time from straight-line distance.
@@ -644,25 +666,22 @@ const STORAGE_KEYS = {
 };
 
 const fmStorage = {
+  // localStorage so state survives across visits — a returning user gets
+  // their last location and fuel type back instantly instead of starting
+  // from a blank homepage every time. (Was sessionStorage; changed
+  // deliberately: the weekly price-check habit shouldn't require re-search.)
   async get(key) {
     try {
-      if (typeof window === 'undefined' || !window.storage) return null;
-      // Race the storage call against a 1.5s timeout — if the underlying
-      // API hangs (which we've seen happen in restricted iframes), we'd
-      // rather give up than block the whole app from hydrating.
-      const result = await Promise.race([
-        window.storage.get(key),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('storage-timeout')), 1500)),
-      ]);
-      if (!result) return null;
-      return JSON.parse(result.value);
+      if (typeof window === 'undefined') return null;
+      const val = localStorage.getItem(key);
+      return val ? JSON.parse(val) : null;
     } catch { return null; }
   },
   async set(key, value) {
     try {
-      if (typeof window === 'undefined' || !window.storage) return;
-      await window.storage.set(key, JSON.stringify(value));
-    } catch { /* swallow — storage is best-effort */ }
+      if (typeof window === 'undefined') return;
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch { /* swallow */ }
   },
 };
 
@@ -677,117 +696,39 @@ const REPORT_REJECT_THRESHOLD = 25;        // Cents difference vs official that'
 
 const REPORTER_NAMES = ['Mike', 'Sarah', 'Jake', 'Ana', 'Tim', 'Em', 'Raj', 'Pat', 'Sam', 'Kel'];
 
-// Generate deterministic "seed" reports for a station so the demo feels alive
-function getSeedReports(station) {
-  const rng = mulberry32(hashStr(station.id + ':reports'));
-  if (rng() > 0.42) return [];
-
-  const numReports = rng() < 0.6 ? 1 : (rng() < 0.9 ? 2 : 3);
-  const fuelChoices = ['U91', 'U91', 'P95', 'DSL', 'E10']; // weight U91
-  const out = [];
-
-  for (let i = 0; i < numReports; i++) {
-    const ft = fuelChoices[Math.floor(rng() * fuelChoices.length)];
-    const officialPrice = station.prices[ft];
-    if (officialPrice == null) continue;
-
-    const minutesAgo = Math.floor(rng() * REPORT_FRESHNESS_MIN);
-    const offset = (rng() - 0.55) * 5;                       // skewed slightly cheaper
-    const price = +(officialPrice + offset).toFixed(1);
-    const confirms = rng() < 0.35 ? Math.floor(rng() * 4) : 0;
-
-    out.push({
-      id: `seed-${station.id}-${i}`,
-      stationId: station.id,
-      fuelType: ft,
-      price,
-      timestamp: Date.now() - minutesAgo * 60_000,
-      reporter: REPORTER_NAMES[Math.floor(rng() * REPORTER_NAMES.length)],
-      seedConfirms: confirms,
-      note: null,
-      isSeed: true,
-    });
-  }
-  return out;
-}
-
-function isReportTrusted(report, userConfirmedSet) {
-  const totalConfirms = (report.seedConfirms || 0) + (userConfirmedSet.has(report.id) ? 1 : 0);
-  return totalConfirms >= REPORT_TRUSTED_MIN_CONFIRMS;
-}
-
-function reportConfirmCount(report, userConfirmedSet) {
-  return (report.seedConfirms || 0) + (userConfirmedSet.has(report.id) ? 1 : 0);
-}
 
 /* =====================================================================
-   FUELMATE LOGO — inline SVG, scales to any size
-   The "mark" is two overlapping fuel-pump silhouettes inside a heart.
-   Left pump = blue (more expensive), right pump = green (cheaper)
-   with a "<" comparison glyph nestled between them.
+   MOTAVO LOGO — inline SVG mark + wordmark, theme-aware via currentColor.
+   The mark is a single-weight monoline "M"; the wordmark is set in
+   Hanken Grotesk SemiBold. Both inherit the surrounding text colour.
    ===================================================================== */
 
-const FuelMateMark = ({ size = 32 }) => (
-  <svg viewBox="0 0 100 100" width={size} height={size} aria-hidden="true">
-    <defs>
-      {/* Soft drop shadow used on the pumps */}
-      <filter id="fmm-shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feGaussianBlur stdDeviation="0.6" />
-      </filter>
-    </defs>
-
-    {/* Heart-shaped halos behind the pumps */}
-    <g opacity="0.32">
-      <circle cx="36" cy="38" r="26" fill="#1e5fe0" />
-      <circle cx="64" cy="38" r="26" fill="#16a085" />
-      <path d="M 50 88 L 22 56 Q 14 44, 26 36 Q 38 30, 50 44 Q 62 30, 74 36 Q 86 44, 78 56 Z"
-            fill="url(#fmm-heart)" opacity="0.0" />
-    </g>
-
-    {/* LEFT pump (blue) */}
-    <g>
-      <rect x="22" y="30" width="22" height="38" rx="3" fill="#1e5fe0" />
-      {/* nozzle handle */}
-      <path d="M 44 34 L 49 34 L 49 50 Q 49 54, 45 54 L 44 54 Z" fill="#1648b0" />
-      {/* readout */}
-      <rect x="25" y="34" width="16" height="9" rx="1.5" fill="#ffffff" />
-      <text x="33" y="41" fontSize="6.2" fontFamily="JetBrains Mono, ui-monospace, monospace"
-            fontWeight="700" fill="#1e5fe0" textAnchor="middle">1.59</text>
-      {/* drop */}
-      <path d="M 33 56 Q 30 62, 33 64 Q 36 62, 33 56 Z" fill="#ffffff" />
-    </g>
-
-    {/* RIGHT pump (green) */}
-    <g>
-      <rect x="56" y="30" width="22" height="38" rx="3" fill="#16a085" />
-      <path d="M 78 34 L 83 34 L 83 50 Q 83 54, 79 54 L 78 54 Z" fill="#0f7d68" />
-      <rect x="59" y="34" width="16" height="9" rx="1.5" fill="#ffffff" />
-      <text x="67" y="41" fontSize="6.2" fontFamily="JetBrains Mono, ui-monospace, monospace"
-            fontWeight="700" fill="#16a085" textAnchor="middle">1.29</text>
-      <path d="M 67 56 Q 64 62, 67 64 Q 70 62, 67 56 Z" fill="#ffffff" />
-    </g>
-
-    {/* Comparison badge in the middle */}
-    <circle cx="50" cy="48" r="6" fill="#ffffff" stroke="#e1e7f0" strokeWidth="0.6" />
-    <path d="M 52.5 44.5 L 48.5 48 L 52.5 51.5" stroke="#16a085" strokeWidth="1.6"
-          fill="none" strokeLinecap="round" strokeLinejoin="round" />
+const MotavoMark = ({ size = 32 }) => (
+  <svg viewBox="30 30 68 68" width={size} height={size} fill="none" aria-hidden="true">
+    <path
+      d="M37 86 L37 43 L64 72.5 L91 43 L91 86"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="11.5"
+      strokeLinejoin="round"
+      strokeLinecap="round"
+    />
   </svg>
 );
 
-const FuelMateWordmark = ({ size = 28 }) => (
-  <span
-    className="font-display font-bold tracking-tight"
-    style={{ fontSize: size, lineHeight: 1, letterSpacing: '-0.04em' }}
-  >
-    <span style={{ color: '#1e5fe0' }}>Fuel</span>
-    <span style={{ color: '#16a085' }}>Mate</span>
-  </span>
+const MotavoWordmark = ({ size = 22 }) => (
+  // Locked vector outline of "motavo" (Space Grotesk SemiBold, baked to paths).
+  // Font-independent: never reflows when the site fonts change. `size` = cap height in px.
+  <svg viewBox="0 0 3499 667" height={size} width={size * 5.246} fill="currentColor"
+       aria-hidden="true" style={{ display: 'block' }}>
+    <g transform="translate(-73,653) scale(1,-1)"><path d="M73.0 0V494H186.0V439H203.0Q216.0 464 246.5 483.5Q277.0 503 328.0 503Q382.0 503 415.0 481.0Q448.0 459 465.0 425H481.0Q498.0 459 530.0 481.0Q562.0 503 621.0 503Q667.0 503 704.5 483.0Q742.0 463 764.5 424.0Q787.0 385 787.0 327V0H672.0V319Q672.0 362 649.0 384.5Q626.0 407 585.0 407Q540.0 407 513.5 377.5Q487.0 348 487.0 293V0H373.0V319Q373.0 362 350.0 384.5Q327.0 407 286.0 407Q240.0 407 214.0 377.5Q188.0 348 188.0 293V0Z M1154.0 -14Q1080.0 -14 1021.5 16.5Q963.0 47 929.5 103.5Q896.0 160 896.0 239V255Q896.0 334 929.5 391.0Q963.0 448 1021.5 478.0Q1080.0 508 1154.0 508Q1228.0 508 1286.0 478.0Q1344.0 448 1377.5 391.0Q1411.0 334 1411.0 255V239Q1411.0 160 1377.5 103.5Q1344.0 47 1286.0 16.5Q1228.0 -14 1154.0 -14ZM1154.0 88Q1217.0 88 1257.0 128.5Q1297.0 169 1297.0 242V252Q1297.0 325 1257.0 365.5Q1217.0 406 1154.0 406Q1091.0 406 1051.0 365.5Q1011.0 325 1011.0 252V242Q1011.0 169 1051.0 128.5Q1091.0 88 1154.0 88Z M1713.0 0Q1665.0 0 1636.5 28.5Q1608.0 57 1608.0 106V399H1479.0V494H1608.0V653H1723.0V494H1865.0V399H1723.0V125Q1723.0 95 1751.0 95H1850.0V0Z M2127.0 -14Q2075.0 -14 2033.0 4.5Q1991.0 23 1966.5 58.0Q1942.0 93 1942.0 144Q1942.0 194 1966.5 228.0Q1991.0 262 2034.0 279.5Q2077.0 297 2132.0 297H2275.0V327Q2275.0 366 2251.0 390.5Q2227.0 415 2176.0 415Q2126.0 415 2100.5 391.5Q2075.0 368 2067.0 331L1961.0 366Q1973.0 405 1999.5 437.0Q2026.0 469 2070.0 488.5Q2114.0 508 2178.0 508Q2275.0 508 2330.5 459.5Q2386.0 411 2386.0 319V125Q2386.0 95 2414.0 95H2456.0V0H2375.0Q2339.0 0 2316.0 18.0Q2293.0 36 2293.0 67V69H2276.0Q2270.0 55 2255.0 35.0Q2240.0 15 2209.5 0.5Q2179.0 -14 2127.0 -14ZM2146.0 80Q2203.0 80 2239.0 112.5Q2275.0 145 2275.0 200V210H2139.0Q2102.0 210 2079.0 194.0Q2056.0 178 2056.0 147Q2056.0 117 2080.0 98.5Q2104.0 80 2146.0 80Z M2652.0 0 2490.0 494H2612.0L2734.0 84H2751.0L2874.0 494H2996.0L2834.0 0Z M3315.0 -14Q3241.0 -14 3182.5 16.5Q3124.0 47 3090.5 103.5Q3057.0 160 3057.0 239V255Q3057.0 334 3090.5 391.0Q3124.0 448 3182.5 478.0Q3241.0 508 3315.0 508Q3389.0 508 3447.0 478.0Q3505.0 448 3538.5 391.0Q3572.0 334 3572.0 255V239Q3572.0 160 3538.5 103.5Q3505.0 47 3447.0 16.5Q3389.0 -14 3315.0 -14ZM3315.0 88Q3378.0 88 3418.0 128.5Q3458.0 169 3458.0 242V252Q3458.0 325 3418.0 365.5Q3378.0 406 3315.0 406Q3252.0 406 3212.0 365.5Q3172.0 325 3172.0 252V242Q3172.0 169 3212.0 128.5Q3252.0 88 3315.0 88Z"/></g>
+  </svg>
 );
 
-const FuelMateLogo = ({ markSize = 32, wordSize = 22 }) => (
-  <span className="inline-flex items-center gap-2">
-    <FuelMateMark size={markSize} />
-    <FuelMateWordmark size={wordSize} />
+const MotavoLogo = ({ markSize = 27, wordSize = 21 }) => (
+  <span className="inline-flex items-center gap-2.5" style={{ color: 'var(--text)' }}>
+    <MotavoMark size={markSize} />
+    <MotavoWordmark size={wordSize} />
   </span>
 );
 
@@ -807,18 +748,21 @@ const FuelMateLogo = ({ markSize = 32, wordSize = 22 }) => (
  *      light surfaces alike.
  */
 const BrandMark = ({ brand, size = 36 }) => {
-  const b = BRANDS[brand] || BRANDS['Independent'];
-  const logoUrl = brandLogoUrl(b.domain);
+  const b     = BRANDS[brand] || null;
+  const color = b?.color || '#64748b';
+  // Derive readable 2-char initials when brand isn't in our list
+  const short = b?.short || (() => {
+    if (!brand) return '··';
+    const words = brand.replace(/[^a-zA-Z0-9 ]/g, ' ').trim().split(/ +/);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return brand.substring(0, 2).toUpperCase();
+  })();
+  const logos = brandLogoUrls(b?.domain || null, b?.slug || brandSlug(brand));
+  const [srcIdx, setSrcIdx] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [errored, setErrored] = useState(false);
-
-  // Reset state when the brand changes (e.g. station card re-used in a list)
-  useEffect(() => {
-    setLoaded(false);
-    setErrored(false);
-  }, [brand]);
-
-  const showLogo = logoUrl && !errored;
+  useEffect(() => { setSrcIdx(0); setLoaded(false); }, [brand]);
+  const logoUrl  = logos[srcIdx] ?? null;
+  const showLogo = !!logoUrl;
 
   return (
     <div
@@ -826,32 +770,32 @@ const BrandMark = ({ brand, size = 36 }) => {
       style={{
         width: size,
         height: size,
-        borderRadius: 8,
-        background: showLogo && loaded ? '#ffffff' : b.color,
+        borderRadius: 0,
+        background: showLogo && loaded ? '#ffffff' : color,
         border: showLogo && loaded ? '1px solid var(--border)' : 'none',
-        boxShadow: showLogo && loaded
-          ? '0 1px 2px rgba(15,23,42,0.05)'
-          : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.18)',
+        boxShadow: showLogo && loaded ? '0 1px 2px rgba(15,23,42,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.18)',
         transition: 'background 200ms ease, border-color 200ms ease, box-shadow 200ms ease',
       }}
       aria-hidden="true"
       title={brand}
     >
-      {/* Monogram — always rendered as the immediate fallback */}
+      {/* Monogram fallback */}
       <div
-        className="absolute inset-0 flex items-center justify-center font-mono font-bold text-white"
+        className="absolute inset-0 flex items-center justify-center font-display text-white"
         style={{
-          fontSize: size * 0.34,
+          fontSize: size * 0.4,
+          letterSpacing: '0.02em',
           opacity: showLogo && loaded ? 0 : 1,
           transition: 'opacity 200ms ease',
         }}
       >
-        {b.short}
+        {short}
       </div>
 
       {/* Real logo, fades in when loaded */}
       {showLogo && (
         <img
+          key={srcIdx}
           src={logoUrl}
           alt=""
           width={size}
@@ -860,7 +804,7 @@ const BrandMark = ({ brand, size = 36 }) => {
           decoding="async"
           referrerPolicy="no-referrer"
           onLoad={() => setLoaded(true)}
-          onError={() => setErrored(true)}
+          onError={() => setSrcIdx(i => Math.min(i + 1, logos.length))}
           style={{
             position: 'absolute',
             inset: 0,
@@ -880,14 +824,14 @@ const BrandMark = ({ brand, size = 36 }) => {
 const Pill = ({ children, tone = 'neutral', className = '' }) => {
   const tones = {
     neutral: { bg: 'transparent', border: 'var(--border-strong)', color: 'var(--text-3)' },
-    accent:  { bg: 'rgba(22,160,133,0.10)', border: 'rgba(22,160,133,0.30)', color: 'var(--success)' },
-    brand:   { bg: 'rgba(30,95,224,0.10)', border: 'rgba(30,95,224,0.30)', color: 'var(--blue)' },
-    warn:    { bg: 'rgba(234,88,12,0.10)', border: 'rgba(234,88,12,0.30)', color: 'var(--warn)' },
+    accent:  { bg: 'rgba(46,125,79,0.10)', border: 'rgba(46,125,79,0.30)', color: 'var(--success)' },
+    brand:   { bg: 'rgba(15, 122, 82,0.10)', border: 'rgba(15, 122, 82,0.30)', color: 'var(--blue)' },
+    warn:    { bg: 'rgba(180,83,10,0.12)', border: 'rgba(180,83,10,0.32)', color: 'var(--warn)' },
     soft:    { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--text-2)' },
   }[tone];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-tiny font-medium uppercase track-wide ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-tiny font-medium uppercase track-wide ${className}`}
       style={{ background: tones.bg, border: `1px solid ${tones.border}`, color: tones.color }}
     >{children}</span>
   );
@@ -1000,7 +944,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 borderColor: active ? 'var(--accent)' : 'var(--border)',
                 background: active ? 'var(--accent)' : 'var(--surface)',
                 color: active ? '#ffffff' : 'var(--text-2)',
-                borderRadius: 999,
+                borderRadius: 0,
               }}
               aria-pressed={active}
             >{ft.short}</button>
@@ -1017,7 +961,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--border)',
-        borderRadius: 14,
+        borderRadius: 0,
         boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
       }}
     >
@@ -1043,17 +987,16 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 padding: '9px 16px',
                 fontSize: 14,
                 fontWeight: active ? 600 : 500,
-                fontFamily: 'Space Grotesk, system-ui',
                 border: '1.5px solid',
                 borderColor: active ? 'var(--accent)' : 'var(--border)',
                 background: active
                   ? 'var(--blue-soft)'
                   : 'var(--surface-2)',
                 color: active ? 'var(--accent)' : 'var(--text-2)',
-                borderRadius: 10,
+                borderRadius: 0,
                 letterSpacing: '-0.01em',
                 boxShadow: active
-                  ? '0 0 0 3px rgba(30,95,224,0.12)'
+                  ? '0 0 0 3px rgba(15, 122, 82,0.12)'
                   : 'none',
                 transition: 'all 150ms ease',
               }}
@@ -1065,7 +1008,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
                 <span
                   style={{
                     position: 'absolute', top: 4, right: 4,
-                    width: 6, height: 6, borderRadius: 999,
+                    width: 6, height: 6, borderRadius: 0,
                     background: 'var(--accent)',
                   }}
                 />
@@ -1079,7 +1022,7 @@ const FuelTypePicker = ({ value, onChange, compact = false }) => {
 };
 
 const Toggle = ({ value, onChange, options }) => (
-  <div className="inline-flex items-center p-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 999 }}>
+  <div className="inline-flex items-center p-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     {options.map(({ key, label, icon: Icon }) => {
       const active = value === key;
       return (
@@ -1091,7 +1034,7 @@ const Toggle = ({ value, onChange, options }) => (
           style={{
             background: active ? 'var(--surface-3)' : 'transparent',
             color: active ? 'var(--text)' : 'var(--text-3)',
-            borderRadius: 999,
+            borderRadius: 0,
           }}
         ><Icon size={13} /> {label}</button>
       );
@@ -1099,7 +1042,7 @@ const Toggle = ({ value, onChange, options }) => (
   </div>
 );
 
-const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports = [], confirmedSet, onConfirmReport, onOpenReportModal }) => {
+const StationCard = ({ station, fuelType, rank, cheapestPrice, isClosest, onSelect, reports = [], confirmedSet, onConfirmReport, onOpenReportModal }) => {
   const officialPrice = station.prices[fuelType];
 
   // Find most-trusted recent report for this fuel type
@@ -1116,22 +1059,19 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
   const displayPrice = topReportTrusted ? topReport.price : officialPrice;
   const isUserSourced = topReportTrusted && topReport.price !== officialPrice;
 
-  const isCheapest = rank === 0;
+  // Tag the genuinely lowest-priced station, regardless of how the list is sorted.
+  const isCheapest = displayPrice != null && cheapestPrice != null && displayPrice <= cheapestPrice + 0.001;
   const diff = displayPrice != null && cheapestPrice != null ? +(displayPrice - cheapestPrice).toFixed(1) : null;
 
   return (
     <div
       className="hover-raise w-full p-4 md:p-5 transition-all relative"
       style={{
-        background: isCheapest ? 'linear-gradient(180deg, rgba(22,160,133,0.04), transparent)' : 'var(--surface)',
-        border: `1px solid ${isCheapest ? 'rgba(22,160,133,0.40)' : 'var(--border)'}`,
-        borderRadius: 12,
+        background: 'var(--surface)',
+        border: isCheapest ? '2px solid var(--text)' : '1px solid var(--border)',
+        borderRadius: 0,
       }}
     >
-      {isCheapest && (
-        <div aria-hidden="true" className="absolute -top-px left-4 right-4"
-             style={{ height: 1, background: 'linear-gradient(90deg, transparent, var(--accent), transparent)' }} />
-      )}
       <button
         type="button"
         onClick={() => onSelect && onSelect(station)}
@@ -1145,11 +1085,20 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-display font-semibold text-base leading-tight truncate" style={{ color: 'var(--text)' }}>{station.brand}</h3>
-                  {isCheapest && <Pill tone="accent"><Zap size={10} /> Cheapest</Pill>}
+                  {isCheapest && (
+                    <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '3px 8px' }}>
+                      <Zap size={10} /> Cheapest
+                    </span>
+                  )}
+                  {isClosest && !isCheapest && (
+                    <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1.5px solid var(--text)', color: 'var(--text)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '2px 7px' }}>
+                      <Navigation size={10} /> Closest
+                    </span>
+                  )}
                   {isUserSourced && (
                     <span
                       className="inline-flex items-center gap-1 px-1.5 py-0.5 text-tiny font-medium"
-                      style={{ background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.25)', borderRadius: 4, color: 'var(--success)' }}
+                      style={{ background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.25)', borderRadius: 0, color: 'var(--success)' }}
                       title="Price verified by drivers"
                     >
                       <Users size={9} /> Driver-verified
@@ -1172,20 +1121,46 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
               <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--text-3)' }}>
                 {estimateDriveMinutes(station.distance)} min drive
               </span>
-              <span
-                className="inline-flex items-center gap-1.5"
-                title={`${freshness(station.updatedMinutesAgo).label} · updated ${timeAgoLabel(station.updatedMinutesAgo)}`}
-              >
+              {isDailyFeed(station) ? (
                 <span
-                  style={{
-                    display: 'inline-block',
-                    width: 7, height: 7, borderRadius: 999,
-                    background: freshness(station.updatedMinutesAgo).color,
-                    boxShadow: `0 0 0 2px ${freshness(station.updatedMinutesAgo).color}22`,
-                  }}
-                />
-                {timeAgoLabel(station.updatedMinutesAgo)}
-              </span>
+                  className="inline-flex items-center gap-1.5"
+                  title="Victorian prices are published once daily by Service Victoria, so they can be up to 24 hours old."
+                >
+                  <span
+                    style={{
+                      display: 'inline-block', width: 7, height: 7, borderRadius: 0,
+                      background: 'var(--accent)', boxShadow: '0 0 0 2px var(--accent-glow)',
+                    }}
+                  />
+                  Updates daily
+                </span>
+              ) : (
+                <>
+                  <span
+                    className="inline-flex items-center gap-1.5"
+                    title={`${freshness(station.updatedMinutesAgo).label} · updated ${timeAgoLabel(station.updatedMinutesAgo)}`}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 7, height: 7, borderRadius: 0,
+                        background: freshness(station.updatedMinutesAgo).color,
+                        boxShadow: `0 0 0 2px ${freshness(station.updatedMinutesAgo).color}22`,
+                      }}
+                    />
+                    {timeAgoLabel(station.updatedMinutesAgo)}
+                  </span>
+                  {station.updatedMinutesAgo >= 1440 && (
+                    <span
+                      className="inline-flex items-center gap-1 text-tiny font-medium"
+                      style={{ color: 'var(--warn)' }}
+                      title="This price hasn't updated in over a day and may be out of date."
+                    >
+                      <AlertCircle size={11} /> may be outdated
+                    </span>
+                  )}
+                </>
+              )}
               {diff != null && diff > 0 && (
                 <span className="inline-flex items-center gap-1 font-mono" style={{ color: 'var(--warn)' }}>+{diff.toFixed(1)}¢</span>
               )}
@@ -1212,45 +1187,18 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
         </div>
       )}
 
-      {/* Primary actions: Directions (filled blue) + Report price (outline) */}
-      <div className="mt-4 flex items-stretch gap-2 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        <a
-          href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold transition-all hover-raise"
-          style={{
-            background: 'var(--accent)',
-            color: '#ffffff',
-            borderRadius: 9,
-            textDecoration: 'none',
-            border: '1px solid var(--accent-dark)',
-            boxShadow: '0 1px 0 rgba(15,23,42,0.04)',
-          }}
-          aria-label={`Get directions to ${station.brand} on ${station.address}`}
-        >
-          <Navigation size={14} strokeWidth={2.4} />
-          Directions
-        </a>
+      {/* Actions — slim, editorial; the whole card is clickable for detail */}
+      <div className="mt-4 flex items-center gap-5 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <DirectionsMenu lat={station.lat} lng={station.lng} label={station.brand} />
         {onOpenReportModal && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onOpenReportModal(station); }}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-sm font-medium transition-colors"
-            style={{
-              background: 'var(--surface-2)',
-              color: 'var(--text-2)',
-              border: '1px solid var(--border)',
-              borderRadius: 9,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3)'; e.currentTarget.style.color = 'var(--text)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text-2)'; }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}
             aria-label="Report a different price for this station"
           >
-            <Edit3 size={13} />
-            <span className="hidden sm:inline">Report price</span>
-            <span className="sm:hidden">Report</span>
+            <Edit3 size={13} /> Report price
           </button>
         )}
       </div>
@@ -1258,107 +1206,274 @@ const StationCard = ({ station, fuelType, rank, cheapestPrice, onSelect, reports
   );
 };
 
-const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor }) => {
-  const [activeId, setActiveId] = useState(null);
-  const priceFor = effectivePriceFor || ((s) => s.prices[fuelType]);
-  const visible = stations.filter(s => priceFor(s) != null);
-  if (visible.length === 0) {
-    return <div className="surface-card text-center py-16" style={{ color: 'var(--text-3)' }}>No mappable stations.</div>;
-  }
-  const meanLat = visible.reduce((s, st) => s + st.lat, 0) / visible.length;
-  const meanLng = visible.reduce((s, st) => s + st.lng, 0) / visible.length;
-  const VW = 800, VH = 520, PAD = 60;
+const StationMap = ({ stations, fuelType, cheapestPrice, onSelect, effectivePriceFor, userLat, userLng, mapHeight, selectedId }) => {
+  const mapRef       = useRef(null);
+  const mapObjRef    = useRef(null);
+  const markersRef   = useRef([]);
+  const markerById   = useRef({});   // station.id -> { marker, baseColor, label, isCheap }
+  const popupRef     = useRef(null);
+  const priceFor     = effectivePriceFor || ((s) => s.prices[fuelType]);
+  const visible      = stations.filter(s => priceFor(s) != null && s.lat && s.lng);
 
-  const maxDist = Math.max(
-    ...visible.map(s => Math.hypot((s.lat - meanLat) * 111, (s.lng - meanLng) * 111 * Math.cos(meanLat * Math.PI / 180)))
-  );
-  const scale = Math.min((VW / 2 - PAD) / maxDist, (VH / 2 - PAD) / maxDist);
-  const project = (lat, lng) => {
-    const dy = -(lat - meanLat) * 111 * scale;
-    const dx = (lng - meanLng) * 111 * Math.cos(meanLat * Math.PI / 180) * scale;
-    return { x: VW / 2 + dx, y: VH / 2 + dy };
+  // Price-tier colour: cheapest=green, top-third=red, else orange
+  const pinColor = (price) => {
+    if (!price || visible.length === 0) return '#64748b';
+    const prices = visible.map(s => priceFor(s)).filter(Boolean).sort((a,b) => a-b);
+    const lo = prices[0], hi = prices[prices.length-1], spread = hi - lo;
+    if (spread < 1) return '#2e7d4f';
+    const pct = (price - lo) / spread;
+    if (pct < 0.33) return '#2e7d4f';
+    if (pct < 0.66) return '#b4530a';
+    return '#b91c1c';
   };
-  const userPos = project(meanLat, meanLng);
+
+  const initMap = () => {
+    const L = window.L;
+    if (!mapRef.current || mapObjRef.current) return;
+    const lat = userLat || -33.8688;
+    const lng = userLng || 151.2093;
+    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true })
+                 .setView([lat, lng], 13);
+    // Force a size recalculation in case CSS finished loading after init
+    setTimeout(() => map.invalidateSize(), 100);
+    // CARTO Positron — clean, muted basemap that suits the Motavo palette far
+    // better than default OSM, and crucially serves @2x retina tiles. The {r}
+    // placeholder + detectRetina swap in high-DPI tiles on phones/retina
+    // screens, which fixes the blur from stretching 1x tiles across 2-3 device
+    // pixels. {s} cycles a/b/c/d subdomains.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
+      detectRetina: true,
+    }).addTo(map);
+    mapObjRef.current = map;
+
+    // User location pin
+    if (userLat && userLng) {
+      const userIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:16px;height:16px;background:#0f7a52;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(15, 122, 82,0.25)"></div>`,
+        iconSize: [16,16], iconAnchor: [8,8],
+      });
+      L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
+       .addTo(map)
+       .bindPopup('<strong style="font-family:sans-serif">Your location</strong>');
+    }
+
+    addMarkers(map);
+  };
+
+  const addMarkers = (map) => {
+    const L = window.L;
+    if (!map) return;
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
+    markerById.current = {};
+
+    visible.forEach((s) => {
+      const price = priceFor(s);
+      const color = pinColor(price);
+      const isCheap = price === cheapestPrice;
+      const label = price != null ? price.toFixed(1) : '—';
+
+      const icon = L.divIcon({
+        className: '',
+        html: markerHtml(color, label, isCheap, false),
+        iconSize: [60,24], iconAnchor: [30,12],
+      });
+
+      const popup = L.popup({ maxWidth: 280, className: 'fm-popup' }).setContent(`
+        <div style="font-family:'Hanken Grotesk',sans-serif;padding:2px 0">
+          <div style="font-weight:700;font-size:15px;margin-bottom:2px">${s.brand}</div>
+          <div style="color:#64748b;font-size:12px;margin-bottom:6px">${s.address}${s.suburb ? ', '+s.suburb : ''}${s.state ? ' '+s.state : ''}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:${color};margin-bottom:8px">${label}<span style="font-size:13px;color:#94a3b8">¢/L</span></div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${s.distance?.toFixed(1)} km · ${isDailyFeed(s) ? 'updates daily' : (s.updatedMinutesAgo < 60 ? s.updatedMinutesAgo+'m ago' : Math.floor(s.updatedMinutesAgo/60)+'h ago')}</div>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}"
+             target="_blank" rel="noopener noreferrer"
+             style="display:block;text-align:center;padding:7px 12px;background:#0f7a52;color:#fff;border-radius:0;font-weight:600;font-size:13px;text-decoration:none">
+            ↗ Directions
+          </a>
+        </div>
+      `);
+
+      const marker = L.marker([s.lat, s.lng], { icon })
+        .addTo(map)
+        .bindPopup(popup)
+        .on('click', () => { onSelect && onSelect(s); });
+      markersRef.current.push(marker);
+      markerById.current[s.id] = { marker, color, label, isCheap };
+    });
+
+    // Re-apply any active selection after markers are rebuilt
+    if (selectedId != null) applySelection(selectedId, false);
+  };
+
+  // Build a marker's HTML at normal or selected size. Selected markers grow,
+  // gain a dark ring, and lift above the rest via zIndexOffset.
+  // Every pin is the SAME size. Selection is shown only by a crisp ring drawn
+  // with box-shadow (white gap + the pin's own colour), never by scaling or a
+  // heavy border — that's what caused the big black box on mobile.
+  const markerHtml = (color, label, isCheap, selected) => `<div style="
+    display:inline-block;
+    background:${color};
+    color:#fff;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    font-weight:700;
+    line-height:1;
+    padding:3px 7px;
+    border-radius:0;
+    white-space:nowrap;
+    border:2px solid #fff;
+    box-shadow:${selected
+      ? '0 0 0 2px ' + color + ', 0 3px 10px rgba(0,0,0,0.35)'
+      : (isCheap ? '0 0 0 2px ' + color + ', 0 2px 5px rgba(0,0,0,0.2)' : '0 1px 4px rgba(0,0,0,0.25)')};
+  ">${label}¢</div>`;
+
+  // Highlight one station's marker, optionally panning the map to it.
+  const applySelection = (id, pan) => {
+    const L = window.L;
+    Object.entries(markerById.current).forEach(([sid, rec]) => {
+      const sel = String(sid) === String(id);
+      rec.marker.setIcon(L.divIcon({
+        className: '',
+        html: markerHtml(rec.color, rec.label, rec.isCheap, sel),
+        iconSize: [60, 24], iconAnchor: [30, 12],
+      }));
+      if (sel) rec.marker.setZIndexOffset(900); else rec.marker.setZIndexOffset(0);
+    });
+    if (pan && id != null && markerById.current[id] && mapObjRef.current) {
+      const ll = markerById.current[id].marker.getLatLng();
+      mapObjRef.current.panTo(ll, { animate: true, duration: 0.4 });
+    }
+  };
+
+  // Load Leaflet CSS + JS, then init map.
+  // Must wait for CSS to finish loading before calling L.map() —
+  // without it, Leaflet tile containers have 0px height and render blank.
+  useEffect(() => {
+    let cancelled = false;
+
+    const doInit = () => {
+      if (cancelled) return;
+      // Small rAF so the container has been painted at its final size
+      requestAnimationFrame(() => {
+        if (!cancelled) initMap();
+      });
+    };
+
+    const loadJS = () => {
+      if (window.L) { doInit(); return; }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = doInit;
+      document.head.appendChild(script);
+    };
+
+    // Inject CSS if not already present, wait for it to load before JS
+    let link = document.getElementById('leaflet-css');
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.setAttribute('rel', 'stylesheet');
+      link.setAttribute('href', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+      link.onload = loadJS;
+      document.head.appendChild(link);
+    } else if (document.styleSheets && Array.from(document.styleSheets).some(s => { try { return s.href && s.href.includes('leaflet'); } catch { return false; } })) {
+      // CSS already applied
+      loadJS();
+    } else {
+      link.addEventListener('load', loadJS, { once: true });
+    }
+
+    return () => {
+      cancelled = true;
+      if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-centre when the user navigates to a new city
+  useEffect(() => {
+    if (!mapObjRef.current || !userLat || !userLng) return;
+    mapObjRef.current.setView([userLat, userLng], 13);
+  }, [userLat, userLng]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-render markers when stations or fuelType changes
+  useEffect(() => {
+    if (mapObjRef.current) addMarkers(mapObjRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stations, fuelType, cheapestPrice]);
+
+  // Highlight + pan when the selected station changes (e.g. a card was tapped)
+  useEffect(() => {
+    if (!mapObjRef.current || !Object.keys(markerById.current).length) return;
+    const map = mapObjRef.current;
+    // Two rAFs: let the (possibly just-revealed) map container paint, then
+    // recalc its size, then apply the selection. Fixes the mobile box-render
+    // glitch when tapping a card flips list->map in the same tick.
+    const raf1 = requestAnimationFrame(() => {
+      map.invalidateSize();
+      const raf2 = requestAnimationFrame(() => applySelection(selectedId, true));
+      cleanup.r2 = raf2;
+    });
+    const cleanup = { r1: raf1, r2: 0 };
+    return () => { cancelAnimationFrame(cleanup.r1); if (cleanup.r2) cancelAnimationFrame(cleanup.r2); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   return (
-    <div className="overflow-hidden" style={{ background: '#f4f7fc', border: '1px solid var(--border)', borderRadius: 12 }}>
-      <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full h-auto block" style={{ aspectRatio: `${VW}/${VH}` }}>
-        <defs>
-          <pattern id="grid-fine-d" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#dde4ee" strokeWidth="0.5" />
-          </pattern>
-          <pattern id="grid-coarse-d" width="100" height="100" patternUnits="userSpaceOnUse">
-            <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#c8d2e1" strokeWidth="0.7" />
-          </pattern>
-          <radialGradient id="user-glow-d">
-            <stop offset="0%" stopColor="#1e5fe0" stopOpacity="0.28" />
-            <stop offset="60%" stopColor="#1e5fe0" stopOpacity="0.05" />
-            <stop offset="100%" stopColor="#1e5fe0" stopOpacity="0" />
-          </radialGradient>
-          <filter id="pin-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-
-        <rect width={VW} height={VH} fill="url(#grid-fine-d)" />
-        <rect width={VW} height={VH} fill="url(#grid-coarse-d)" opacity="0.6" />
-
-        <g stroke="#ffffff" strokeWidth="6" strokeLinecap="round" opacity="0.95">
-          <line x1="0" y1={VH * 0.62} x2={VW} y2={VH * 0.42} />
-          <line x1={VW * 0.18} y1="0" x2={VW * 0.32} y2={VH} />
-          <line x1={VW * 0.78} y1="0" x2={VW * 0.62} y2={VH} />
-          <line x1="0" y1={VH * 0.78} x2={VW * 0.85} y2={VH * 0.92} />
-        </g>
-
-        <circle cx={userPos.x} cy={userPos.y} r="80" fill="url(#user-glow-d)" />
-        <circle cx={userPos.x} cy={userPos.y} r="11" fill="#1e5fe0" filter="url(#pin-glow)" />
-        <circle cx={userPos.x} cy={userPos.y} r="5" fill="#ffffff" />
-
-        {[1, 3, 5].map(km => (
-          <g key={km}>
-            <circle cx={userPos.x} cy={userPos.y} r={km * scale} fill="none" stroke="#94a3b8" strokeDasharray="2 5" strokeWidth="1" opacity="0.55" />
-            <text x={userPos.x + km * scale - 4} y={userPos.y - 4} fontSize="10" fill="#64748b" textAnchor="end" fontFamily="JetBrains Mono, monospace" fontWeight="500">{km}km</text>
-          </g>
+    <div style={{ position: 'relative', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      {/* Map div is ALWAYS rendered so mapRef.current is non-null when useEffect fires.
+          The empty-state overlay appears on top when there are no stations to show. */}
+      <div ref={mapRef} style={{ height: mapHeight || '520px', width: '100%' }} />
+      {visible.length === 0 && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'var(--surface)', color: 'var(--text-3)',
+          fontSize: 14,
+        }}>
+          No stations with price data to map.
+        </div>
+      )}
+      {/* Legend */}
+      <div style={{
+        position: 'absolute', bottom: 24, left: 16, zIndex: 1000,
+        background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
+        borderRadius: 0, padding: '8px 12px',
+        border: '1px solid rgba(0,0,0,0.08)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+        display: 'flex', gap: 12, alignItems: 'center',
+        fontFamily: "'Hanken Grotesk', sans-serif", fontSize: 11,
+      }}>
+        {[['#2e7d4f','Cheapest'],['#b4530a','Mid'],['#b91c1c','Expensive']].map(([c,l]) => (
+          <span key={l} style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <span style={{ display:'inline-block', width:10, height:10, borderRadius:'50%', background:c }} />
+            {l}
+          </span>
         ))}
-
-        {visible.map((s) => {
-          const { x, y } = project(s.lat, s.lng);
-          const sPrice = priceFor(s);
-          const isCheap = sPrice === cheapestPrice;
-          const isActive = activeId === s.id;
-          const fill = isCheap ? '#16a085' : '#ffffff';
-          const stroke = isCheap ? '#0f7d68' : '#64748b';
-          return (
-            <g key={s.id} style={{ cursor: 'pointer' }}
-               onClick={() => { setActiveId(s.id); onSelect && onSelect(s); }}>
-              <line x1={userPos.x} y1={userPos.y} x2={x} y2={y}
-                    stroke={isCheap ? '#16a085' : '#64748b'} strokeOpacity={isActive ? 0.35 : 0.12} strokeWidth="1" strokeDasharray="2 3" />
-              <circle cx={x} cy={y} r={isActive ? 11 : 8} fill={fill} stroke={stroke} strokeWidth="2.5"
-                      className={isCheap && !isActive ? 'pulse-pin' : ''}
-                      style={{ transformBox: 'fill-box', transformOrigin: 'center' }} />
-              {(isActive || isCheap) && (
-                <g>
-                  <rect x={x + 12} y={y - 18} rx="5" ry="5" width="58" height="24" fill={isCheap ? '#16a085' : '#0f172a'} />
-                  <text x={x + 41} y={y - 1} fontSize="12" fontWeight="600" fontFamily="JetBrains Mono, monospace"
-                        fill="#ffffff" textAnchor="middle">{sPrice.toFixed(1)}</text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        <g fontFamily="JetBrains Mono, monospace" fill="#94a3b8" opacity="0.85">
-          <text x="20" y="32" fontSize="10" fontWeight="500" letterSpacing="0.1em">N ↑</text>
-          <text x={VW - 20} y={VH - 16} fontSize="10" fontWeight="500" textAnchor="end" letterSpacing="0.1em">FUELMATE · LIVE</text>
-        </g>
-      </svg>
+      </div>
     </div>
   );
 };
 
-const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal }) => {
-  // Helper: effective price = trusted user report (if any) > official
+
+const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode, sort, onSort, reportsByStation, confirmedSet, onConfirmReport, onOpenReportModal, userLat, userLng }) => {
+  const [mobileView, setMobileView] = useState('map');
+  const [selectedId, setSelectedId] = useState(null);
+  const cardRefs = useRef({});
+
+  const handleMapSelect = useCallback((station) => {
+    setSelectedId(station.id);
+    onSelectStation && onSelectStation(station);
+    setTimeout(() => {
+      const el = cardRefs.current[station.id];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }, [onSelectStation]);
+
   const effectivePriceFor = (station) => {
     const reports = reportsByStation[station.id] || [];
     const fuelReports = reports
@@ -1383,57 +1498,275 @@ const StationList = ({ stations, fuelType, onSelectStation, viewMode, onViewMode
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stations, fuelType, sort, reportsByStation, confirmedSet]);
 
-  const cheapestPrice = sorted[0] ? effectivePriceFor(sorted[0]) : null;
+  // True minimum across all stations — independent of sort order, so "Closest"
+  // sort can never mislabel the nearest station as the cheapest.
+  const cheapestPrice = (() => {
+    const ps = stations.map(effectivePriceFor).filter((p) => p != null);
+    return ps.length ? Math.min(...ps) : null;
+  })();
+
+  const cardList = (
+    <div className="space-y-2.5">
+      {sorted.some(isDailyFeed) && (
+        <div className="flex items-start gap-2 px-3 py-2.5 text-tiny" style={{ background: 'var(--accent-glow)', border: '1px solid var(--border)', color: 'var(--text-2)' }}>
+          <Info size={13} style={{ marginTop: 1, flexShrink: 0 }} />
+          <span>Victorian prices are published once daily by Service Victoria, so they can be up to 24 hours old.</span>
+        </div>
+      )}
+      {sorted.map((s, i) => (
+        <div key={s.id} ref={el => { cardRefs.current[s.id] = el; }}
+             className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
+          <StationCard
+            station={s}
+            fuelType={fuelType}
+            rank={i}
+            cheapestPrice={cheapestPrice}
+            isClosest={sort === 'distance' && i === 0}
+            onSelect={(st) => {
+              setSelectedId(st.id);
+              onSelectStation && onSelectStation(st);
+              if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+                setMobileView('map');
+              }
+            }}
+            reports={reportsByStation[s.id] || []}
+            confirmedSet={confirmedSet}
+            onConfirmReport={onConfirmReport}
+            onOpenReportModal={onOpenReportModal}
+            isSelected={selectedId === s.id}
+          />
+        </div>
+      ))}
+      {sorted.length === 0 && (
+        <div className="text-center py-12" style={{ color: 'var(--text-4)' }}>No stations carrying this fuel type within range.</div>
+      )}
+    </div>
+  );
+
+  const mapEl = (h) => (
+    <StationMap
+      stations={sorted}
+      fuelType={fuelType}
+      cheapestPrice={cheapestPrice}
+      onSelect={handleMapSelect}
+      effectivePriceFor={effectivePriceFor}
+      userLat={userLat}
+      userLng={userLng}
+      mapHeight={h}
+      selectedId={selectedId}
+    />
+  );
+
+  // Sort controls used in both layouts
+  const sortControls = (
+    <div className="flex items-center gap-2">
+      <Toggle value={sort} onChange={onSort} options={[
+        { key: 'price', label: 'Cheapest', icon: TrendingDown },
+        { key: 'distance', label: 'Closest', icon: Navigation },
+      ]} />
+    </div>
+  );
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <Toggle value={sort} onChange={onSort} options={[
-          { key: 'price', label: 'Cheapest', icon: TrendingDown },
-          { key: 'distance', label: 'Closest', icon: Navigation },
-        ]} />
-        <Toggle value={viewMode} onChange={onViewMode} options={[
-          { key: 'list', label: 'List', icon: List },
-          { key: 'map',  label: 'Map',  icon: MapIcon },
-        ]} />
+    <>
+      {/* ── Desktop: map left (sticky) + scrollable list right ───────────── */}
+      <div className="hidden md:flex gap-4" style={{ alignItems: 'flex-start' }}>
+        {/* Sticky map column */}
+        <div style={{ flex: '1 1 60%', position: 'sticky', top: 72, zIndex: 1 }}>
+          {mapEl('calc(100vh - 96px)')}
+        </div>
+        {/* Scrollable list column */}
+        <div style={{ flex: '0 0 38%', minWidth: 0 }}>
+          <div className="flex items-center justify-between mb-3">
+            {sortControls}
+          </div>
+          {cardList}
+        </div>
       </div>
 
-      {viewMode === 'list' ? (
-        <div className="space-y-2.5">
-          {sorted.map((s, i) => (
-            <div key={s.id} className="fade-up" style={{ animationDelay: `${Math.min(i * 24, 360)}ms` }}>
-              <StationCard
-                station={s}
-                fuelType={fuelType}
-                rank={i}
-                cheapestPrice={cheapestPrice}
-                onSelect={onSelectStation}
-                reports={reportsByStation[s.id] || []}
-                confirmedSet={confirmedSet}
-                onConfirmReport={onConfirmReport}
-                onOpenReportModal={onOpenReportModal}
-              />
+      {/* ── Mobile: map on top, list below ────────────────────────────────── */}
+      <div className="md:hidden space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          {sortControls}
+          <Toggle value={mobileView} onChange={setMobileView} options={[
+            { key: 'map',  label: 'Map',  icon: MapIcon },
+            { key: 'list', label: 'List', icon: List },
+          ]} />
+        </div>
+        {mobileView === 'map' ? (
+          <>
+            {mapEl('360px')}
+            <div className="space-y-2.5 mt-3">
+              {sorted.slice(0,5).map((s, i) => (
+                <div key={s.id} ref={el => { cardRefs.current[s.id] = el; }}>
+                  <StationCard
+                    station={s}
+                    fuelType={fuelType}
+                    rank={i}
+                    cheapestPrice={cheapestPrice}
+                    isClosest={sort === 'distance' && i === 0}
+                    onSelect={(st) => { setSelectedId(st.id); onSelectStation && onSelectStation(st); }}
+                    reports={reportsByStation[s.id] || []}
+                    confirmedSet={confirmedSet}
+                    onConfirmReport={onConfirmReport}
+                    onOpenReportModal={onOpenReportModal}
+                    isSelected={selectedId === s.id}
+                  />
+                </div>
+              ))}
             </div>
-          ))}
-          {sorted.length === 0 && (
-            <div className="text-center py-12" style={{ color: 'var(--text-4)' }}>No stations carrying this fuel type within range.</div>
+          </>
+        ) : cardList}
+      </div>
+    </>
+  );
+};
+
+// ── Price-cycle history (localStorage — persists across sessions) ────────────
+// We log the daily cheapest price per state+fuel. Over repeat visits this lets
+// Motavo show where today's price sits within its recent range — i.e. whether
+// you're near the bottom of the cycle (fill up) or just after a hike (wait).
+// The signal sharpens the more the app is used, which is the whole point.
+const CYCLE_HISTORY_DAYS = 45;
+
+function cycleHistoryKey(state, fuelType) {
+  return `fm:cycle:${state || 'NA'}:${fuelType}`;
+}
+function readCycleHistory(state, fuelType) {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(cycleHistoryKey(state, fuelType));
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function recordCyclePoint(state, fuelType, cheapest) {
+  if (typeof window === 'undefined' || cheapest == null) {
+    return readCycleHistory(state, fuelType);
+  }
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let hist = readCycleHistory(state, fuelType);
+  const existing = hist.find(h => h.d === today);
+  if (existing) existing.p = Math.min(existing.p, cheapest); // keep day's lowest
+  else hist.push({ d: today, p: cheapest });
+  hist = hist.slice(-CYCLE_HISTORY_DAYS);
+  try { localStorage.setItem(cycleHistoryKey(state, fuelType), JSON.stringify(hist)); } catch {}
+  return hist;
+}
+
+/**
+ * CycleSignal — "is now a good time to fill up?" verdict.
+ * Day one: uses the live price spread as a soft signal.
+ * After a few days of repeat visits: compares today's cheapest against the
+ * recent low/high to place you in the local price cycle.
+ */
+const CycleSignal = ({ stations, fuelType, state, cycleLabel }) => {
+  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
+  const cheapest = prices.length ? Math.min(...prices) : null;
+  const avg = prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null;
+
+  // Per-device fallback history (localStorage)
+  const [localHistory, setLocalHistory] = useState(() => readCycleHistory(state, fuelType));
+  useEffect(() => {
+    if (cheapest == null) return;
+    setLocalHistory(recordCyclePoint(state, fuelType, cheapest));
+  }, [state, fuelType, cheapest]);
+
+  // Authoritative server history (logged daily by the cron, regardless of visits)
+  const [serverHistory, setServerHistory] = useState(null);
+  useEffect(() => {
+    if (!state) return;
+    let cancelled = false;
+    fetch(`/api/cycle/${String(state).toLowerCase()}?fuel=${fuelType}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled && Array.isArray(d?.history)) setServerHistory(d.history); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [state, fuelType]);
+
+  if (cheapest == null) return null;
+
+  // Prefer the server's daily log once it has a few days; else use local.
+  const history = (serverHistory && serverHistory.length >= 4) ? serverHistory : localHistory;
+  const points = history.map(h => h.p).filter(p => p != null && p < 400);
+  const daysTracked = history.length;
+  const low = points.length ? Math.min(...points) : cheapest;
+  const high = points.length ? Math.max(...points) : cheapest;
+  const span = high - low;
+  const hasSignal = daysTracked >= 4 && span >= 3;
+  const position = hasSignal ? Math.max(0, Math.min(1, (cheapest - low) / span)) : null;
+
+  // Short-term outlook from the recent trend — heuristic, honestly framed.
+  let outlook = null;
+  if (hasSignal && points.length >= 3) {
+    const recent = points.slice(-Math.min(7, points.length));
+    const slope = (recent[recent.length - 1] - recent[0]) / (recent.length - 1); // c/L per day
+    if (position <= 0.25) outlook = 'Outlook: near the bottom of the cycle — prices usually climb within a few days, so filling up now is the smart move.';
+    else if (position >= 0.78) outlook = 'Outlook: around the peak — prices typically ease over the coming week.';
+    else if (slope > 0.8) outlook = 'Outlook: trending up day-on-day — fill up sooner rather than later.';
+    else if (slope < -0.8) outlook = 'Outlook: still easing — you may save by waiting a day or two if your tank allows.';
+    else outlook = 'Outlook: holding fairly steady over recent days.';
+  }
+
+  let verdict;
+  if (hasSignal) {
+    if (position <= 0.20) {
+      verdict = { Icon: TrendingDown, color: 'var(--success)', bg: 'var(--green-soft)',
+        title: 'Great time to fill up',
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby is near the bottom of its recent ${daysTracked}-day range (${low.toFixed(1)}–${high.toFixed(1)}¢).` };
+    } else if (position <= 0.55) {
+      verdict = { Icon: TrendingDown, color: 'var(--success)', bg: 'var(--green-soft)',
+        title: 'Decent time to fill up',
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby sits in the lower half of its recent ${daysTracked}-day range (${low.toFixed(1)}–${high.toFixed(1)}¢).` };
+    } else if (position <= 0.80) {
+      verdict = { Icon: AlertCircle, color: 'var(--warn)', bg: 'rgba(234,88,12,0.08)',
+        title: 'Prices still on the high side',
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby is above the middle of its recent ${daysTracked}-day range (${low.toFixed(1)}–${high.toFixed(1)}¢) — wait a few days if your tank allows.` };
+    } else {
+      verdict = { Icon: TrendingUp, color: 'var(--danger)', bg: 'rgba(220,38,38,0.08)',
+        title: 'Prices recently spiked',
+        detail: `At ${cheapest.toFixed(1)}¢, the cheapest nearby is near its ${daysTracked}-day high (${low.toFixed(1)}–${high.toFixed(1)}¢) — hold off filling up if you can.` };
+    }
+  } else {
+    // Honest first-visit fallback — no false precision without history.
+    const saving = avg != null ? avg - cheapest : 0;
+    verdict = { Icon: Gauge, color: 'var(--accent)', bg: 'var(--blue-soft)',
+      title: 'Learning your local cycle',
+      detail: saving > 2
+        ? `Cheapest right now is ${cheapest.toFixed(1)}¢ — about ${saving.toFixed(0)}¢/L under the local average. Check back over a few days and Motavo will flag when you're near the bottom of the ${cycleLabel || 'local'} cycle.`
+        : `Cheapest right now is ${cheapest.toFixed(1)}¢. Prices look tightly clustered. Check back over a few days and Motavo will flag the bottom of the ${cycleLabel || 'local'} cycle.` };
+  }
+
+  const { Icon } = verdict;
+  return (
+    <div className="surface-card" style={{ padding: '14px 16px', borderRadius: 0, borderLeft: `3px solid ${verdict.color}` }}>
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 flex items-center justify-center" style={{ width: 38, height: 38, borderRadius: 0, background: verdict.bg, color: verdict.color }}>
+          <Icon size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-display font-semibold" style={{ color: verdict.color, fontSize: '0.98rem' }}>{verdict.title}</div>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)', lineHeight: 1.5 }}>{verdict.detail}</p>
+          {outlook && (
+            <p className="text-sm mt-1.5" style={{ color: verdict.color, fontWeight: 600, lineHeight: 1.45 }}>{outlook}</p>
+          )}
+          {hasSignal && (
+            <div className="mt-2.5">
+              <div style={{ position: 'relative', height: 6, borderRadius: 0, background: 'linear-gradient(90deg, var(--success) 0%, var(--warn) 65%, var(--danger) 100%)', opacity: 0.85 }}>
+                <div style={{ position: 'absolute', top: '50%', left: `${position * 100}%`, transform: 'translate(-50%,-50%)', width: 12, height: 12, borderRadius: 0, background: '#fff', border: `2px solid ${verdict.color}`, boxShadow: '0 1px 3px rgba(15,23,42,0.25)' }} />
+              </div>
+              <div className="flex justify-between mt-1 text-tiny" style={{ color: 'var(--text-4)' }}>
+                <span>Cycle low</span><span>Cycle high</span>
+              </div>
+            </div>
           )}
         </div>
-      ) : (
-        <StationMap
-          stations={sorted}
-          fuelType={fuelType}
-          cheapestPrice={cheapestPrice}
-          onSelect={onSelectStation}
-          effectivePriceFor={effectivePriceFor}
-        />
-      )}
+      </div>
     </div>
   );
 };
 
 const PriceStats = ({ stations, fuelType }) => {
-  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null);
+  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
   if (prices.length === 0) return null;
   const cheapest = Math.min(...prices);
   const highest = Math.max(...prices);
@@ -1441,7 +1774,7 @@ const PriceStats = ({ stations, fuelType }) => {
   const range = highest - cheapest;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden" style={{ background: 'var(--border)', borderRadius: 12, border: '1px solid var(--border)' }}>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden" style={{ background: 'var(--border)', borderRadius: 0, border: '1px solid var(--border)' }}>
       {[
         { label: 'Cheapest', value: cheapest, tone: 'cheap', icon: TrendingDown },
         { label: 'Average',  value: avg,      tone: 'default', icon: null },
@@ -1466,11 +1799,27 @@ const PriceStats = ({ stations, fuelType }) => {
 /**
  * SavingsBanner — converts cents-per-litre price differences into dollars
  * saved per tank, which is how drivers actually think about decisions.
- * Hidden if the savings are under $1 (not worth driving for) or there's
- * no meaningful spread.
+ * Interactive: tap your tank size once and it's remembered (localStorage)
+ * so every future visit speaks in your car's numbers. Hidden if the savings
+ * are under $1 (not worth driving for) or there's no meaningful spread.
  */
-const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
-  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null);
+const TANK_SIZES = [40, 50, 60, 80];
+const TANK_KEY = 'fm:tankSize';
+
+const SavingsBanner = ({ stations, fuelType }) => {
+  const [tankSize, setTankSize] = useState(50);
+  useEffect(() => {
+    try {
+      const saved = parseInt(localStorage.getItem(TANK_KEY) || '', 10);
+      if (TANK_SIZES.includes(saved)) setTankSize(saved);
+    } catch {}
+  }, []);
+  const pickTank = (size) => {
+    setTankSize(size);
+    try { localStorage.setItem(TANK_KEY, String(size)); } catch {}
+  };
+
+  const prices = stations.map(s => s.prices[fuelType]).filter(p => p != null && p < 400);
   if (prices.length < 3) return null;
 
   const cheapest = Math.min(...prices);
@@ -1488,41 +1837,94 @@ const SavingsBanner = ({ stations, fuelType, tankSize = 50 }) => {
       style={{
         background: 'var(--green-soft)',
         border: '1px solid var(--green-light)',
-        borderRadius: 12,
+        borderRadius: 0,
       }}
     >
       <div
         className="shrink-0 inline-flex items-center justify-center"
-        style={{ width: 36, height: 36, background: 'var(--success)', borderRadius: 10 }}
+        style={{ width: 36, height: 36, background: 'var(--success)', borderRadius: 0 }}
       >
         <TrendingDown size={17} color="#ffffff" strokeWidth={2.4} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm md:text-base leading-snug">
           <span className="font-semibold" style={{ color: 'var(--green-dark)' }}>
-            Save ~${dollarsSaved.toFixed(0)} per tank
+            Save ~${dollarsSaved.toFixed(2)} per tank
           </span>
           <span style={{ color: 'var(--text-2)' }}> at the cheapest vs. nearby average</span>
         </div>
         <div className="text-tiny mt-0.5" style={{ color: 'var(--text-3)' }}>
-          That's ~${yearly.toFixed(0)} a year if you fill weekly · based on a {tankSize}L tank
+          That's ~${yearly.toFixed(0)} a year if you fill weekly
+        </div>
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <span className="font-mono text-micro uppercase track-wide" style={{ color: 'var(--text-4)' }}>My tank:</span>
+          {TANK_SIZES.map(size => (
+            <button key={size} type="button" onClick={() => pickTank(size)}
+                    className="font-mono text-tiny font-semibold px-2 py-0.5 transition-colors"
+                    style={{
+                      background: size === tankSize ? 'var(--success)' : 'transparent',
+                      color: size === tankSize ? '#ffffff' : 'var(--text-3)',
+                      border: `1px solid ${size === tankSize ? 'var(--success)' : 'var(--border)'}`,
+                      borderRadius: 0, cursor: 'pointer',
+                    }}>
+            {size}L
+            </button>
+          ))}
         </div>
       </div>
     </div>
   );
 };
 
+/**
+ * RoutePromo — slim banner surfacing the route planner from the results view,
+ * where people are already in fuel-buying mode. Kept quiet relative to the
+ * data components around it: one line, tap target the full row.
+ */
+/**
+ * StationSkeleton — shimmer placeholder rows shown while live prices load.
+ * The gap between picking a location and data arriving (seconds on a cold
+ * state fetch) previously rendered nothing at all, which reads as broken.
+ */
+const StationSkeleton = ({ rows = 4 }) => (
+  <div className="space-y-2" aria-hidden="true">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className="flex items-center gap-3 px-3.5 py-4"
+           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="skeleton shrink-0" style={{ width: 36, height: 36 }} />
+        <div className="flex-1 min-w-0">
+          <div className="skeleton" style={{ height: 13, width: `${55 - i * 7}%`, marginBottom: 8 }} />
+          <div className="skeleton" style={{ height: 10, width: `${35 - i * 4}%` }} />
+        </div>
+        <div className="skeleton shrink-0" style={{ height: 26, width: 64 }} />
+      </div>
+    ))}
+  </div>
+);
+
+const RoutePromo = ({ onNav }) => (
+  <button type="button" onClick={() => onNav({ name: 'route' })}
+          className="hover-raise w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '3px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
+    <Navigation size={15} className="shrink-0" style={{ color: 'var(--accent)' }} />
+    <span className="flex-1 min-w-0 text-sm" style={{ color: 'var(--text-2)' }}>
+      <span className="font-semibold" style={{ color: 'var(--text)' }}>Heading somewhere?</span> Rank every station along your route, not just nearby.
+    </span>
+    <ChevronRight size={15} className="shrink-0" style={{ color: 'var(--text-4)' }} />
+  </button>
+);
+
 const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasError }) => (
-  <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16 }}>
+  <div className="relative overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
     <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
-         style={{ background: 'radial-gradient(circle at 80% 0%, rgba(22,160,133,0.10), transparent 50%)' }} />
+         style={{ background: 'radial-gradient(circle at 80% 0%, rgba(15, 122, 82,0.08), transparent 50%)' }} />
     <div className="p-6 md:p-7 relative">
       <div className="flex items-center gap-2 mb-5">
-        <div className="rounded-full p-2" style={{ background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.25)' }}>
-          <Target size={16} style={{ color: 'var(--success)' }} />
+        <div className="p-2" style={{ background: 'rgba(15, 122, 82,0.10)', border: '1px solid rgba(15, 122, 82,0.25)' }}>
+          <Target size={16} style={{ color: 'var(--accent)' }} />
         </div>
-        <Pill tone="accent">
-          <span className="w-1.5 h-1.5 rounded-full pulse-glow" style={{ background: 'var(--success)' }} /> Live data
+        <Pill tone="brand">
+          <span style={{ width: 6, height: 6, background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} /> Live data
         </Pill>
       </div>
 
@@ -1546,7 +1948,7 @@ const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasErr
         className="w-full px-5 py-3 font-semibold inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
         style={{
           background: 'transparent', color: 'var(--text)', fontSize: 14,
-          border: '1px solid var(--border-strong)', borderRadius: 10,
+          border: '1px solid var(--border-strong)', borderRadius: 0,
         }}
       >
         {isLocating ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={15} />}
@@ -1559,7 +1961,7 @@ const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasErr
           style={{
             background: 'rgba(234,88,12,0.08)',
             border: '1px solid rgba(234,88,12,0.25)',
-            borderRadius: 8,
+            borderRadius: 0,
             color: 'var(--text-2)',
           }}
           role="alert"
@@ -1587,7 +1989,7 @@ const LocationPrompt = ({ onLocate, onSample, onSearchSelect, isLocating, hasErr
           <button
             key={s.key} type="button" onClick={() => onSample(s.key, s.name)}
             className="hover-raise inline-flex items-center gap-2 px-3 py-1.5 text-sm transition-colors"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 999 }}
+            style={{ background: 'var(--surface-2)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 0 }}
           >
             {s.name}
             <span className="font-mono text-tiny" style={{ color: 'var(--text-4)' }}>{s.state}</span>
@@ -1635,23 +2037,7 @@ function searchLocal(q) {
       state: c.state,
     }));
 
-  const suburbMatches = SUBURBS
-    .filter(s =>
-      s.name.toLowerCase().includes(lower) ||
-      s.postcode.startsWith(lower)
-    )
-    .map(s => ({
-      type: 'suburb',
-      id: `sub-${s.slug}`,
-      label: s.name,
-      sublabel: `${s.state} ${s.postcode}`,
-      slug: s.slug,
-      lat: s.center.lat,
-      lng: s.center.lng,
-      state: s.state,
-    }));
-
-  // Score by relevance: prefix match > contains; cities first
+  // Score by relevance: prefix match > contains
   const score = (item) => {
     const labelLower = item.label.toLowerCase();
     if (labelLower.startsWith(lower)) return 0;
@@ -1659,7 +2045,7 @@ function searchLocal(q) {
     return 2;
   };
 
-  return [...cityMatches, ...suburbMatches]
+  return cityMatches
     .sort((a, b) => score(a) - score(b))
     .slice(0, 6);
 }
@@ -1806,9 +2192,9 @@ const AddressSearch = ({
   };
 
   const sizes = {
-    default: { padX: 16, padY: 13, radius: 12, fontSize: 15, iconSize: 16, iconLeft: 16 },
-    large:   { padX: 20, padY: 18, radius: 14, fontSize: 17, iconSize: 18, iconLeft: 20 },
-    compact: { padX: 12, padY: 9,  radius: 10, fontSize: 14, iconSize: 14, iconLeft: 12 },
+    default: { padX: 16, padY: 13, radius: 0, fontSize: 15, iconSize: 16, iconLeft: 16 },
+    large:   { padX: 20, padY: 18, radius: 0, fontSize: 17, iconSize: 18, iconLeft: 20 },
+    compact: { padX: 12, padY: 9,  radius: 0, fontSize: 14, iconSize: 14, iconLeft: 12 },
   }[variant] || { padX: 16, padY: 13, radius: 12, fontSize: 15, iconSize: 16, iconLeft: 16 };
 
   // Group sorted results
@@ -1821,10 +2207,8 @@ const AddressSearch = ({
     }
     const groups = [];
     const cities = results.filter(r => r.type === 'city');
-    const suburbs = results.filter(r => r.type === 'suburb');
     const addresses = results.filter(r => r.type === 'address');
     if (cities.length) groups.push({ title: 'Cities', items: cities });
-    if (suburbs.length) groups.push({ title: 'Suburbs', items: suburbs });
     if (addresses.length) groups.push({ title: 'Addresses', items: addresses });
     return groups;
   }, [results, query, popularSuggestions]);
@@ -1870,7 +2254,7 @@ const AddressSearch = ({
             borderRadius: sizes.radius,
             outline: 'none',
             transition: 'border-color 200ms, box-shadow 200ms',
-            boxShadow: focused ? '0 0 0 3px rgba(30,95,224,0.12)' : 'none',
+            boxShadow: focused ? '0 0 0 3px rgba(15, 122, 82,0.12)' : 'none',
           }}
           aria-label="Search location"
           aria-expanded={showDropdown}
@@ -1901,7 +2285,7 @@ const AddressSearch = ({
               transform: 'translateY(-50%)',
               color: 'var(--text-3)',
               padding: 4,
-              borderRadius: 6,
+              borderRadius: 0,
             }}
             aria-label="Clear"
           >
@@ -1917,7 +2301,7 @@ const AddressSearch = ({
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--border-strong)',
-            borderRadius: 12,
+            borderRadius: 0,
             boxShadow: '0 12px 32px -8px rgba(15,23,42,0.18), 0 4px 12px -4px rgba(15,23,42,0.10)',
             maxHeight: '60vh',
             overflowY: 'auto',
@@ -1978,7 +2362,7 @@ const AddressSearch = ({
                           width: 32,
                           height: 32,
                           background: isHighlight ? 'var(--bg-2)' : 'var(--surface-2)',
-                          borderRadius: 8,
+                          borderRadius: 0,
                           color: isHighlight ? 'var(--accent)' : 'var(--text-3)',
                           transition: 'all 150ms',
                         }}
@@ -2020,15 +2404,15 @@ const AddressSearch = ({
               style={{ borderTop: '1px solid var(--border)', color: 'var(--text-4)', background: 'var(--bg-2)' }}
             >
               <span className="inline-flex items-center gap-1.5">
-                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 4 }}>↑↓</kbd>
+                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 0 }}>↑↓</kbd>
                 navigate
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 4 }}>↵</kbd>
+                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 0 }}>↵</kbd>
                 select
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 4 }}>esc</kbd>
+                <kbd className="font-mono px-1.5 py-0.5" style={{ background: 'var(--surface-3)', borderRadius: 0 }}>esc</kbd>
                 close
               </span>
             </div>
@@ -2166,7 +2550,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--border-strong)',
-          borderRadius: window.innerWidth < 768 ? '16px 16px 0 0' : '16px',
+          borderRadius: 0,
           boxShadow: '0 24px 64px -16px rgba(15,23,42,0.22), 0 8px 24px -8px rgba(15,23,42,0.10)',
           maxHeight: '92vh',
           overflowY: 'auto',
@@ -2175,7 +2559,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
         {submitted ? (
           <div className="p-8 text-center">
             <div className="inline-flex items-center justify-center mb-4"
-                 style={{ width: 56, height: 56, background: 'rgba(22,160,133,0.10)', border: '1px solid rgba(22,160,133,0.30)', borderRadius: 999 }}>
+                 style={{ width: 56, height: 56, background: 'rgba(46,125,79,0.10)', border: '1px solid rgba(46,125,79,0.30)', borderRadius: 0 }}>
               <CheckCircle2 size={26} style={{ color: 'var(--success)' }} />
             </div>
             <h3 className="font-display font-semibold text-2xl mb-2">Thanks for the update.</h3>
@@ -2214,7 +2598,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                     type="button"
                     onClick={() => setPriceStr(p => Math.max(0, (parseFloat(p || '0') - 0.1)).toFixed(1))}
                     className="shrink-0 flex items-center justify-center"
-                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-2)' }}
+                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 0, color: 'var(--text-2)' }}
                     aria-label="Decrease"
                   >
                     <span style={{ fontSize: 20, fontWeight: 600 }}>−</span>
@@ -2236,7 +2620,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                         background: 'var(--bg-2)',
                         color: 'var(--text)',
                         border: `1px solid ${isUnusual ? 'var(--warn)' : 'var(--border)'}`,
-                        borderRadius: 10,
+                        borderRadius: 0,
                         outline: 'none',
                         transition: 'border-color 200ms',
                         letterSpacing: '-0.02em',
@@ -2252,7 +2636,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                     type="button"
                     onClick={() => setPriceStr(p => ((parseFloat(p || '0') + 0.1)).toFixed(1))}
                     className="shrink-0 flex items-center justify-center"
-                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-2)' }}
+                    style={{ width: 44, height: 56, background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 0, color: 'var(--text-2)' }}
                     aria-label="Increase"
                   >
                     <span style={{ fontSize: 20, fontWeight: 600 }}>+</span>
@@ -2272,7 +2656,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
 
                 {isRejected && (
                   <div className="mt-3 flex items-start gap-2 p-3 text-xs"
-                       style={{ background: 'rgba(255,69,105,0.08)', border: '1px solid rgba(255,69,105,0.25)', borderRadius: 8, color: 'var(--text-2)' }}>
+                       style={{ background: 'rgba(255,69,105,0.08)', border: '1px solid rgba(255,69,105,0.25)', borderRadius: 0, color: 'var(--text-2)' }}>
                     <AlertCircle size={13} style={{ color: 'var(--danger)' }} className="mt-0.5 shrink-0" />
                     <span>That's more than {REPORT_REJECT_THRESHOLD}¢ from the official price. Double-check the bowser before submitting.</span>
                   </div>
@@ -2280,7 +2664,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
 
                 {isUnusual && !isRejected && (
                   <div className="mt-3 flex items-start gap-2 p-3 text-xs"
-                       style={{ background: 'rgba(255,107,61,0.08)', border: '1px solid rgba(255,107,61,0.20)', borderRadius: 8, color: 'var(--text-2)' }}>
+                       style={{ background: 'rgba(255,107,61,0.08)', border: '1px solid rgba(255,107,61,0.20)', borderRadius: 0, color: 'var(--text-2)' }}>
                     <AlertCircle size={13} style={{ color: 'var(--warn)' }} className="mt-0.5 shrink-0" />
                     <span>That's a fair bit off the official price — sure you read the bowser correctly?</span>
                   </div>
@@ -2303,7 +2687,7 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                     background: 'var(--bg-2)',
                     color: 'var(--text)',
                     border: '1px solid var(--border)',
-                    borderRadius: 10,
+                    borderRadius: 0,
                     outline: 'none',
                   }}
                 />
@@ -2320,8 +2704,8 @@ const PriceReportModal = ({ station, defaultFuel, isOpen, onClose, onSubmit }) =
                   background: 'var(--success)',
                   color: '#ffffff',
                   fontSize: 15,
-                  borderRadius: 10,
-                  boxShadow: canSubmit ? '0 0 0 1px rgba(22,160,133,0.30), 0 8px 24px -8px rgba(22,160,133,0.40)' : 'none',
+                  borderRadius: 0,
+                  boxShadow: canSubmit ? '0 0 0 1px rgba(46,125,79,0.30), 0 8px 24px -8px rgba(46,125,79,0.40)' : 'none',
                 }}
               >
                 <CheckCircle2 size={16} /> Submit price update
@@ -2346,9 +2730,9 @@ const DriverReportRow = ({ report, fuelType, hasConfirmed, onConfirm }) => {
     <div
       className="mt-2 flex items-center gap-2 px-2.5 py-2 fade-up"
       style={{
-        background: trusted ? 'rgba(22,160,133,0.04)' : 'var(--bg-2)',
-        border: `1px solid ${trusted ? 'rgba(22,160,133,0.20)' : 'var(--border)'}`,
-        borderRadius: 8,
+        background: trusted ? 'rgba(46,125,79,0.04)' : 'var(--bg-2)',
+        border: `1px solid ${trusted ? 'rgba(46,125,79,0.20)' : 'var(--border)'}`,
+        borderRadius: 0,
       }}
     >
       <Users size={11} style={{ color: trusted ? 'var(--success)' : 'var(--text-3)' }} className="shrink-0" />
@@ -2372,10 +2756,10 @@ const DriverReportRow = ({ report, fuelType, hasConfirmed, onConfirm }) => {
         disabled={hasConfirmed}
         className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-tiny font-medium transition-colors"
         style={{
-          background: hasConfirmed ? 'rgba(22,160,133,0.10)' : 'var(--surface-3)',
+          background: hasConfirmed ? 'rgba(46,125,79,0.10)' : 'var(--surface-3)',
           color: hasConfirmed ? 'var(--success)' : 'var(--text-2)',
-          border: `1px solid ${hasConfirmed ? 'rgba(22,160,133,0.30)' : 'var(--border-strong)'}`,
-          borderRadius: 6,
+          border: `1px solid ${hasConfirmed ? 'rgba(46,125,79,0.30)' : 'var(--border-strong)'}`,
+          borderRadius: 0,
           cursor: hasConfirmed ? 'default' : 'pointer',
         }}
       >
@@ -2396,8 +2780,8 @@ const Toast = ({ message, visible }) => {
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--success)',
-        borderRadius: 10,
-        boxShadow: '0 16px 40px -12px rgba(15,23,42,0.18), 0 0 0 3px rgba(22,160,133,0.10)',
+        borderRadius: 0,
+        boxShadow: '0 16px 40px -12px rgba(15,23,42,0.18), 0 0 0 3px rgba(46,125,79,0.10)',
         maxWidth: 'calc(100vw - 48px)',
         color: 'var(--text)',
       }}
@@ -2412,29 +2796,32 @@ const Toast = ({ message, visible }) => {
 const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, onToggleDark }) => {
   const [open, setOpen] = useState(false);
   const goto = (v) => { setOpen(false); onNav(v); };
-  const goHome = () => { setOpen(false); onHome ? onHome() : onNav({ name: 'home' }); };
+  const goHome = () => {
+    setOpen(false);
+    // On sub-routes (e.g. /fuel/[suburb], /status) a client view-switch leaves
+    // the URL unchanged, so navigate to the real homepage. On "/" just reset.
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.location.href = '/';
+      return;
+    }
+    onHome ? onHome() : onNav({ name: 'home' });
+  };
 
   return (
     <header className="sticky top-0 z-30 glass" style={{ borderBottom: '1px solid var(--border)' }}>
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center gap-4">
-        <button type="button" onClick={goHome} className="flex items-center shrink-0" aria-label="FuelMate home">
-          <FuelMateLogo markSize={30} wordSize={20} />
+        <button type="button" onClick={goHome} className="flex items-center shrink-0" aria-label="Motavo home" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+          <MotavoLogo markSize={30} wordSize={20} />
         </button>
 
         <nav className="hidden md:flex items-center gap-0.5 ml-4 flex-1">
-          {[
-            { label: 'Near me', view: { name: 'home' }, isHome: true },
-            { label: 'Cities', view: { name: 'cities' } },
-            { label: 'How cycles work', view: { name: 'editorial', slug: 'cycles' } },
-          ].map(item => (
-            <button
-              key={item.label} type="button" onClick={() => item.isHome ? goHome() : goto(item.view)}
-              className="px-3 py-1.5 text-sm font-medium transition-colors"
-              style={{ color: 'var(--text-2)', borderRadius: 8 }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}
-            >{item.label}</button>
-          ))}
+          <a
+            href="/ev"
+            className="px-3 py-1.5 text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-2)', borderRadius: 0, textDecoration: 'none' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}
+          >EV charging</a>
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
@@ -2446,7 +2833,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               background: 'var(--surface)',
               color: 'var(--text-2)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
@@ -2463,7 +2850,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               background: 'var(--surface)',
               color: 'var(--text-3)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
               minWidth: 240,
             }}
           >
@@ -2474,7 +2861,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               style={{
                 background: 'var(--surface-2)',
                 color: 'var(--text-4)',
-                borderRadius: 4,
+                borderRadius: 0,
                 border: '1px solid var(--border)',
               }}
             >
@@ -2489,7 +2876,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
               background: 'var(--surface)',
               color: 'var(--text-2)',
               border: '1px solid var(--border)',
-              borderRadius: 9,
+              borderRadius: 0,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-2)'; }}
@@ -2505,7 +2892,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={goHome}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label="Home"
           >
             <Home size={19} />
@@ -2514,7 +2901,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={onOpenSearch}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label="Search"
           >
             <Search size={19} />
@@ -2523,7 +2910,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={onToggleDark}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {darkMode ? <Sun size={19} /> : <Moon size={19} />}
@@ -2532,7 +2919,7 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
             type="button"
             onClick={() => setOpen(o => !o)}
             className="p-2"
-            style={{ color: 'var(--text)', borderRadius: 8 }}
+            style={{ color: 'var(--text)', borderRadius: 0 }}
             aria-label="Open menu"
           >
             {open ? <X size={20} /> : <Menu size={20} />}
@@ -2543,12 +2930,13 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
       {open && (
         <div className="md:hidden fade-up" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
           <div className="max-w-6xl mx-auto px-4 py-4">
+            <a href="/ev"
+               className="w-full text-left py-3 font-medium inline-flex items-center justify-between"
+               style={{ borderBottom: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none' }}>
+              EV charging <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+            </a>
             {[
-              { label: 'Near me', view: { name: 'home' } },
-              { label: 'Cities', view: { name: 'cities' } },
-              { label: 'How cycles work', view: { name: 'editorial', slug: 'cycles' } },
               { label: 'About', view: { name: 'about' } },
-              { label: 'Contact', view: { name: 'contact' } },
             ].map(item => (
               <button key={item.label} type="button" onClick={() => goto(item.view)}
                       className="w-full text-left py-3 font-medium inline-flex items-center justify-between"
@@ -2563,13 +2951,41 @@ const Header = ({ onNav, onHome, fuelType, onFuelType, onOpenSearch, darkMode, o
   );
 };
 
+const STATE_ORDER = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'ACT', 'TAS', 'NT'];
+
+/** Crawlable directory of every suburb page — the internal-linking backbone
+ *  for the /fuel/[suburb] SEO pages. Plain anchors, rendered in the
+ *  pre-rendered HTML, grouped by state. */
+const SuburbDirectory = () => (
+  <div className="pt-10 mt-2 mb-12" style={{ borderTop: '1px solid var(--border)' }}>
+    <div className="text-micro font-medium uppercase track-wide mb-5" style={{ color: 'var(--text-4)' }}>
+      Fuel prices by suburb
+    </div>
+    {STATE_ORDER.map(st => {
+      const subs = SUBURBS.filter(s => s.state === st);
+      if (!subs.length) return null;
+      return (
+        <div key={st} className="mb-4 text-sm" style={{ lineHeight: 2 }}>
+          <span className="track-wide" style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 600, marginRight: 10 }}>{st}</span>
+          {subs.map((s, i) => (
+            <span key={s.slug}>
+              <a href={`/fuel/${s.slug}`} className="ulink" style={{ color: 'var(--text-3)', textDecoration: 'none' }}>{s.name}</a>
+              {i < subs.length - 1 ? <span style={{ color: 'var(--text-4)' }}> · </span> : null}
+            </span>
+          ))}
+        </div>
+      );
+    })}
+  </div>
+);
+
 const Footer = ({ onNav }) => (
   <footer className="mt-20 pt-14 pb-10" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-2)' }}>
     <div className="max-w-6xl mx-auto px-4 md:px-6">
       <div className="grid md:grid-cols-4 gap-10 md:gap-8 mb-12">
         <div className="md:col-span-2">
           <div className="mb-4">
-            <FuelMateLogo markSize={28} wordSize={20} />
+            <MotavoLogo markSize={28} wordSize={20} />
           </div>
           <p className="text-sm leading-relaxed max-w-md" style={{ color: 'var(--text-3)' }}>
             Real-time fuel prices for Australian drivers. Pulled live from state government data feeds — independent, unbiased, free.
@@ -2591,10 +3007,13 @@ const Footer = ({ onNav }) => (
         <div>
           <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>About</div>
           <ul className="space-y-2 text-sm">
+            <li>
+              <a href="/ev" className="ulink" style={{ color: 'var(--text-2)', textDecoration: 'none' }}>EV charging</a>
+            </li>
             {[
-              { label: 'About FuelMate', view: { name: 'about' } },
+              { label: 'About Motavo', view: { name: 'about' } },
+              { label: 'Our data & methodology', view: { name: 'methodology' } },
               { label: 'How fuel cycles work', view: { name: 'editorial', slug: 'cycles' } },
-              { label: 'Contact', view: { name: 'contact' } },
               { label: 'Privacy policy', view: { name: 'privacy' } },
               { label: 'Terms of service', view: { name: 'terms' } },
             ].map(item => (
@@ -2605,9 +3024,10 @@ const Footer = ({ onNav }) => (
           </ul>
         </div>
       </div>
+      <SuburbDirectory />
       <div className="pt-6 text-xs flex flex-col md:flex-row gap-3 md:items-center md:justify-between"
            style={{ borderTop: '1px solid var(--border)', color: 'var(--text-4)' }}>
-        <div>© {new Date().getFullYear()} FuelMate · Independent fuel price comparison.</div>
+        <div>© {new Date().getFullYear()} Motavo · <button type="button" onClick={() => onNav({ name: 'methodology' })} className="ulink" style={{ color: 'inherit', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>Independent fuel price comparison</button>.</div>
         <div className="font-mono text-tiny track-wide uppercase">FuelCheck NSW · FuelWatch WA · QLD · NT · TAS</div>
       </div>
     </div>
@@ -2618,6 +3038,7 @@ const Footer = ({ onNav }) => (
 
 const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, onSearchSelect, onNav, onFuelType, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
   const [stations, setStations] = useState([]);
+  const signals = useCycleSignals(fuelType);
   const [loadingStations, setLoadingStations] = useState(false);
 
   useEffect(() => {
@@ -2636,57 +3057,118 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
     return () => { cancelled = true; };
   }, [location?.key, location?.lat, location?.lng, fuelType]);
   const [viewMode, setViewMode] = useState('list');
-  const [sort, setSort] = useState('price');
+  const [sort, setSort] = useState('distance');
 
   return (
     <div>
-      <section className="relative grid-bg spotlight">
-        <div className="max-w-6xl mx-auto px-4 md:px-6 pt-12 md:pt-20 pb-10 md:pb-16 relative">
-          <div className="max-w-4xl">
-            <Pill tone="accent" className="mb-6">
-              <span className="w-1.5 h-1.5 rounded-full pulse-glow" style={{ background: 'var(--success)' }} />
-              Live · all 8 states and territories
-            </Pill>
-            <h1 className="font-display font-semibold lead-tight tracking-tight" style={{ fontSize: 'clamp(2.75rem, 8vw, 6rem)' }}>
-              The cheapest fuel <br className="hidden sm:inline" /><span className="brand-gradient">near you</span>, in five seconds.
-            </h1>
-            <div className="mt-8 flex items-center gap-3 flex-wrap">
-              <button type="button" onClick={onLocate}
-                className="inline-flex items-center gap-2 px-5 py-3 text-sm font-semibold transition-colors"
-                style={{ background: 'var(--accent)', color: '#ffffff', borderRadius: 10,
-                  boxShadow: '0 0 0 1px rgba(30,95,224,0.30), 0 8px 24px -8px rgba(30,95,224,0.45)' }}>
-                <Navigation size={15} /> Find prices near me
-              </button>
-              <button type="button" onClick={() => onNav({ name: 'cities' })}
-                className="inline-flex items-center gap-1.5 px-5 py-3 text-sm font-medium transition-colors"
-                style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>
-                Browse cities <MoveRight size={14} />
-              </button>
+      {!location && (
+        <section className="hero-mesh">
+          <div className="max-w-6xl mx-auto px-4 md:px-6"
+               style={{ paddingTop: 'clamp(2rem, 8vw, 5.5rem)', paddingBottom: 'clamp(2.5rem, 6vw, 5rem)' }}>
+            <div className="grid md:grid-cols-2 gap-10 md:gap-16 items-start">
+
+              {/* Left: headline + search */}
+              <div>
+                <h1 className="font-display"
+                    style={{ fontSize: 'clamp(2.4rem, 7vw, 5.2rem)', lineHeight: 0.84, letterSpacing: '0.005em', marginBottom: '1.1rem' }}>
+                  Stop overpaying<br/><span style={{ color: 'var(--accent)' }}>for fuel.</span>
+                </h1>
+                <p style={{ color: 'var(--text-3)', fontSize: '1.05rem', lineHeight: 1.6, maxWidth: 440, marginBottom: '2rem' }}>
+                  Real government data, ranked by price or distance. Free, independent, no sponsored results.
+                </p>
+
+                <button type="button" onClick={onLocate} disabled={locating}
+                        className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 font-semibold text-sm transition-opacity disabled:opacity-60"
+                        style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', borderRadius: 0, cursor: locating ? 'default' : 'pointer', marginBottom: '0.75rem' }}>
+                  {locating ? <Loader2 size={15} className="animate-spin" /> : <Navigation size={15} />}
+                  {locating ? 'Finding prices near you…' : 'Find cheapest fuel near me'}
+                </button>
+
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <AddressSearch onSelect={onSearchSelect} variant="large" placeholder="Or search a suburb, postcode or address…" />
+                </div>
+                {locError && (
+                  <p className="text-tiny mt-1" style={{ color: 'var(--warn)' }}>
+                    <AlertCircle size={11} style={{ display: 'inline', marginRight: 4 }} />
+                    Couldn't get your location — try searching instead.
+                  </p>
+                )}
+
+                <button type="button" onClick={() => onNav({ name: 'route' })}
+                        className="hover-raise w-full flex items-center gap-4 px-4 py-4 mt-4 text-left transition-colors"
+                        style={{ background: 'rgba(15, 122, 82,0.06)', border: '1px solid var(--accent)', borderRadius: 0, cursor: 'pointer' }}>
+                  <span className="shrink-0 inline-flex items-center justify-center"
+                        style={{ width: 42, height: 42, background: 'var(--accent)' }}>
+                    <Navigation size={19} color="#ffffff" strokeWidth={2.2} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className="font-display font-semibold text-base" style={{ color: 'var(--text)' }}>Route planner</span>
+                      <span className="font-mono text-micro font-bold uppercase track-wide px-1.5 py-0.5"
+                            style={{ background: 'var(--accent)', color: '#ffffff' }}>New</span>
+                    </span>
+                    <span className="block text-sm mt-0.5" style={{ color: 'var(--text-3)' }}>
+                      Cheapest fuel along your whole trip — not just near you.
+                    </span>
+                  </span>
+                  <ChevronRight size={17} className="shrink-0" style={{ color: 'var(--accent)' }} />
+                </button>
+
+                <AlertSignup />
+
+                <div className="hidden sm:block mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                    Every state and territory, straight from government price feeds.
+                    No station can pay to rank higher — and it's free, always.{' '}
+                    <button type="button" onClick={() => onNav({ name: 'methodology' })}
+                            className="ulink font-medium"
+                            style={{ color: 'var(--text-2)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}>
+                      How our data works →
+                    </button>
+                  </p>
+                </div>
+
+                <button type="button" onClick={() => onNav({ name: 'editorial', slug: 'cycles' })}
+                        className="hover-raise inline-flex items-center gap-3 px-4 py-3 mt-3 transition-colors"
+                        style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
+                  <TrendingDown size={16} style={{ color: 'var(--accent)' }} />
+                  <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>How fuel price cycles work</span>
+                  <ChevronRight size={15} style={{ color: 'var(--text-4)' }} />
+                </button>
+              </div>
+
+              {/* Right: quick city list */}
+              <div>
+                <div className="text-tiny font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Browse by city</div>
+                <div className="space-y-1.5">
+                  {CITIES.map(c => (
+                    <button key={c.slug} type="button" onClick={() => onNav({ name: 'city', slug: c.slug })}
+                            className="hover-raise w-full flex items-center justify-between px-4 py-3 transition-colors"
+                            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0, cursor: 'pointer' }}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-tiny font-semibold" style={{ color: 'var(--accent)', minWidth: 28 }}>{c.state}</span>
+                        <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</span>
+                        {signals[c.state]?.latest != null && (
+                          <span className="font-mono text-tiny tabular-nums" style={{ color: 'var(--text-2)' }}>
+                            from ~{signals[c.state].latest.toFixed(1)}¢
+                          </span>
+                        )}
+                      </div>
+                      <span className="inline-flex flex-col items-end gap-1">
+                        <SignalChip signal={signals[c.state]} state={c.state} />
+                        <span className="text-micro font-mono" style={{ color: 'var(--text-4)' }}>{c.cycle}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 md:px-6 pb-16">
-        {!location ? (
-          <div className="grid md:grid-cols-3 gap-4 md:gap-5">
-            <div className="md:col-span-2">
-              <LocationPrompt onLocate={onLocate} onSample={onSample} onSearchSelect={onSearchSelect} isLocating={locating} hasError={locError} />
-            </div>
-            <div className="surface-card p-6">
-              <Compass size={18} style={{ color: 'var(--accent)' }} className="mb-3" />
-              <h3 className="font-display font-semibold text-lg mb-3">How it works</h3>
-              <ol className="text-sm space-y-3" style={{ color: 'var(--text-3)' }}>
-                {['Share your location or pick a suburb.', 'See live prices ranked by cheapest or closest.', 'Tap a station to get directions.'].map((step, i) => (
-                  <li key={i} className="flex gap-3">
-                    <span className="font-mono font-semibold tabular-nums shrink-0" style={{ color: 'var(--accent)' }}>0{i + 1}</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        ) : (
+        {location ? (
           <div className="space-y-5">
             <div className="flex items-end justify-between flex-wrap gap-3 pt-2">
               <div>
@@ -2695,7 +3177,9 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
                   Around <span style={{ color: 'var(--accent)' }}>{location.label}</span>
                 </h2>
                 <p className="text-sm mt-1.5" style={{ color: 'var(--text-3)' }}>
-                  {stations.length} stations · {FUEL_TYPES.find(f => f.code === fuelType)?.label}
+                  {loadingStations
+                    ? 'Checking live prices…'
+                    : `${stations.length} stations · ${FUEL_TYPES.find(f => f.code === fuelType)?.label}`}
                 </p>
               </div>
               <button type="button" onClick={() => onSample(null)}
@@ -2708,76 +3192,224 @@ const HomeView = ({ location, locating, locError, fuelType, onLocate, onSample, 
 
             <SavingsBanner stations={stations} fuelType={fuelType} />
 
+            <CycleSignal stations={stations} fuelType={fuelType} state={location?.state} cycleLabel={cityForState(location?.state)?.cycle} />
+
             <FuelTypePicker value={fuelType} onChange={onFuelType} />
 
             <PriceStats stations={stations} fuelType={fuelType} />
 
+            <RoutePromo onNav={onNav} />
+
+            {loadingStations ? (
+              <StationSkeleton rows={4} />
+            ) : (
             <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
                          onViewMode={setViewMode} sort={sort} onSort={setSort}
                          reportsByStation={reportsByStationFor(stations)}
                          confirmedSet={confirmedSet}
                          onConfirmReport={onConfirmReport}
-                         onOpenReportModal={onOpenReportModal} />
+                         onOpenReportModal={onOpenReportModal}
+                         userLat={location?.lat}
+                         userLng={location?.lng} />
+            )}
           </div>
-        )}
+        ) : null}
 
-        <div className="my-10">
-          <AdSlot size="leaderboard" label="leaderboard 728×90 — AdSense slot" />
-        </div>
+        {/* Ad slot removed until there's meaningful traffic — re-enable by
+            restoring <AdSlot size="leaderboard" /> here and the AdSense
+            script in app/layout.tsx. */}
 
-        <section>
-          <div className="flex items-baseline justify-between mb-5 flex-wrap gap-2">
-            <div>
-              <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>Capital cities</div>
-              <h2 className="font-display font-semibold text-2xl md:text-3xl">Browse by city</h2>
-            </div>
-            <button type="button" onClick={() => onNav({ name: 'cities' })}
-                    className="text-sm font-medium ulink inline-flex items-center gap-1" style={{ color: 'var(--accent)' }}>
-              All cities <ArrowRight size={14} />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {CITIES.map(c => (
-              <button key={c.slug} type="button"
-                      onClick={() => onNav({ name: 'city', slug: c.slug })}
-                      className="hover-raise p-4 text-left transition-colors"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                <div className="flex items-start justify-between mb-3">
-                  <div className="font-mono text-tiny font-medium track-wide" style={{ color: 'var(--text-4)' }}>{c.state}</div>
-                  <ArrowUpRight size={14} style={{ color: 'var(--text-4)' }} />
-                </div>
-                <div className="font-display font-semibold text-xl md:text-2xl leading-tight mb-1">{c.name}</div>
-                <div className="text-tiny" style={{ color: 'var(--text-4)' }}>Cycle: {c.cycle}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-14">
-          <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>Suburbs</div>
-          <h2 className="font-display font-semibold text-2xl md:text-3xl mb-5">Find prices in your suburb</h2>
-          <div className="surface-card overflow-hidden">
-            <div className="grid md:grid-cols-3">
-              {SUBURBS.map((s, i) => (
-                <button key={s.slug} type="button" onClick={() => onNav({ name: 'suburb', slug: s.slug })}
-                        className="text-left px-4 py-3 transition-colors flex items-baseline justify-between gap-2"
-                        style={{ color: 'var(--text-2)', borderBottom: '1px solid var(--border)',
-                                 borderRight: ((i + 1) % 3 !== 0) ? '1px solid var(--border)' : 'none' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)'; e.currentTarget.style.color = 'var(--text)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-2)'; }}>
-                  <span className="font-medium text-sm">{s.name}</span>
-                  <span className="font-mono text-tiny" style={{ color: 'var(--text-4)' }}>{s.state} {s.postcode}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );
 };
 
-const CitiesIndexView = ({ onNav }) => (
+/* ===== ROUTE PLANNER VIEW =====
+   "Cheapest fuel along my route." Origin + destination via the existing
+   AddressSearch, then /api/route does the heavy lifting server-side
+   (OSRM geometry → sampled station fetches → detour ranking). */
+
+const RouteEndpointPicker = ({ label, value, onPick, onClear }) => (
+  <div>
+    <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>{label}</div>
+    {value ? (
+      <div className="flex items-center justify-between gap-2 px-3 py-2.5"
+           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <span className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+          <MapPin size={13} style={{ display: 'inline', marginRight: 6, color: 'var(--accent)' }} />
+          {value.label}
+        </span>
+        <button type="button" onClick={onClear} aria-label={`Clear ${label}`}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-4)', padding: 2 }}>
+          <X size={14} />
+        </button>
+      </div>
+    ) : (
+      <AddressSearch onSelect={onPick} variant="compact" placeholder="Search suburb, postcode or address…" />
+    )}
+  </div>
+);
+
+const RouteStationRow = ({ station, fuelType, rank, cheapestPrice }) => {
+  const price = station.prices?.[fuelType];
+  const isCheapest = rank === 1;
+  return (
+    <div className="flex items-center gap-3 px-3.5 py-3"
+         style={{
+           background: 'var(--surface)',
+           border: `1px solid ${isCheapest ? 'var(--success)' : 'var(--border)'}`,
+           borderLeft: `3px solid ${isCheapest ? 'var(--success)' : 'var(--border)'}`,
+         }}>
+      <span className="font-mono text-tiny font-bold shrink-0" style={{ color: isCheapest ? 'var(--success)' : 'var(--text-4)', minWidth: 22 }}>
+        #{rank}
+      </span>
+      <BrandMark brand={station.brand} size={32} />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm truncate" style={{ color: 'var(--text)' }}>
+          {station.brand}{station.suburb ? ` · ${station.suburb}` : ''}
+        </div>
+        <div className="text-tiny mt-0.5" style={{ color: 'var(--text-3)' }}>
+          {station.alongKm} km along · {station.detourKm <= 0.3 ? 'on route' : `${station.detourKm} km off route`}
+          {isCheapest && cheapestPrice != null && <span className="font-semibold" style={{ color: 'var(--success)' }}> · Best stop</span>}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <PriceTag cents={price} tone={isCheapest ? 'cheap' : 'default'} />
+      </div>
+      <div className="shrink-0">
+        <DirectionsMenu lat={station.lat} lng={station.lng} label={station.name || station.brand} />
+      </div>
+    </div>
+  );
+};
+
+const RouteView = ({ fuelType, onFuelType }) => {
+  const [from, setFrom] = useState(null);
+  const [to, setTo] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [sort, setSort] = useState('price'); // 'price' | 'along'
+
+  const search = async (f = from, t = to, fuel = fuelType) => {
+    if (!f || !t) return;
+    setLoading(true); setError(null); setResult(null);
+    try {
+      const params = new URLSearchParams({
+        fromLat: String(f.lat), fromLng: String(f.lng),
+        toLat: String(t.lat), toLng: String(t.lng), fuel,
+      });
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 25000);
+      const res = await fetch(`/api/route?${params}`, { signal: ctrl.signal });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Route search failed (${res.status})`);
+      setResult(data);
+    } catch (e) {
+      setError(e?.message === 'The user aborted a request.' ? 'Route search timed out — try again.' : (e?.message || 'Route search failed.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const swap = () => { const f = from; setFrom(to); setTo(f); setResult(null); };
+
+  const handleFuelChange = (fuel) => {
+    onFuelType(fuel);
+    if (from && to) search(from, to, fuel);
+  };
+
+  const stations = result?.stations
+    ? [...result.stations].sort((a, b) =>
+        sort === 'along' ? a.alongKm - b.alongKm : (a.prices[result.fuel] ?? 999) - (b.prices[result.fuel] ?? 999))
+    : [];
+  const cheapestPrice = result?.stations?.[0]?.prices?.[result?.fuel] ?? null;
+  const priceRank = new Map((result?.stations || []).map((s, i) => [s.id, i + 1]));
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-10 md:py-14">
+      <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Route planner</div>
+      <h1 className="font-display font-semibold text-4xl md:text-5xl lead-tight mb-3">
+        Cheapest fuel <span style={{ color: 'var(--accent)' }}>along your route</span>
+      </h1>
+      <p className="text-base mb-8 max-w-xl" style={{ color: 'var(--text-3)' }}>
+        Heading somewhere? Don't pay city-exit prices. Enter your trip and we'll rank every station within 5 km of the way there.
+      </p>
+
+      <div className="space-y-3 mb-4">
+        <RouteEndpointPicker label="From" value={from} onPick={(r) => { setFrom(r); setResult(null); }} onClear={() => { setFrom(null); setResult(null); }} />
+        <div className="flex justify-center">
+          <button type="button" onClick={swap} aria-label="Swap origin and destination"
+                  className="p-1.5 transition-colors"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-3)' }}>
+            <ArrowRight size={13} style={{ transform: 'rotate(90deg)' }} />
+          </button>
+        </div>
+        <RouteEndpointPicker label="To" value={to} onPick={(r) => { setTo(r); setResult(null); }} onClear={() => { setTo(null); setResult(null); }} />
+      </div>
+
+      <FuelTypePicker value={fuelType} onChange={handleFuelChange} compact />
+
+      <button type="button" disabled={!from || !to || loading} onClick={() => search()}
+              className="w-full mt-4 inline-flex items-center justify-center gap-2 px-5 py-3.5 font-semibold text-sm transition-opacity disabled:opacity-40"
+              style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', borderRadius: 0, cursor: (!from || !to || loading) ? 'default' : 'pointer' }}>
+        {loading ? <Loader2 size={15} className="animate-spin" /> : <Navigation size={15} />}
+        {loading ? 'Checking prices along the way…' : 'Find fuel along this route'}
+      </button>
+
+      {error && (
+        <p className="text-sm mt-4" style={{ color: 'var(--warn)' }}>
+          <AlertCircle size={13} style={{ display: 'inline', marginRight: 5 }} />{error}
+        </p>
+      )}
+
+      {result && (
+        <div className="mt-8 fade-up">
+          <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
+            <div>
+              <div className="font-display font-semibold text-2xl">
+                {result.route.distanceKm} km
+                {result.route.durationMin > 0 && <span style={{ color: 'var(--text-3)' }}> · ~{Math.floor(result.route.durationMin / 60) > 0 ? `${Math.floor(result.route.durationMin / 60)}h ` : ''}{result.route.durationMin % 60}m</span>}
+              </div>
+              <div className="text-tiny mt-1" style={{ color: 'var(--text-4)' }}>
+                {stations.length} station{stations.length === 1 ? '' : 's'} within 5 km of your route
+                {result.route.source === 'straight-line' && ' · approximate path (routing unavailable)'}
+              </div>
+            </div>
+            {stations.length > 1 && (
+              <Toggle value={sort} onChange={setSort} options={[
+                { key: 'price', label: 'Cheapest first', icon: TrendingDown },
+                { key: 'along', label: 'In trip order', icon: MoveRight },
+              ]} />
+            )}
+          </div>
+
+          {stations.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-3)' }}>
+              No stations with {result.fuel} prices found within 5 km of this route. Try a different fuel type.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {stations.map((st) => (
+                <RouteStationRow key={st.id} station={st} fuelType={result.fuel}
+                                 rank={priceRank.get(st.id)} cheapestPrice={cheapestPrice} />
+              ))}
+            </div>
+          )}
+
+          <p className="text-tiny mt-5" style={{ color: 'var(--text-4)' }}>
+            Routing © <a className="ulink" href="http://project-osrm.org" target="_blank" rel="noopener noreferrer">OSRM</a> contributors · Prices from official government feeds · Always confirm at the bowser.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CitiesIndexView = ({ onNav }) => {
+  const signals = useCycleSignals('U91');
+  return (
   <div className="max-w-6xl mx-auto px-4 md:px-6 py-12 md:py-16">
     <div className="text-micro font-medium uppercase track-wide mb-3" style={{ color: 'var(--text-4)' }}>Capital cities</div>
     <h1 className="font-display font-semibold text-4xl md:text-6xl lead-tight mb-4">
@@ -2792,11 +3424,16 @@ const CitiesIndexView = ({ onNav }) => (
         <button key={c.slug} type="button"
                 onClick={() => onNav({ name: 'city', slug: c.slug })}
                 className="hover-raise p-6 text-left transition"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 0 }}>
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="font-mono text-tiny font-medium track-wide mb-1.5" style={{ color: 'var(--accent)' }}>{c.state}</div>
               <h2 className="font-display font-semibold text-3xl">{c.name}</h2>
+              {signals[c.state]?.latest != null && (
+                <div className="font-mono text-sm tabular-nums mt-1" style={{ color: 'var(--text-2)' }}>
+                  from ~{signals[c.state].latest.toFixed(1)}¢/L
+                </div>
+              )}
             </div>
             <ArrowUpRight size={20} style={{ color: 'var(--text-3)' }} />
           </div>
@@ -2806,15 +3443,19 @@ const CitiesIndexView = ({ onNav }) => (
               <div className="font-medium font-mono">{c.pop}</div>
             </div>
             <div>
-              <div className="text-micro uppercase track-wide font-medium mb-1" style={{ color: 'var(--text-4)' }}>Cycle</div>
-              <div className="font-medium">{c.cycle}</div>
+              <div className="text-micro uppercase track-wide font-medium mb-1" style={{ color: 'var(--text-4)' }}>Right now</div>
+              <SignalBadge signal={signals[c.state]} state={c.state} />
+              {!signals[c.state] && !NO_FEED_STATES.includes(c.state) && (
+                <div className="font-medium text-sm" style={{ color: 'var(--text-3)' }}>{c.cycle}</div>
+              )}
             </div>
           </div>
         </button>
       ))}
     </div>
   </div>
-);
+  );
+};
 
 const citySource = (state) => ({
   NSW: 'FuelCheck NSW', VIC: 'Servo Saver', QLD: 'QLD Fuel Price Reporting',
@@ -2842,8 +3483,7 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
     return () => { cancelled = true; };
   }, [city.slug, fuelType]);
   const [viewMode, setViewMode] = useState('list');
-  const [sort, setSort] = useState('price');
-  const citySuburbs = SUBURBS.filter(s => s.city === city.slug);
+  const [sort, setSort] = useState('distance');
 
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
@@ -2870,122 +3510,32 @@ const CityView = ({ city, fuelType, onFuelType, onSearchSelect, onNav, reportsBy
 
       <div className="mb-5"><FuelTypePicker value={fuelType} onChange={onFuelType} /></div>
       <div className="mb-5"><SavingsBanner stations={stations} fuelType={fuelType} /></div>
+      <div className="mb-5"><CycleSignal stations={stations} fuelType={fuelType} state={city.state} cycleLabel={city.cycle} /></div>
       <div className="mb-6"><PriceStats stations={stations} fuelType={fuelType} /></div>
-      <div className="my-6"><AdSlot size="leaderboard" /></div>
 
+      {loadingStations ? (
+        <StationSkeleton rows={4} />
+      ) : (
       <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
                    onViewMode={setViewMode} sort={sort} onSort={setSort}
                    reportsByStation={reportsByStationFor(stations)}
                    confirmedSet={confirmedSet}
                    onConfirmReport={onConfirmReport}
-                   onOpenReportModal={onOpenReportModal} />
-
-      {citySuburbs.length > 0 && (
-        <section className="mt-14">
-          <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>In this city</div>
-          <h2 className="font-display font-semibold text-2xl md:text-3xl mb-5">Suburbs in {city.name}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-            {citySuburbs.map(s => (
-              <button key={s.slug} type="button" onClick={() => onNav({ name: 'suburb', slug: s.slug })}
-                      className="hover-raise text-left p-3.5"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                <div className="font-medium text-sm">{s.name}</div>
-                <div className="font-mono text-tiny mt-0.5" style={{ color: 'var(--text-4)' }}>{s.postcode}</div>
-              </button>
-            ))}
-          </div>
-        </section>
+                   onOpenReportModal={onOpenReportModal}
+                   userLat={city.center.lat}
+                   userLng={city.center.lng} />
       )}
+
     </div>
   );
 };
 
-const SuburbView = ({ suburb, fuelType, onFuelType, onSearchSelect, onNav, reportsByStationFor, confirmedSet, onConfirmReport, onOpenReportModal }) => {
-  const [stations, setStations] = useState([]);
-  const [loadingStations, setLoadingStations] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadingStations(true);
-    fetchStationsForLocation({
-      lat: suburb.center.lat,
-      lng: suburb.center.lng,
-      state: suburb.state,
-      fuelType,
-      locationKey: `sub-${suburb.slug}`,
-      count: 12,
-    }).then(s => {
-      if (!cancelled) { setStations(s); setLoadingStations(false); }
-    });
-    return () => { cancelled = true; };
-  }, [suburb.slug, fuelType]);
-  const [viewMode, setViewMode] = useState('list');
-  const [sort, setSort] = useState('price');
-  const parentCity = CITIES.find(c => c.slug === suburb.city);
-
-  return (
-    <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 md:py-12">
-      <div className="text-sm mb-5 inline-flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--text-4)' }}>
-        <button type="button" onClick={() => onNav({ name: 'home' })} className="ulink">Home</button>
-        <ChevronRight size={12} />
-        {parentCity ? (
-          <>
-            <button type="button" onClick={() => onNav({ name: 'city', slug: parentCity.slug })} className="ulink">{parentCity.name}</button>
-            <ChevronRight size={12} />
-          </>
-        ) : null}
-        <span style={{ color: 'var(--text)' }} className="font-medium">{suburb.name}</span>
-      </div>
-
-      <div className="mb-8">
-        <div className="font-mono text-tiny font-medium track-wide mb-2" style={{ color: 'var(--accent)' }}>{suburb.state} · {suburb.postcode}</div>
-        <h1 className="font-display font-semibold text-4xl md:text-5xl lead-tight mb-3">
-          Cheapest fuel in <span className="brand-gradient">{suburb.name}</span>
-        </h1>
-        <p className="text-base md:text-lg max-w-2xl" style={{ color: 'var(--text-3)' }}>
-          {stations.length} stations within a ~10km radius, ranked by today's price.
-        </p>
-      </div>
-
-      <div className="mb-5">
-        <AddressSearch onSelect={onSearchSelect} variant="compact" placeholder="Change location — search address, suburb, or postcode…" />
-      </div>
-
-      <div className="mb-5"><FuelTypePicker value={fuelType} onChange={onFuelType} /></div>
-      <div className="mb-5"><SavingsBanner stations={stations} fuelType={fuelType} /></div>
-      <div className="mb-6"><PriceStats stations={stations} fuelType={fuelType} /></div>
-      <div className="my-6"><AdSlot size="leaderboard" /></div>
-
-      <StationList stations={stations} fuelType={fuelType} viewMode={viewMode}
-                   onViewMode={setViewMode} sort={sort} onSort={setSort}
-                   reportsByStation={reportsByStationFor(stations)}
-                   confirmedSet={confirmedSet}
-                   onConfirmReport={onConfirmReport}
-                   onOpenReportModal={onOpenReportModal} />
-
-      <section className="mt-14 p-7 md:p-9 relative overflow-hidden"
-               style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14 }}>
-        <div aria-hidden="true" className="absolute inset-0 pointer-events-none"
-             style={{ background: 'radial-gradient(circle at 0% 100%, rgba(22,160,133,0.10), transparent 60%)' }} />
-        <div className="relative">
-          <h2 className="font-display font-semibold text-2xl md:text-3xl mb-3 lead-tight">Save more in {suburb.name}</h2>
-          <p className="text-sm md:text-base mb-1" style={{ color: 'var(--text-2)' }}>
-            A few habits compound: fill up early in the cycle, avoid weekend peaks, and check before — not at — the pump.
-          </p>
-          <p className="text-sm" style={{ color: 'var(--text-3)' }}>
-            The {suburb.state} cycle pattern affects every station in this list, even between brands.
-          </p>
-        </div>
-      </section>
-    </div>
-  );
-};
 
 const EditorialView = ({ slug, onNav }) => {
   if (slug !== 'cycles') return null;
   return (
     <article className="max-w-3xl mx-auto px-4 md:px-6 py-12 md:py-16">
-      <Pill tone="accent" className="mb-4">Explainer · 6 min read</Pill>
+      <Pill tone="brand" className="mb-4">Explainer · 6 min read</Pill>
       <h1 className="font-display font-semibold text-4xl md:text-6xl lead-tight mb-5">
         How Australian fuel <span className="brand-gradient">price cycles</span> actually work
       </h1>
@@ -3014,7 +3564,7 @@ const EditorialView = ({ slug, onNav }) => {
           <li>If you're wrong about the cycle, you're paying ~$10 extra per tank. Per fortnight that's $250 a year. Every year.</li>
         </ol>
 
-        <h2 className="font-display font-semibold text-2xl md:text-3xl mt-10 mb-2" style={{ color: 'var(--text)' }}>What FuelMate does</h2>
+        <h2 className="font-display font-semibold text-2xl md:text-3xl mt-10 mb-2" style={{ color: 'var(--text)' }}>What Motavo does</h2>
         <p>We pull live prices straight from the state schemes (NSW, QLD, WA, NT, TAS, ACT) and surface the cheapest stations near you in real time. Pattern recognition is automatic — if a price is unusually low in your area, you'll see it.</p>
         <p className="pt-2">
           <button type="button" onClick={() => onNav({ name: 'home' })}
@@ -3023,7 +3573,6 @@ const EditorialView = ({ slug, onNav }) => {
           </button>
         </p>
       </div>
-      <div className="my-12"><AdSlot size="rectangle" /></div>
     </article>
   );
 };
@@ -3042,40 +3591,19 @@ const StaticPage = ({ icon: Icon, title, intro, body }) => (
 );
 
 const AboutView = () => (
-  <StaticPage icon={Info} title="About FuelMate"
-    intro="FuelMate is an independent fuel price comparison site for Australian drivers. We don't sell fuel, run stations, or take payments from retailers in exchange for placement."
+  <StaticPage icon={Info} title="About Motavo"
+    intro="Motavo is an independent comparison tool for Australian drivers. Compare live fuel prices and find EV charging in one place. We don't sell fuel or electricity, run stations, or take payments from providers in exchange for placement."
     body={<>
       <h2 className="font-display font-semibold text-2xl mt-2" style={{ color: 'var(--text)' }}>What we do</h2>
-      <p>We pull live retail fuel prices from the state government schemes that publish them: FuelCheck NSW, FuelWatch WA, the QLD Fuel Price Reporting scheme, MyFuel NT and FuelCheck TAS. We rank those prices by location, fuel type and distance, and present them in a way that's actually fast on a phone.</p>
+      <p>For fuel, we pull live retail prices from the state government schemes that publish them — FuelCheck NSW, FuelWatch WA, the QLD Fuel Price Reporting scheme, MyFuel NT, FuelCheck TAS and the rest — and rank them by location, fuel type and distance. For EV, we show live public charger locations from Open Charge Map, with connector types, charging speed and indicative network pricing. Everything's built to be fast on a phone.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>What we don't do</h2>
-      <p>We don't have a native app. We don't make you create an account. We don't bury the cheapest result behind a paywall. We don't prioritise paid retailers — you see prices ranked by price, full stop.</p>
+      <p>We don't make you create an account. We don't bury the cheapest result behind a paywall. We don't prioritise paid retailers or networks — fuel is ranked by price, full stop, and chargers are shown by distance.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Coverage</h2>
-      <p>NSW, QLD, WA, NT, TAS and the ACT are live now. Victoria and South Australia don't have a comparable government scheme; we'll add them once we can do it properly rather than poorly.</p>
+      <p>Fuel prices are live across the states and territories that run a government price scheme. EV charging is available Australia-wide through Open Charge Map. A note on EV pricing: there's no live, per-charger price feed in Australia, so we show indicative network rates — always confirm the exact cost in the operator's app before you charge.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Where we're headed</h2>
+      <p>Motavo is growing from a fuel tool into a broader app for the cost of driving. Fuel and EV charging are live today; we're looking at parking and other driving costs next.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>How we make money</h2>
-      <p>We run display ads on the site (the boxed slots you see above and below the price lists) and earn a modest commission if you sign up to a fuel card or motoring membership through one of our partner links. Ads don't influence which stations appear, or in what order — that's locked to price.</p>
-    </>} />
-);
-
-const ContactView = () => (
-  <StaticPage icon={Mail} title="Contact"
-    intro="Spot a price that looks wrong, want to suggest a feature, or covering us in a story? Get in touch."
-    body={<>
-      <div className="surface-card p-6 md:p-7 space-y-5" style={{ borderRadius: 14 }}>
-        {[
-          { label: 'General enquiries', email: 'hello@fuelmate.com.au' },
-          { label: 'Press & partnerships', email: 'press@fuelmate.com.au' },
-          { label: 'Data corrections', email: 'data@fuelmate.com.au', note: 'We aggregate from official feeds. If a price is wrong on our site, it\'s almost always already wrong upstream. We\'ll still pass it on.' },
-        ].map(({ label, email, note }) => (
-          <div key={email}>
-            <div className="text-micro font-medium uppercase track-wide mb-1.5" style={{ color: 'var(--text-4)' }}>{label}</div>
-            <a className="text-lg font-mono font-medium ulink" style={{ color: 'var(--text)' }} href={`mailto:${email}`}>{email}</a>
-            {note && <p className="text-sm mt-1.5" style={{ color: 'var(--text-3)' }}>{note}</p>}
-          </div>
-        ))}
-      </div>
-      <p className="text-sm" style={{ color: 'var(--text-4)' }}>
-        We aim to reply within 2 business days. FuelMate is operated by an independent Australian sole trader.
-      </p>
+      <p>We run display ads on the site and earn a modest commission if you sign up to a fuel card, EV charging plan or motoring membership through one of our partner links. Ads and partners never influence which results appear, or in what order — that's locked to price and distance.</p>
     </>} />
 );
 
@@ -3089,7 +3617,7 @@ const PrivacyView = () => (
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>What we don't collect</h2>
       <p>We don't ask for your name, email, payment details or any other personal information to use the site. We don't sell or rent any data to third parties.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Your rights</h2>
-      <p>Under the Australian Privacy Principles, you can request a copy of any personal information we hold about you, ask for it to be corrected, or ask for it to be deleted. Email <a className="font-medium ulink" style={{ color: 'var(--accent)' }} href="mailto:privacy@fuelmate.com.au">privacy@fuelmate.com.au</a>.</p>
+      <p>Under the Australian Privacy Principles, you can request a copy of any personal information we hold about you, ask for it to be corrected, or ask for it to be deleted. Email <a className="font-medium ulink" style={{ color: 'var(--accent)' }} href="mailto:privacy@motavo.au">privacy@motavo.au</a>.</p>
       <p className="text-sm" style={{ color: 'var(--text-4)' }}>Last updated: {new Date().toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' })}.</p>
     </>} />
 );
@@ -3099,13 +3627,47 @@ const TermsView = () => (
     intro="The short version: this site is provided as-is, prices come from third-party sources, and you should always confirm the price at the bowser before filling up."
     body={<>
       <h2 className="font-display font-semibold text-2xl" style={{ color: 'var(--text)' }}>Use of the site</h2>
-      <p>FuelMate is a free comparison service. You're welcome to use it for personal, non-commercial purposes. Don't scrape it, automate it, or republish data from it without written permission.</p>
+      <p>Motavo is a free comparison service. You're welcome to use it for personal, non-commercial purposes. Don't scrape it, automate it, or republish data from it without written permission.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Accuracy of pricing</h2>
       <p>We display prices supplied by state government feeds. Prices change frequently and may not reflect what's on the bowser when you arrive. We make no warranties about accuracy and accept no liability for decisions made based on our data. Always confirm at the pump.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Affiliate links</h2>
       <p>Some links on this site are affiliate links. If you sign up to a product through one, we may receive a commission. This never affects the ranking of fuel prices.</p>
       <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Governing law</h2>
       <p>These terms are governed by the laws of New South Wales, Australia.</p>
+    </>} />
+);
+
+const MethodologyView = () => (
+  <StaticPage icon={Gauge} title="Our data & methodology"
+    intro="Every price on Motavo comes from an official government feed or an open dataset — never from retailers paying for placement. Here's exactly where the data comes from, how often it updates, and how we rank results."
+    body={<>
+      <h2 className="font-display font-semibold text-2xl mt-2" style={{ color: 'var(--text)' }}>Fuel price sources</h2>
+      <p>Each state and territory runs its own mandatory price reporting scheme. We pull directly from each one:</p>
+      <ul className="space-y-2.5 text-base" style={{ listStyle: 'none', padding: 0 }}>
+        {[
+          ['NSW', 'FuelCheck NSW', 'Stations must report price changes as they happen — typically live within minutes.'],
+          ['VIC', 'Servo Saver Victoria', 'Published daily by the Victorian government.'],
+          ['QLD', 'QLD Fuel Price Reporting', 'Stations must report changes within 30 minutes.'],
+          ['WA', 'FuelWatch WA', "Prices are locked for 24 hours — tomorrow's prices publish at 2:30pm today, which is why Perth's cycle is so predictable."],
+          ['SA', 'SA Fuel Pricing Scheme', 'Stations must report changes within 30 minutes.'],
+          ['NT', 'MyFuel NT', 'Stations must report price changes within 30 minutes.'],
+          ['TAS & ACT', 'FuelCheck', 'Covered under the same scheme as NSW.'],
+        ].map(([state, scheme, note]) => (
+          <li key={state} className="flex gap-3 items-baseline">
+            <span className="font-mono text-tiny font-semibold shrink-0 uppercase track-wide" style={{ color: 'var(--accent)', minWidth: 70 }}>{state}</span>
+            <span><span className="font-semibold" style={{ color: 'var(--text)' }}>{scheme}</span> — {note}</span>
+          </li>
+        ))}
+      </ul>
+      <p>Every result shows how long ago its price was last updated. If a feed is having issues, we say so rather than showing stale numbers as fresh.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>EV charging data</h2>
+      <p>Charger locations, connector types and speeds come from <a className="font-medium ulink" style={{ color: 'var(--accent)' }} href="https://openchargemap.org" target="_blank" rel="noopener noreferrer">Open Charge Map</a>, an open global registry. Australia has no live per-charger price feed, so charging costs shown are indicative network rates we verify manually and date-stamp — always confirm in the operator's app before charging.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>The cycle signal</h2>
+      <p>Our "fill up now / hold off" verdicts compare today's cheapest price against the recent low–high range we log daily for your city. We deliberately show nothing until we have at least four days of history and a meaningful price spread — no fake confidence.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>How results are ranked</h2>
+      <p>Fuel is ranked by price or distance — your choice, nothing else. No station, brand or network can pay to appear higher. Display ads and affiliate links on the site are clearly separate from results and never influence rankings.</p>
+      <h2 className="font-display font-semibold text-2xl mt-8" style={{ color: 'var(--text)' }}>Limitations, honestly</h2>
+      <p>Prices can change between a station reporting and you arriving — always confirm at the bowser. Community price reports are flagged as unverified until confirmed by others. WA prices are technically "today's locked prices" rather than live. We'd rather you know the edges of the data than trust it blindly.</p>
     </>} />
 );
 
@@ -3116,7 +3678,7 @@ const NotFound = ({ onNav }) => (
     <p className="mb-8" style={{ color: 'var(--text-3)' }}>That page doesn't exist — or hasn't been built yet.</p>
     <button type="button" onClick={() => onNav({ name: 'home' })}
             className="px-5 py-3 font-semibold inline-flex items-center gap-1.5"
-            style={{ background: 'var(--accent)', color: '#ffffff', borderRadius: 10 }}>
+            style={{ background: 'var(--accent)', color: '#ffffff', borderRadius: 0 }}>
       Back to home <ArrowRight size={16} />
     </button>
   </div>
@@ -3124,15 +3686,15 @@ const NotFound = ({ onNav }) => (
 
 /* ===== APP ===== */
 
-export default function App() {
-  const [view, setView] = useState({ name: 'home' });
+export default function App({ initialView, initialLocation } = {}) {
+  const [view, setView] = useState(initialView || { name: 'home' });
+  const [mode, setMode] = useState('fuel'); // 'fuel' | 'ev' — home view toggle
   const [fuelType, setFuelType] = useState('U91');
-  const [location, setLocation] = useState(null);
+  const [location, setLocation] = useState(initialLocation || null);
   const [locating, setLocating] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('fm:theme') === 'dark' ||
-        (!localStorage.getItem('fm:theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      return localStorage.getItem('fm:color-scheme') === 'dark';
     }
     return false;
   });
@@ -3171,34 +3733,16 @@ export default function App() {
       ]);
       if (cancelled) return;
 
-      if (savedLocation) setLocation(savedLocation);
+      // Restore the last location so a returning visitor lands straight on
+      // their prices (GasBuddy-style) instead of a blank homepage. Only on
+      // the bare homepage — never override a suburb page's initialLocation.
+      if (savedLocation?.lat && savedLocation?.lng && !initialLocation) {
+        setLocation(savedLocation);
+      }
       if (savedFuel) setFuelType(savedFuel);
       if (Array.isArray(savedConfirms)) setConfirmedReportIds(new Set(savedConfirms));
 
       hydratedRef.current = true;
-
-      // Background-only refresh: only if we already had a saved geolocation
-      // (so the user sees something immediately), AND consent is granted,
-      // AND it's not been refreshed recently. Failure here is silent.
-      if (savedConsent === 'granted'
-          && savedLocation?.key === 'geo'
-          && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (cancelled) return;
-            setLocation((prev) => ({
-              ...(prev || {}),
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              key: 'geo',
-              label: prev?.label || 'your current location',
-              state: prev?.state || 'NSW',
-            }));
-          },
-          () => { /* silent — saved location stays */ },
-          { enableHighAccuracy: false, timeout: 4000, maximumAge: 5 * 60_000 }
-        );
-      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -3225,6 +3769,7 @@ export default function App() {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'instant' });
   }, [view.name, view.slug]);
 
+
   // Global ⌘K / Ctrl+K to open search
   useEffect(() => {
     const handler = (e) => {
@@ -3242,9 +3787,8 @@ export default function App() {
   const getReportsForStation = useCallback((station) => {
     if (!station) return [];
     const cutoff = Date.now() - REPORT_FRESHNESS_MIN * 60_000;
-    const seed = getSeedReports(station);
     const user = userReports[station.id] || [];
-    return [...seed, ...user].filter(r => r.timestamp >= cutoff);
+    return user.filter(r => r.timestamp >= cutoff);
   }, [userReports]);
 
   const reportsByStationFor = useCallback((stations) => {
@@ -3277,6 +3821,20 @@ export default function App() {
     showToast('Confirmed — thanks!');
   }, [showToast]);
 
+  // If the user landed on /near-me, trigger geolocation once on mount.
+  const didAutoLocate = useRef(false);
+  useEffect(() => {
+    if (initialView?.locate && !didAutoLocate.current) {
+      didAutoLocate.current = true;
+      // Defer slightly so the UI paints first
+      const t = setTimeout(() => handleLocateRef.current?.(), 300);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLocateRef = useRef(null);
+
   const handleLocate = useCallback(() => {
     setLocError(false);
     setLocating(true);
@@ -3293,7 +3851,8 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         clearTimeout(recoveryTimer);
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, key: 'geo', label: 'your current location', state: 'NSW' });
+        const gLat = pos.coords.latitude, gLng = pos.coords.longitude;
+        setLocation({ lat: gLat, lng: gLng, key: 'geo', label: 'your current location', state: stateFromCoords(gLat, gLng) });
         setLocating(false);
         setView({ name: 'home' });
         fmStorage.set(STORAGE_KEYS.geoConsent, 'granted');
@@ -3307,6 +3866,9 @@ export default function App() {
       { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
     );
   }, []);
+
+  // Keep the ref pointing at the latest handleLocate (used by /near-me auto-locate)
+  handleLocateRef.current = handleLocate;
 
   const handleSample = useCallback((sampleKey) => {
     if (!sampleKey) { setLocation(null); setLocError(false); return; }
@@ -3323,8 +3885,6 @@ export default function App() {
   const handleSearchSelect = useCallback((result) => {
     if (result.type === 'city') {
       setView({ name: 'city', slug: result.slug });
-    } else if (result.type === 'suburb') {
-      setView({ name: 'suburb', slug: result.slug });
     } else {
       setLocation({
         lat: result.lat,
@@ -3347,29 +3907,31 @@ export default function App() {
   const renderView = () => {
     switch (view.name) {
       case 'home':
-        return <HomeView location={location} locating={locating} locError={locError}
-                         fuelType={fuelType} onFuelType={setFuelType}
-                         onLocate={handleLocate} onSample={handleSample}
-                         onSearchSelect={handleSearchSelect} onNav={setView}
-                         {...reportsCommonProps} />;
+        return (
+          <>
+            <ModeToggle mode={mode} onMode={setMode} />
+            {mode === 'ev'
+              ? <EVPanel />
+              : <HomeView location={location} locating={locating} locError={locError}
+                          fuelType={fuelType} onFuelType={setFuelType}
+                          onLocate={handleLocate} onSample={handleSample}
+                          onSearchSelect={handleSearchSelect} onNav={setView}
+                          {...reportsCommonProps} />}
+          </>
+        );
       case 'cities':
         return <CitiesIndexView onNav={setView} />;
+      case 'route':
+        return <RouteView fuelType={fuelType} onFuelType={setFuelType} />;
       case 'city': {
         const c = CITIES.find(x => x.slug === view.slug) || CITIES[0];
-        return <CityView city={c} fuelType={fuelType} onFuelType={setFuelType}
+        return <CityView key={view.slug} city={c} fuelType={fuelType} onFuelType={setFuelType}
                          onSearchSelect={handleSearchSelect} onNav={setView}
                          {...reportsCommonProps} />;
-      }
-      case 'suburb': {
-        const s = SUBURBS.find(x => x.slug === view.slug);
-        if (!s) return <NotFound onNav={setView} />;
-        return <SuburbView suburb={s} fuelType={fuelType} onFuelType={setFuelType}
-                           onSearchSelect={handleSearchSelect} onNav={setView}
-                           {...reportsCommonProps} />;
       }
       case 'editorial': return <EditorialView slug={view.slug} onNav={setView} />;
       case 'about':   return <AboutView />;
-      case 'contact': return <ContactView />;
+      case 'methodology': return <MethodologyView />;
       case 'privacy': return <PrivacyView />;
       case 'terms':   return <TermsView />;
       default:        return <NotFound onNav={setView} />;
@@ -3381,7 +3943,7 @@ export default function App() {
       <GlobalStyles />
       <Header
         onNav={setView}
-        onHome={() => { setLocation(null); setView({ name: 'home' }); }}
+        onHome={() => { setLocation(null); setMode('fuel'); setView({ name: 'home' }); }}
         fuelType={fuelType}
         onFuelType={setFuelType}
         onOpenSearch={() => setSearchOpen(true)}
@@ -3389,7 +3951,7 @@ export default function App() {
         onToggleDark={() => {
           const next = !darkMode;
           setDarkMode(next);
-          localStorage.setItem('fm:theme', next ? 'dark' : 'light');
+          localStorage.setItem('fm:color-scheme', next ? 'dark' : 'light');
         }}
       />
       <main className="flex-1">{renderView()}</main>

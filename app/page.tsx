@@ -1,4 +1,4 @@
-import FuelMate from './components/FuelMate';
+import Motavo from './components/Motavo';
 
 export default function Page() {
   return (
@@ -6,12 +6,12 @@ export default function Page() {
       {/*
         This section is visible to search engines and screen readers even
         without JavaScript. It gives Google enough content to assess the site.
-        Visually hidden — FuelMate renders the real UI over the top.
+        Visually hidden — Motavo renders the real UI over the top.
       */}
       <div style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap' }}>
-        <h1>FuelMate — Cheapest Fuel Prices in Australia</h1>
+        <h1>Motavo — Cheapest Fuel Prices in Australia</h1>
         <p>
-          FuelMate shows real-time fuel prices from Australian government data feeds.
+          Motavo shows real-time fuel prices from Australian government data feeds.
           Compare petrol, diesel, LPG and E10 prices at stations near you across
           New South Wales, Victoria, Queensland, Western Australia, South Australia,
           Tasmania, Northern Territory and the ACT. Find the cheapest unleaded,
@@ -40,7 +40,7 @@ export default function Page() {
           the cycle can save Australian drivers up to $20 per tank each year.
         </p>
       </div>
-      <FuelMate />
+      <Motavo />
     </>
   );
 }

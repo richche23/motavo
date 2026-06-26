@@ -2,9 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* All custom CSS variables and classes used by FuelMate.jsx are defined inline
+/* All custom CSS variables and classes used by Motavo.jsx are defined inline
    in the component's <style> block via the GlobalStyles component, so this
    file only needs Tailwind. Body resets are kept minimal. */
 
-html, body { background: #f7f9fc; color: #0f172a; }
+html, body { background: #f6f5f1; color: #0e1116; }
 body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
